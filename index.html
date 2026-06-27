@@ -1237,7 +1237,7 @@ wireDrop($("#dropL"),$("#fileL"),f=>{
     .catch(err=>{ $("#logBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 function analyzeLog(text){
-  const lines=text.split("\n").map(l=>l.replace(/\r$/,""));
+  const lines=text.split("\n").map(l=>l.replace(/[\r\s]+$/,""));
   const compatible = /^(Fatal|Error|Warning|Notice|Info|Ok):\s+\S.*#.*#/m.test(text) || /Crestron Information Tool|={6,}=|err plogcurrent|could not be solved|LogicEngine|cpuload/i.test(text);
   const tsRe=/(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)/;
   const ts=l=>{const m=l.match(tsRe);return m?m[1]:null;};
@@ -1248,22 +1248,40 @@ function analyzeLog(text){
   for(const l of lines){const t=ts(l); if(t){ if(firstTs===null)firstTs=t; lastTs=t; }}
   const spanH=(firstTs&&lastTs)?Math.max(0,(toS(lastTs)-toS(firstTs))/3600):null;
   const suspended=lines.some(l=>/logging is suspended|Error state threshold met|Consecutive error states detected/i.test(l));
+  // boots / firmware / model from "System startup <model> Cntrl Eng [vX ...]" lines
+  const boots=[]; let bootModel="", bootFw="";
+  for(const l of lines){ const bm=l.match(/System startup\s+(.+?)\s+(?:Cntrl|Control)\s+Eng[^\[]*\[v?([0-9][0-9.]+)/i);
+    if(bm){ boots.push(ts(l)); if(!bootModel)bootModel=bm[1].trim(); if(!bootFw)bootFw=bm[2]; } }
+  // missing program files (a Fatal that means a bad/partial upload) + cross-program device conflicts
+  const missingFiles=[...new Set(lines.filter(l=>/FileName:\s*\S+\.(bin|dip|rte|lpz|csz|smw)/i.test(l)).map(l=>{const mm=l.match(/FileName:\s*(\S+)/i);return mm?mm[1].replace(/\.$/,""):"";}).filter(Boolean))];
+  const devConflicts=[...new Set(lines.filter(l=>/already in use by Program|Exclusive device/i.test(l)).map(l=>{const mm=l.match(/#\s*[\d:\- ]+#\s*(.*)$/);return mm?mm[1].trim().replace(/\r+$/,""):"";}).filter(Boolean))];
 
   // recurring errors, with per-group timing
   const reErr=/^\s*\d*\.?\s*(Fatal|Error|Warning|Notice|Info|Ok):\s*([^#]+)#\s*[\d:\- ]+#\s*(.*)$/;
   const tally=new Map(); let errN=0,warnN=0,fatalN=0; const sources=new Set();
+  const wrote=str=>{ const w=str.match(/\(written (\d+) times\)/i); return w?Math.max(1,parseInt(w[1],10)||1):0; };
+  // Build logical entries: Crestron wraps one long message across several re-prefixed lines that
+  // share the same severity+source+timestamp, and appends repeat counts as "(written N times)"
+  // (inline or on a trailing line). Rejoin them so messages are whole and counts are real.
+  const entries=[]; let cur=null;
   for(const l of lines){
-    const m=l.match(reErr); if(!m)continue;
-    const sev=m[1], who=m[2].trim().replace(/\[App\d+\]|\[\d+\]/g,"").trim();
-    const raw=m[3].trim();
+    const m=l.match(reErr);
+    if(m){
+      const sev=m[1], who=m[2].trim().replace(/\[App\d+\]|\[\d+\]/g,"").trim(), tstr=ts(l)||"", raw=m[3].trim();
+      if(cur && cur.sev===sev && cur.who===who && cur.tstr===tstr && tstr){ cur.raw=(cur.raw+" "+raw).slice(0,1600); }
+      else { cur={sev,who,tstr,raw,t:toS(tstr),rep:0}; entries.push(cur); }
+    } else if(cur){ const rep=wrote(l); if(rep)cur.rep=Math.max(cur.rep,rep); else if(l.trim())cur.raw=(cur.raw+" "+l.trim()).slice(0,1600); }
+  }
+  for(const e of entries){
+    const mult=Math.max(e.rep,wrote(e.raw),1);
+    const raw=e.raw.replace(/\s*\(written \d+ times\)\s*/ig," ").trim();
     let msg=raw.replace(/\d+/g,"N").replace(/0x[0-9a-fA-F]+/g,"0xN").slice(0,90);
-    if(sev==="Ok"&&/read only access/.test(msg))continue;
-    if(sev==="Error"||sev==="Fatal"){errN++; if(sev==="Fatal")fatalN++;} else if(sev==="Warning")warnN++;
-    if(who)sources.add(who);
-    const t=toS(ts(l));
-    const key=sev+"|"+who+"|"+msg;
-    let g=tally.get(key); if(!g){g={sev,who,msg,example:raw.slice(0,600),n:0,first:null,last:null};tally.set(key,g);}
-    g.n++; if(t!=null){ if(g.first===null||t<g.first)g.first=t; if(g.last===null||t>g.last)g.last=t; }
+    if(e.sev==="Ok"&&/read only access/.test(msg))continue;
+    if(e.sev==="Error"||e.sev==="Fatal"){errN+=mult; if(e.sev==="Fatal")fatalN+=mult;} else if(e.sev==="Warning")warnN+=mult;
+    if(e.who)sources.add(e.who);
+    const key=e.sev+"|"+e.who+"|"+msg;
+    let g=tally.get(key); if(!g){g={sev:e.sev,who:e.who,msg,example:raw.slice(0,600),n:0,first:null,last:null};tally.set(key,g);}
+    g.n+=mult; if(e.t!=null){ if(g.first===null||e.t<g.first)g.first=e.t; if(g.last===null||e.t>g.last)g.last=e.t; }
   }
   const rated=g=>{
     const span=(g.first!=null&&g.last!=null)?(g.last-g.first):null;
@@ -1333,7 +1351,7 @@ function analyzeLog(text){
   periodic.sort((a,b)=>b.count-a.count);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
-    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds], periodic };
+    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds], periodic, boots, bootModel, bootFw, missingFiles, devConflicts };
 }
 function parseDiscovered(text){
   const sec=sectionOf(text,"autodiscovery query tableformat"); if(!sec)return [];
@@ -1458,6 +1476,15 @@ function runLog(name,text){
       ${stat(`<span class="data">${fmtSpan(a.spanH)}</span>`,"Log span")}
     </div>
     <p class="verdict">${triage}</p></div>`;
+  if(!sys && (a.bootModel||a.bootFw||a.boots.length)){
+    html+=`<div class="panel" style="margin-top:14px"><h3>System</h3><div class="row">${a.bootModel?stat(`<span class="data">${esc(a.bootModel)}</span>`,"Model"):""}${a.bootFw?stat(`<span class="data">${esc(a.bootFw)}</span>`,"Firmware"):""}${stat(`<span class="data">${a.boots.length.toLocaleString()}</span>`,a.boots.length===1?"Boot in this log":"Boots (restarts)")}</div>${a.boots.length>1?`<p class="foot-note"><b>${a.boots.length} system starts</b> in this log — repeated reboots are a top-priority symptom; line them up with the timeouts and drops below.</p>`:""}</div>`;
+  }
+  if(a.missingFiles.length||a.devConflicts.length){
+    let cb="";
+    if(a.missingFiles.length)cb+=`<div class="lbl">Program files the processor expected but could not find (failed / partial upload, or version mismatch)</div>`+tbl([{t:"Missing file"}],a.missingFiles.map(f=>`<tr><td class="data">${esc(f)}</td></tr>`).join(""));
+    if(a.devConflicts.length)cb+=`<div class="lbl" style="margin-top:12px">A device claimed by more than one program</div>`+tbl([{t:"Conflict"}],a.devConflicts.map(c=>`<tr><td class="data">${esc(c)}</td></tr>`).join(""));
+    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Critical &mdash; look here first</h3>${cb}<p class="foot-note">Config / boot problems, not background noise: a device two programs both claim, or program files the box couldn&rsquo;t load. These often cause the error storms below.</p></div>`;
+  }
 
   html+=`<div class="panel" style="margin-top:14px"><h3>Recurring problems <span class="muted" style="text-transform:none;letter-spacing:0">— warnings &amp; errors by frequency</span><span class="ct">${a.recurring.length.toLocaleString()}</span></h3>`;
   if(a.recurring.length){

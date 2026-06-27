@@ -77,3 +77,13 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
   another program (from `Dv.Nm`), which a bare IP/model never tells you. (Replaces the old
   separate "Ethernet devices" + "IP-ID table" — they were two redundant IP-ID lists.)
 - ✅ Cresnet / RF / other — manufacturer/type, plus **which gateway each sits behind** (a
+Log analyzer (`.err` / Info-Tool / PLOG `.zip`):
+- ✅ Triage, recurring errors by rate, solve timeouts, device drops (+ periodic cadence), CPU,
+  failed-login surges, program↔log correlation (names dropping devices, ties timeouts to loops)
+- ✅ Correct multi-line + repeat parsing: rejoin Crestron's wrapped messages (same
+  sev+source+timestamp) and apply `(written N times)` multipliers (one real `.err` had 11,752
+  collapsed repeats we'd been ignoring)
+- ✅ Double-CR fix: lines ending `\r\r\n` were dropped (stripped only one `\r`); one real `.err`
+  lost ~2/3 of errors (3,930 → 11,587), incl. the Fatal "missing program files"
+- ✅ System strip (model/firmware/boot count from "System startup …") + Critical panel
+  (missing program files at boot, device claimed by two programs)

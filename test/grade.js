@@ -157,6 +157,17 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("log: dropping IP-IDs captured for correlation", al.dropIds.includes("1A")); }
 { const L=[]; for(let i=0;i<6;i++){const mm=String(i*5).padStart(2,"0"); L.push("Warning: Eth # 2026-06-25 12:"+mm+":00 # End of Query Acknowledge not received from IP-ID-2A");}
   const al=w.analyzeLog(L.join("\n")); has("log: regular-interval (periodic) drops detected", al.periodic.length>=1 && al.periodic[0].everyS===300); }
+{ const lg=["Notice: a_console # 2026-06-10 11:38:02 # System startup CP4 Cntrl Eng [v2.8001.00098 (Jul 26 2023)]",
+    "Error: X # 2026-06-10 11:38:40 # boom (written 5 times)",
+    "Fatal: LogicEngine_1 # 2026-06-10 11:38:40 # The following file(s) are missing\r\r",
+    "Fatal: LogicEngine_1 # 2026-06-10 11:38:40 # FileName: 01_CP4_Main.bin.",
+    "Error: LE # 2026-06-10 11:39:00 # Exclusive device Slot-10 Port 1 is already in use by Program 02"].join("\n");
+  const al=w.analyzeLog(lg);
+  has("log: double-CR Fatal line parsed not dropped", al.fatalN>=1);
+  has("log: (written N times) multiplier counted", al.errN>=5);
+  ck("log: boot model + firmware extracted",[al.bootModel,al.bootFw],["CP4","2.8001.00098"]);
+  has("log: missing program files surfaced", al.missingFiles.some(f=>/01_CP4_Main\.bin/.test(f)));
+  has("log: cross-program device conflict surfaced", al.devConflicts.length>=1); }
 
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
