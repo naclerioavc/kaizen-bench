@@ -135,6 +135,8 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
 { const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
   has("Network card has Role / type column", [...netCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Role / type"));
   has("Network card flags the EISC", /EISC/.test(netCard.textContent)); }
+has("audit shows action bar (needs-attention summary up top)", w.document.querySelector("#censusBody .actionbar")!=null);
+has("Checks card is accented (.card.attn)", w.document.querySelector("#censusBody .card.attn")!=null);
 has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
 has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
 { const bx=[...w.document.querySelectorAll('#censusBody .cardsel')].slice(0,2); bx.forEach(b=>b.checked=true); w.eval("updateExportSel();"); has("combined export enables on selection", !w.document.getElementById('auditExport').disabled); }
@@ -146,6 +148,8 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
 { const al=w.analyzeLog(["Notice: Console # 2026-06-25 12:00:00 # SSH connection attempt failed from 10.0.0.9","Warning: Eth # 2026-06-25 12:01:00 # End of Query Acknowledge not received from IP-ID-1A"].join("\n"));
   has("log: SSH/auth attempts counted", al.authFails>=1);
   has("log: dropping IP-IDs captured for correlation", al.dropIds.includes("1A")); }
+{ const L=[]; for(let i=0;i<6;i++){const mm=String(i*5).padStart(2,"0"); L.push("Warning: Eth # 2026-06-25 12:"+mm+":00 # End of Query Acknowledge not received from IP-ID-2A");}
+  const al=w.analyzeLog(L.join("\n")); has("log: regular-interval (periodic) drops detected", al.periodic.length>=1 && al.periodic[0].everyS===300); }
 
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

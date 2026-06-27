@@ -185,6 +185,16 @@
   .stack-key .kdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
   .kdot.s1{background:#f4f4f5}.kdot.s2{background:#8a8a92}.kdot.s3{background:#4a4a52}
   .stack-key b{color:var(--ink);font-weight:600}
+  .actionbar{display:flex;align-items:center;gap:11px;margin-top:12px;padding:12px 16px;border:1px solid var(--warn);border-left-width:3px;border-radius:9px;background:rgba(245,177,76,.09);cursor:pointer;font-size:13px;color:var(--ink)}
+  .actionbar:hover{background:rgba(245,177,76,.16)}
+  .actionbar .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 0 3px rgba(245,177,76,.25)}
+  .actionbar .ab-go{margin-left:auto;color:var(--warn);font-weight:600;white-space:nowrap}
+  .panel.attn-stat{border-color:var(--warn)} .panel.attn-stat .data{color:var(--warn)}
+  .card.attn{border-left:3px solid var(--warn)} .card.attn>.card-head .card-title{color:var(--warn)}
+  .hero-empty{text-align:center;padding:60px 24px}
+  .hero-empty .he-icon{font-size:42px;color:var(--line);margin-bottom:14px;line-height:1}
+  .hero-empty .he-title{font-size:17px;font-weight:600;color:var(--ink);margin-bottom:8px}
+  .hero-empty .he-sub{font-size:13px;max-width:540px;margin:0 auto;line-height:1.55;color:var(--mut)}
   @media print {
     nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro { display:none !important; }
     html,body{ background:#fff !important; color:#000 !important; }
@@ -770,6 +780,8 @@ wireDrop($("#dropC"),$("#fileC"),f=>{
 $("#censusBody").addEventListener("click",e=>{
   const d=e.target.closest("[data-drill]");
   if(d){ e.stopPropagation(); drill(d.dataset.drill, d.dataset.val); return; }
+  const ab=e.target.closest(".actionbar");
+  if(ab){ const t=document.querySelector("#censusBody .card.attn"); if(t){ t.classList.remove("collapsed"); t.scrollIntoView({behavior:"smooth",block:"start"}); } return; }
   const sb=e.target.closest(".cardsel");
   if(sb){ e.stopPropagation(); updateExportSel(); return; }
   const cb=e.target.closest(".csvbtn");
@@ -858,7 +870,7 @@ function auditToText(){
   L.push("","THIRD-PARTY IPs","IP\tFOR / CONNECTED TO\tMODULE"); a.thirdParty.forEach(x=>L.push([x.ip,x.context||"",x.module].join("\t")));
   return L.join("\n");
 }
-function card(title,badge,body,open){ const hasT=/<table/.test(body); const csv=hasT?`<button class="csvbtn" title="Download this table as CSV">CSV</button>`:''; const sel=hasT?`<label class="cardsel-w" title="Select this card for a combined export"><input type="checkbox" class="cardsel"><span>export</span></label>`:''; return `<div class="card${open?'':' collapsed'}"><div class="card-head"><span class="card-title">${title}</span>${badge!=null?`<span class="card-badge">${badge}</span>`:''}<span class="spacer"></span>${sel}${csv}<span class="chev">&#9662;</span></div><div class="card-body">${body}</div></div>`; }
+function card(title,badge,body,open,cls){ const hasT=/<table/.test(body); const csv=hasT?`<button class="csvbtn" title="Download this table as CSV">CSV</button>`:''; const sel=hasT?`<label class="cardsel-w" title="Select this card for a combined export"><input type="checkbox" class="cardsel"><span>export</span></label>`:''; return `<div class="card${open?'':' collapsed'}${cls?' '+cls:''}"><div class="card-head"><span class="card-title">${title}</span>${badge!=null?`<span class="card-badge">${badge}</span>`:''}<span class="spacer"></span>${sel}${csv}<span class="chev">&#9662;</span></div><div class="card-body">${body}</div></div>`; }
 function csvEsc(v){ v=String(v==null?"":v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function tableToCsv(table){ const out=[]; const hr=table.tHead&&table.tHead.rows[0]; if(hr)out.push([...hr.cells].map(c=>csvEsc(c.textContent.trim())).join(",")); const tb=table.tBodies[0]; if(tb)[...tb.rows].forEach(r=>{ if(r.style.display==="none")return; out.push([...r.cells].map(c=>csvEsc(c.textContent.trim())).join(",")); }); return out.join("\r\n"); }
 function updateExportSel(){ const n=document.querySelectorAll("#censusBody .cardsel:checked").length; const b=document.getElementById("auditExport"); if(!b)return; b.disabled=!n; b.textContent=n?`Export selected (${n})`:"Export selected"; }
@@ -914,16 +926,35 @@ function runAudit(){
   $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length); $("#auditPrint").disabled=!(m||devRows.length); updateExportSel();
   const c=m?censusStats(m):null, ax=m?auditExtras(m):null, sa=m?structAnalysis(m):null;
   if(sa) state.audit.rings=sa.rings;
+  // ---- compute "what needs attention" up front so the summary can lead with it ----
+  let sigs=[];
+  if(m){ const drv=new Map(),load=new Map();
+    for(const x of m.syms){ for(const h of x.outs)drv.set(h,(drv.get(h)||0)+1); for(const h of x.ins)load.set(h,(load.get(h)||0)+1); }
+    m.sigName.forEach((nm,h)=>{ if(!nm||nm[0]==="/")return; sigs.push({nm,t:typeClass(m.sigType.get(h)),d:drv.get(h)||0,l:load.get(h)||0}); });
+    state.signals=sigs; }
+  const contention=sigs.filter(g=>g.t!=="D"&&g.d>=2).sort((a,b)=>b.d-a.d);
+  const orphan=sigs.filter(g=>g.d===0&&g.l===0);
+  const dupConf=[];
+  if(pr.dip){ const reId=/^id(\d+)[ \t]*=[ \t]*([0-9A-Fa-f]+)/gm, reA=/^addr(\d+)[ \t]*=[ \t]*([^\r\n]*)/gm; const ids={},ad={}; let mm;
+    while(mm=reId.exec(pr.dip))ids[mm[1]]=mm[2].toUpperCase(); while(mm=reA.exec(pr.dip))ad[mm[1]]=mm[2].trim();
+    const byId=new Map(); for(const nn in ids){ const id=ids[nn],a=ad[nn]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
+    byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
+  const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
+  const eiscCount=[...netRoles.values()].filter(r=>r.role).length;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
   let html="";
   let ov=`<div class="row">`;
   if(c){ ov+=stat(c.sigTot.toLocaleString(),"Signals")+stat(c.symActive.toLocaleString(),"Symbols")+stat(`${c.customPct.toFixed(0)}%`,"Custom / SIMPL+"); }
-  ov+=stat(devRows.length.toLocaleString(),"Devices")+stat(thirdParty.length.toLocaleString(),"3rd-party IPs")+`</div>`;
+  ov+=stat(devRows.length.toLocaleString(),"Devices")+stat(thirdParty.length.toLocaleString(),"3rd-party IPs");
+  if(eiscCount)ov+=stat(eiscCount.toLocaleString(),"Intersystem links");
+  ov+=(actionN?`<div class="panel attn-stat"><div class="stat"><span class="data">${actionN.toLocaleString()}</span><small>Action items</small></div></div>`:"")+`</div>`;
   if(c){ ov+=`<div style="margin-top:16px"><div class="lbl">Signal mix &mdash; digital / analog / serial</div>${stackBar([{label:"Digital",val:c.D,cls:"s1"},{label:"Analog",val:c.A,cls:"s2"},{label:"Serial",val:c.Ser,cls:"s3"}])}</div>`; }
   if(devRows.length){ ov+=`<div style="margin-top:16px"><div class="lbl">Devices by network</div>${stackBar([{label:"Ethernet",val:eth.length,cls:"s1"},{label:"Cresnet",val:cres.length,cls:"s2"},{label:"Other",val:devRows.length-eth.length-cres.length,cls:"s3"}])}</div>`; }
-  html+=`<div class="section-label">Program</div>`;
+  const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
+  if(hasData) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
-  html+=card("Overview",null,ov,true);
+  if(hasData) html+=card("Overview",null,ov,true);
+  if(actionN) html+=`<div class="actionbar" role="button" tabindex="0"><span class="ab-dot"></span><span><b>${actionN}</b> thing${actionN===1?'':'s'} to review &mdash; duplicate IP-IDs, value contention, unconnected signals, feedback rings</span><span class="ab-go">review ↓</span></div>`;
   if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
   const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
@@ -1005,10 +1036,6 @@ function runAudit(){
     html+=card("Module inventory",inv.size,`<p class="card-intro">Every module type and how many are used. Click one to see each instance and what it&rsquo;s wired to.</p>`+tbl([{t:"Module"},{t:"Count",num:1}],rows,1),false);
   }
   if(m){
-    const drv=new Map(), load=new Map();
-    for(const x of m.syms){ for(const h of x.outs)drv.set(h,(drv.get(h)||0)+1); for(const h of x.ins)load.set(h,(load.get(h)||0)+1); }
-    const sigs=[]; m.sigName.forEach((nm,h)=>{ if(!nm||nm[0]==="/")return; sigs.push({nm,t:typeClass(m.sigType.get(h)),d:drv.get(h)||0,l:load.get(h)||0}); });
-    state.signals=sigs;
     const body=`<p class="card-intro">Every signal, with how many places drive it (sources) and read it (loads). Type to find one; click to trace where it comes from and where it goes.</p><input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
     html+=card("Signals",sigs.length,body,false);
   }
@@ -1017,24 +1044,16 @@ function runAudit(){
     rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback rings.</p>';
     html+=card("Feedback rings",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
   }
-  if(m){
-    const contention=(state.signals||[]).filter(g=>g.t!=="D"&&g.d>=2).sort((a,b)=>b.d-a.d);
-    const orphan=(state.signals||[]).filter(g=>g.d===0&&g.l===0);
-    const dupConf=[];
-    if(pr.dip){ const reId=/^id(\d+)[ \t]*=[ \t]*([0-9A-Fa-f]+)/gm, reA=/^addr(\d+)[ \t]*=[ \t]*([^\r\n]*)/gm; const ids={},ad={}; let mm;
-      while(mm=reId.exec(pr.dip))ids[mm[1]]=mm[2].toUpperCase(); while(mm=reA.exec(pr.dip))ad[mm[1]]=mm[2].trim();
-      const byId=new Map(); for(const n in ids){ const id=ids[n],a=ad[n]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
-      byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
-    const n=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
-    if(n){ let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
+  if(m && actionN){
+    { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
       if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
       if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
       if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
       if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback rings with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback rings card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
-      html+=`<div class="section-label">Checks</div>`+card("Things to review",n,b,true);
+      html+=`<div class="section-label">Checks</div>`+card("Things to review",actionN,b,true,"attn");
     }
   }
-  if(!html) html=`<p class="empty">Drop a program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>).</p>`;
+  if(!html) html=`<div class="hero-empty"><div class="he-icon">▤</div><div class="he-title">Drop a program to build its as-built</div><div class="he-sub">A program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) &mdash; devices, IP-IDs, serial &amp; IR ports, signals and modules, instantly. Nothing leaves your machine.</div></div>`;
   $("#censusBody").innerHTML=html;
 }
 
@@ -1258,16 +1277,26 @@ function analyzeLog(text){
   proc=[...byName.entries()].map(([nm,cpu])=>({nm,cpu})).sort((a,b)=>b.cpu-a.cpu).slice(0,40);
 
   // device socket drops
-  const drops=new Map(); let authFails=0; const dropIds=new Set();
+  const drops=new Map(); let authFails=0; const dropIds=new Set(); const dropT=new Map();
   lines.forEach(l=>{
     if(/login attempt|authentication fail|failed login|incorrect (user|pass)|ssh[^a-z]{0,3}(fail|attempt|denied|brute|connection)/i.test(l))authFails++;
-    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){drops.set("Dev "+m[1],(drops.get("Dev "+m[1])||0)+1);dropIds.add(m[1].toUpperCase());return;}
-    m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m){drops.set("IP-ID "+m[1],(drops.get("IP-ID "+m[1])||0)+1);dropIds.add(m[1].toUpperCase());}
+    let key=null,hex=null;
+    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){key="Dev "+m[1];hex=m[1];}
+    else { m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m){key="IP-ID "+m[1];hex=m[1];} }
+    if(key){ drops.set(key,(drops.get(key)||0)+1); dropIds.add(hex.toUpperCase());
+      const t=toS(ts(l)); if(t!=null){ if(!dropT.has(key))dropT.set(key,[]); dropT.get(key).push(t); } }
   });
   const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,60);
+  const periodic=[];
+  dropT.forEach((times,key)=>{ if(times.length<4)return; times.sort((a,b)=>a-b);
+    const iv=[]; for(let i=1;i<times.length;i++)iv.push(times[i]-times[i-1]);
+    const med=iv.slice().sort((a,b)=>a-b)[Math.floor(iv.length/2)]; if(med<=0)return;
+    const within=iv.filter(x=>x>=med*0.5&&x<=med*1.5).length;
+    if(within/iv.length>=0.7) periodic.push({dev:key,count:times.length,everyS:med}); });
+  periodic.sort((a,b)=>b.count-a.count);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
-    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds] };
+    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds], periodic };
 }
 function parseDiscovered(text){
   const sec=sectionOf(text,"autodiscovery query tableformat"); if(!sec)return [];
@@ -1443,6 +1472,7 @@ function runLog(name,text){
 
   if(a.dropTop.length){
     html+=`<div class="panel" style="margin-top:14px"><h3>Device socket drops <span class="ct">${a.dropTop.length.toLocaleString()}</span></h3>
+    ${a.periodic.length?`<div class="banner" style="border-left-color:var(--warn)">Regular-interval drops detected &mdash; ${a.periodic.slice(0,4).map(p=>`<b>${esc(p.dev)}</b> ~every ${p.everyS<90?Math.round(p.everyS)+"s":(p.everyS<5400?Math.round(p.everyS/60)+" min":(p.everyS/3600).toFixed(1)+" hr")}`).join("; ")}. A steady cadence (vs. random) usually means a flaky link/PoE, a device rebooting on a timer, or a duplicate IP fighting on the network.</div>`:""}
     <table><thead><tr><th>Device</th><th class="num">Drops</th></tr></thead><tbody>
     ${a.dropTop.map(([dv,n])=>`<tr><td class="data">${esc(dv)}</td><td class="num data">${n}</td></tr>`).join("")}
     </tbody></table><p class="foot-note">A few drops over a long log usually mean upload/power events; many on one device points at a flaky link or PoE.</p></div>`;

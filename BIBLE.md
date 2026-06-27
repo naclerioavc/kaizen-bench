@@ -26,7 +26,9 @@ files are read-only.
   A data point isn't "done" until the grader checks it.
 - **Honest labeling.** Facts read straight from the file; anything inferred says so.
 - **UI/UX is paramount** — collapsible sections, sticky headers, sortable columns, filters,
-  drill-downs, copy-to-table. Pretty and well laid out.
+  drill-downs, copy-to-table. Pretty and well laid out. Lead with what matters: an at-a-glance
+  summary (signals/devices/intersystem-links/action-items) and an accented action bar that jumps
+  to the Checks card, so problems are seen first. Clean empty-state hero before a program loads.
 - **Completeness rule (every relevant field gets a column).** If a record carries useful data
   for a row — a port, an IP, an address, a driver file, a parent card, a location — surface it
   as its own column. Don't make the user open SIMPL to learn something the file already states.
@@ -72,6 +74,3 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
   another program (from `Dv.Nm`), which a bare IP/model never tells you. (Replaces the old
   separate "Ethernet devices" + "IP-ID table" — they were two redundant IP-ID lists.)
 - ✅ Cresnet / RF / other — manufacturer/type, plus **which gateway each sits behind** (a
-  thermostat behind a DIN-CENCN-2, a wireless dimmer behind a CEN-GWEXER) vs. straight on the
-  processor bus, from the `.smft` nesting
-- ✅ `Et` (Ethernet config) records joined by IP-ID: surface each device's **static IP/mask and
