@@ -992,7 +992,8 @@ function tbl(head,rows,flt){ return `${flt?`<input class="filter" placeholder="f
 function runAudit(){
   const pr=state.prog;
   if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; } }
-  const m=pr.model;
+  let m=pr.model;
+  if(m && m.sigName.size===0 && m.syms.length===0) m=null;
   const hdr=pr.smw?parseHeader(pr.smw):null;
   const tps=pr.smw?parseTouchpanels(pr.smw):[];
   const fn=$("#censusName"); fn.classList.remove("hide"); fn.querySelector(".mono").textContent=pr.name||"";
@@ -1152,7 +1153,13 @@ function runAudit(){
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
-  if(!html) html=`<div class="hero-empty"><div class="he-icon">▤</div><div class="he-title">Drop a program to build its as-built</div><div class="he-sub">A program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) &mdash; devices, IP-IDs, serial &amp; IR ports, signals and modules, instantly. Nothing leaves your machine.</div></div>`;
+  if(!html){
+    if(pr.name && (pr.smw||pr.smft||pr.dip)){
+      html=`<div class="hero-empty"><div class="he-icon">⚠</div><div class="he-title">Loaded, but no readable SIMPL data</div><div class="he-sub"><b>${esc(pr.name)}</b> opened but didn&rsquo;t contain signals or devices we could parse. If it&rsquo;s a compiled <code>.zip</code>, make sure it includes the uncompiled <code>.smw</code> (and ideally <code>.smft</code> / <code>.dip</code>) &mdash; a compiled-only archive (just <code>.bin</code>/<code>.lpz</code>) has no readable source. Files are read-only and nothing leaves your machine.</div></div>`;
+    } else {
+      html=`<div class="hero-empty"><div class="he-icon">▤</div><div class="he-title">Drop a program to build its as-built</div><div class="he-sub">A program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) &mdash; devices, IP-IDs, serial &amp; IR ports, signals and modules, instantly. Nothing leaves your machine.</div></div>`;
+    }
+  }
   $("#censusBody").innerHTML=html;
 }
 

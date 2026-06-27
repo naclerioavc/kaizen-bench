@@ -187,5 +187,7 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("log: missing program files surfaced", al.missingFiles.some(f=>/01_CP4_Main\.bin/.test(f)));
   has("log: cross-program device conflict surfaced", al.devConflicts.length>=1); }
 
+{ w.eval('state.prog={name:"junk.smw",model:null,smw:"random junk not a crestron file",smft:null,dip:null,ir:[]};runAudit();');
+  has("garbage/unreadable file shows a clear message (not a blank hero)", /no readable SIMPL data/.test(w.document.getElementById('censusBody').textContent)); }
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

@@ -145,3 +145,11 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   button that fires it — the static proof for "is the program doing X or is it the user?"
 - ⬜ Future parity to consider: printable cross-reference report; "go to" jump; unconnected-signal
   filter (have the check); compile-notice summary.
+
+## Robustness (trust is the moat)
+- ✅ Swept against real CP4 (4-Series, 24MB), PRO3 Slave (3-Series), RMC4 Bistro (4-Series) and a
+  real `.err`: all audit + drills (trace, device-signals, instance, reverse/forward trace) render
+  with zero errors, zero bad tokens.
+- ✅ Graceful on bad input: empty → hero; a loaded file with no parseable signals/devices (garbage
+  or compiled-only archive) → a clear "loaded, but no readable SIMPL data" message naming the file;
+  non-SIMPL logs decline cleanly.
