@@ -151,6 +151,10 @@ has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').
   has("instance drill shows the instance's physical landing", /Physical landing/.test(mb.textContent) && /Matrix/.test(mb.textContent)); }
 { w.eval('drill("syminst","11")'); const mb=w.document.getElementById('modalBody');
   has("parameters classified by Kind (value vs pin/function name)", [...mb.querySelectorAll('thead th')].some(t=>t.textContent==='Kind') && /pin \/ function name/.test(mb.textContent) && /value/.test(mb.textContent)); }
+{ w.eval('drill("rtrace","Set.Level")'); const mb=w.document.getElementById('modalBody');
+  has("reverse trace walks upstream through the logic (multi-hop)", w.document.querySelectorAll('#modalBody [data-drill=rtrace]').length>=2 && /Audio\.Vol/.test(mb.textContent)); }
+{ w.eval('drill("signal","Set.Level")'); const mb=w.document.getElementById('modalBody');
+  has("signal tracer offers trace-back/forward buttons", mb.querySelector('[data-drill=rtrace]')!=null && mb.querySelector('[data-drill=ftrace]')!=null); }
 { const net=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/Network devices/.test(c.querySelector('.card-title').textContent));
   const dc=net.querySelector('[data-drill=devsignals]'); dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   has("device-signals drill shows join/pin numbers", [...w.document.querySelectorAll('#modalBody thead th')].some(t=>/Join \/ pin/.test(t.textContent))); }

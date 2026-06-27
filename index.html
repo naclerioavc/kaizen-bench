@@ -142,6 +142,11 @@
   .gtext{fill:var(--ink);font-size:11px;font-family:"JetBrains Mono",ui-monospace,monospace}
   .gtext.sig{fill:#000;font-weight:600}
   .gedge{fill:none;stroke:var(--dim);stroke-width:1.2}
+  .trace-actions{display:flex;gap:8px;margin:10px 0 6px}
+  .tracewrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
+  .trrow{padding:2px 0;font-size:12.5px;white-space:nowrap}
+  .trrow .tw{display:inline-block;width:34px;color:var(--dim);font-size:11px}
+  .trrow.mod{color:var(--mut)} .trrow.mod b{color:var(--ink);font-weight:600}
   .drill{cursor:pointer;border-bottom:1px dotted var(--dim)}
   td.drill:hover,.data.drill:hover{color:var(--trace);border-bottom-color:var(--trace);background:rgba(154,160,255,.08)}
   td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
@@ -832,6 +837,29 @@ $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
 let sigNameSet=null;
+function traceRows(m, startName, dir){
+  const MAXD=7, MAXN=600;
+  const drvOf=new Map(), ldOf=new Map();
+  for(const x of m.syms){ for(const h of x.outs){ if(!drvOf.has(h))drvOf.set(h,[]); drvOf.get(h).push(x); } for(const h of x.ins){ if(!ldOf.has(h))ldOf.set(h,[]); ldOf.get(h).push(x); } }
+  const byName=new Map(); m.sigName.forEach((n,h)=>{ if(n){ if(!byName.has(n))byName.set(n,[]); byName.get(n).push(h); } });
+  const out=[]; const seen=new Set(); let count=0;
+  function walk(name, depth){
+    if(count>=MAXN)return;
+    const dup=seen.has(name);
+    out.push({type:"sig", name, depth, dup}); count++;
+    if(dup||depth>=MAXD)return; seen.add(name);
+    const hs=byName.get(name)||[];
+    const mods=new Map();
+    hs.forEach(h=>{ (dir==="back"?drvOf.get(h):ldOf.get(h))?.forEach(x=>mods.set(x.H,x)); });
+    [...mods.values()].forEach(x=>{
+      out.push({type:"mod", x, depth:depth+1}); count++;
+      const next=[...new Set((dir==="back"?x.ins:x.outs).map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"&&n!==name))];
+      next.forEach(ns=>walk(ns, depth+1));
+    });
+  }
+  walk(startName, 0);
+  return out;
+}
 function drill(type,val){
   const m=state.prog&&state.prog.model;
   if(type==="module" && m){
@@ -901,7 +929,18 @@ function drill(type,val){
     const row=(x,dir)=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data" title="${esc(coord(x,dir))}">${esc(coord(x,dir)||'—')}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`;
     const cols=[{t:"Module"},{t:"Physical coordinate (device · IP-ID · pin)"},{t:"Folder path (where to find it)"}];
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
-      `<p class="card-intro">Where this signal is driven from and read &mdash; the module, its <b>physical landing point</b> (device, IP-ID and pin where it&rsquo;s wired), and its folder path in the program.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
+      `<p class="card-intro">Where this signal is driven from and read &mdash; the module, its <b>physical landing point</b> (device, IP-ID and pin where it&rsquo;s wired), and its folder path in the program.</p><div class="trace-actions"><button class="btn ghost" data-drill="rtrace" data-val="${esc(val)}">↑ What triggers this</button><button class="btn ghost" data-drill="ftrace" data-val="${esc(val)}">What this affects ↓</button></div>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
+  } else if((type==="rtrace"||type==="ftrace") && m){
+    const dir=type==="rtrace"?"back":"fwd";
+    const rows=traceRows(m,val,dir);
+    const sd=state.prog._symToDev||new Map();
+    const coordOf=x=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; return [dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "); };
+    const body=rows.map(r=>{ const pad=Math.round(r.depth*18);
+      if(r.type==="sig"){ return `<div class="trrow" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"↑":"↓"}</span><span class="data drill" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="muted" style="font-size:11px">↻ shown above</span>':""}</div>`; }
+      const co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"via ◂":"via ▸"}</span><b>${esc(r.x.Nm||"?")}</b>${co?` <span class="muted">· ${esc(co)}</span>`:""} <span class="muted" style="font-size:11px">· ${esc(folderPath(m,r.x.H)||"")}</span></div>`; }).join("");
+    const roots=rows.filter(r=>r.type==="sig"&&!r.dup&&r.depth>0&&!rows.some(z=>z.type==="mod"&&Math.abs(z.depth-(r.depth+1))<0.1&&rows.indexOf(z)>rows.indexOf(r))).length;
+    openModal(`${dir==="back"?"What triggers":"What&rsquo;s affected by"} ${esc(val)}`,
+      `<p class="card-intro">${dir==="back"?"The full upstream chain &mdash; every module and signal that can drive this, hop by hop back toward the original trigger (a button, schedule, or device feedback)." : "The full downstream chain &mdash; everything this signal drives, hop by hop."} Indent = one hop. Click any signal to re-trace from there. <code>↻</code> = already shown (loop or shared).</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
     openModal(`Feedback loop &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));

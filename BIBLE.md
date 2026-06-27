@@ -136,3 +136,12 @@ under their gateway → that's the "behind which gateway" relationship.
 trailing line — multiply, don't count as 1. (3) Crestron wraps one long message across several
 re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `System startup
 <model> Cntrl Eng [v…]` = model + firmware + a boot event.
+
+## SIMPL Windows capability parity
+- ✅ **Cross-reference / signal trace** — SIMPL's core navigation feature. Single-hop: the signal
+  tracer (drivers/loads + physical coordinate + folder). Multi-hop: **reverse trace ("what triggers
+  this")** and **forward trace ("what this affects")** walk the logic graph hop-by-hop (cycle-safe,
+  capped), each node clickable to re-root. Traces a preset recall back to the literal touchpanel
+  button that fires it — the static proof for "is the program doing X or is it the user?"
+- ⬜ Future parity to consider: printable cross-reference report; "go to" jump; unconnected-signal
+  filter (have the check); compile-notice summary.
