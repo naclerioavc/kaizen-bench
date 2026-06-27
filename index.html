@@ -829,6 +829,11 @@ function runAudit(){
     const rows=tps.map(t=>`<tr><td class="data" title="${esc(t.model)}">${esc(trim(t.model,28))}</td><td class="data muted" title="${esc(t.type||'')}">${esc(trim(t.type||'',24))}</td><td class="data">${esc(t.addr||'—')}</td><td class="data" title="${esc(t.project)}">${esc(trim(t.project,32))}</td></tr>`).join("");
     html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"Project file"}],rows,1),false);
   }
+  if(pr.smw){ const cat=parseDeviceCatalog(pr.smw);
+    if(cat.length){ const rows=cat.map(d=>`<tr><td class="data">${esc(d.mfr||'—')}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,40))}</td><td class="data muted" title="${esc(d.type||'')}">${esc(trim(d.type||'',40))}</td></tr>`).join("");
+      html+=card("Device catalog",cat.length,`<p class="card-intro">Every device type the program knows about &mdash; manufacturer, model and category. A quick bill-of-materials.</p>`+tbl([{t:"Manufacturer"},{t:"Model"},{t:"Type"}],rows,1),false);
+    }
+  }
   if(pr.smw && m){ const io=scanIO(pr.smw);
     if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
       const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.port)}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(trim(onIO(x),46))}</td></tr>`).join("");
@@ -1088,6 +1093,27 @@ function analyzeLog(text){
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
     recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop };
 }
+function parseDiscovered(text){
+  const sec=sectionOf(text,"autodiscovery query tableformat"); if(!sec)return [];
+  const out=[]; sec.split("\n").forEach(l=>{ const m=l.match(/^\s*([\d.]+)\s*\|\s*([0-9a-fA-F]*)\s*\|\s*(\w+)\s*\|\s*([^|]+?)\s*\|\s*(.+?)\s*$/);
+    if(m && /^\d+\.\d+/.test(m[1])) out.push({ip:m[1], ipid:m[2].toUpperCase(), iface:m[3], host:m[4].trim(), fw:m[5].trim()}); });
+  return out;
+}
+function parseNetstat(text){
+  const sec=sectionOf(text,"netstat"); if(!sec)return [];
+  const out=[]; sec.split("\n").forEach(l=>{ const m=l.match(/^\s*(tcp\d?|udp\d?)\s+\d+\s+\d+\s+(\S+)\s+(\S+)\s*(\w+)?/);
+    if(m) out.push({proto:m[1], local:m[2], foreign:m[3], state:m[4]||""}); });
+  return out;
+}
+function parseDeviceCatalog(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const seen=new Map();
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="Db"&&cur.Mdl){ const k=(cur.Mnf||"")+"|"+cur.Mdl+"|"+(cur.Tpe||""); if(!seen.has(k))seen.set(k,{mfr:cur.Mnf||"",model:cur.Mdl,type:cur.Tpe||""}); } cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return [...seen.values()].sort((a,b)=>(a.mfr+a.model).localeCompare(b.mfr+b.model));
+}
 function sectionOf(text,h){ const re=new RegExp("={6,}\\s*"+h.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*={6,}([\\s\\S]*?)(?:\\n={6,}|$)"); const m=text.match(re); return m?m[1]:""; }
 function systemInfo(text){
   if(!/Discovered Device Info|Control Console|========== showhw/.test(text)) return null;
@@ -1163,6 +1189,12 @@ function runLog(name,text){
 
   let html="";
   const sys=systemInfo(text); if(sys) html+=renderSystem(sys);
+  const disc=parseDiscovered(text);
+  if(disc.length){ const rows=disc.map(d=>`<tr><td class="data">${esc(d.ip)}</td><td class="data">${esc(d.ipid||'—')}</td><td class="data" title="${esc(d.host)}">${esc(trim(d.host,26))}</td><td class="data muted" title="${esc(d.fw)}">${esc(trim(d.fw,46))}</td></tr>`).join("");
+    html+=`<div class="panel" style="margin-top:14px"><h3>Discovered network devices <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; live autodiscovery</span><span class="ct">${disc.length}</span></h3><p class="foot-note">Devices seen on the network with IP, IP-ID, hostname and firmware version.</p>`+tbl([{t:"IP"},{t:"IP-ID"},{t:"Hostname"},{t:"Model / firmware"}],rows,1)+`</div>`; }
+  const ns=parseNetstat(text).filter(x=>x.state==="LISTEN"||x.state==="ESTABLISHED");
+  if(ns.length){ const rows=ns.map(x=>`<tr><td class="data">${esc(x.proto)}</td><td class="data">${esc(x.local)}</td><td class="data muted">${esc(x.foreign)}</td><td><span class="pill ${x.state==="LISTEN"?'ok':''}">${esc(x.state)}</span></td></tr>`).join("");
+    html+=`<div class="panel" style="margin-top:14px"><h3>Open ports &amp; connections <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; netstat</span><span class="ct">${ns.length}</span></h3>`+tbl([{t:"Proto"},{t:"Local address"},{t:"Foreign"},{t:"State"}],rows,1)+`</div>`; }
   if(a.suspended) html+=`<div class="banner" style="border-left-color:var(--bad)"><b>⚠ Logging was suspended in this log.</b> The control system exceeded 250 messages per 2&nbsp;min and stopped logging for a stretch — every count below is a <b>floor</b>, and the box was in a real storm during the gap.</div>`;
   html+=`<div class="panel"><h3>Triage <span class="muted" style="text-transform:none;letter-spacing:0">— start here</span></h3>
     <div class="row" style="margin-bottom:12px">
@@ -1239,7 +1271,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,diffToText}; }
 </script>
 </body>
 </html>
