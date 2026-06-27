@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>kaizen Logic · SIMPL Diagnostics</title>
+<title>SIMPL Bench — Crestron SIMPL diagnostics</title>
 <meta name="description" content="Free, 100% client-side Crestron SIMPL Windows diagnostics — diff two .smw programs, map program structure, and read processor error logs entirely in your browser. By Kaizen Logic.">
 <style>
   :root{
@@ -19,10 +19,11 @@
   ::selection{background:#fff;color:#000}
 
   header{border-bottom:1px solid var(--line);padding:22px 28px 0;position:relative}
-  .brand{display:flex;align-items:flex-end;gap:16px}
-  .lockup{line-height:.92;text-align:center}
-  .lockup .logo{display:block;font-weight:800;letter-spacing:-.03em;font-size:24px;line-height:.94}
-  .lockup .logo.light{font-weight:300}
+  .brand{display:flex;align-items:center;gap:13px}
+  .lockup{line-height:1.05}
+  .lockup .logo{display:block;font-weight:800;letter-spacing:-.02em;font-size:26px;line-height:1;color:var(--ink)}
+  .lockup .logo .logo-b{font-weight:300;margin-left:6px}
+  .benchmark{color:var(--ink);flex:none;align-self:center}
   .tagline{color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding-bottom:3px}
   .stripe{height:3px;background:var(--stripe);width:46px;margin:14px 0 0;position:relative;overflow:hidden}
   .stripe::after{content:"";position:absolute;inset:0;left:-46px;width:46px;background:var(--bg);
@@ -240,7 +241,7 @@
     nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro { display:none !important; }
     html,body{ background:#fff !important; color:#000 !important; }
     header{ border-color:#000; padding:0 0 8px; }
-    .lockup .logo{ color:#000 !important; }
+    .lockup .logo{ color:#000 !important; } .benchmark{ color:#000 !important; }
     main{ padding:0; max-width:none; }
     .section-label{ color:#000; border-color:#000; }
     .card,.panel{ background:#fff !important; border-color:#bbb !important; break-inside:avoid; page-break-inside:avoid; }
@@ -259,11 +260,19 @@
 <body>
 <header>
   <div class="brand">
+    <svg class="benchmark" viewBox="0 0 30 24" width="40" height="32" shape-rendering="crispEdges" aria-hidden="true">
+      <g fill="currentColor">
+        <rect x="5" y="2" width="20" height="3"/><rect x="5" y="7" width="20" height="3"/>
+        <rect x="5" y="2" width="3" height="13"/><rect x="22" y="2" width="3" height="13"/>
+        <rect x="1" y="14" width="28" height="3"/><rect x="5" y="17" width="20" height="2"/>
+        <rect x="5" y="19" width="3" height="5"/><rect x="22" y="19" width="3" height="5"/>
+      </g>
+      <rect x="14" y="14" width="2" height="3" fill="#3ad29f"/>
+    </svg>
     <div class="lockup">
-      <span class="logo">kaizen</span>
-      <span class="logo light">Logic</span>
+      <span class="logo">SIMPL<span class="logo-b">Bench</span></span>
+      <span class="tagline">Crestron SIMPL diagnostics &middot; by Kaizen Logic <span class="beta">beta</span></span>
     </div>
-    <span class="tagline">SIMPL Windows Diagnostics <span class="beta">beta</span></span>
   </div>
   <div class="stripe"></div>
   <nav id="nav">
