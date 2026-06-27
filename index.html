@@ -814,9 +814,14 @@ function structAnalysis(model){
       work.pop(); if(work.length)low.set(work[work.length-1][0],Math.min(low.get(work[work.length-1][0]),low.get(v))); } }
   const modsOf=comp=>{const cs=new Set(comp);const set=new Set();for(const a of comp)for(const b of (adj.get(a)||[]))if(cs.has(b))(edgeMod.get(a+","+b)||new Set()).forEach(x=>set.add(x));return set;};
   const comb=sccs.filter(c=>{const ms=modsOf(c);return ![...ms].some(isBreaker);});
-  comb.sort((a,b)=>a.length-b.length);
-  const rings=comb.slice(0,500).map(c=>({len:c.length, sigs:c.map(h=>model.sigName.get(h)||"?").filter(n=>!isReservedSig(n)), mods:[...modsOf(c)].filter(Boolean)}));
-  return { raceTotal:races.length, digitalShared, races:races.slice(0,3000), ringsTotal:sccs.length, oscCandidates:comb.length, rings };
+  // Classify each loop by signal type. Analog/serial signals only propagate on a VALUE CHANGE, so an
+  // analog/serial-only loop self-limits once the value is stable — it won't oscillate. A loop that
+  // carries a DIGITAL signal is the real oscillation risk. Lead with those.
+  const typed=comb.map(c=>{ const t=c.map(h=>typeClass(model.sigType.get(h))); return {c, hasD:t.includes("D"), D:t.filter(x=>x==="D").length, A:t.filter(x=>x==="A").length, S:t.filter(x=>x==="S").length}; });
+  typed.sort((a,b)=>(b.hasD-a.hasD)||(a.c.length-b.c.length));
+  const digitalLoops=typed.filter(x=>x.hasD).length;
+  const rings=typed.slice(0,500).map(o=>({len:o.c.length, sigs:o.c.map(h=>model.sigName.get(h)||"?").filter(n=>!isReservedSig(n)), mods:[...modsOf(o.c)].filter(Boolean), hasDigital:o.hasD, D:o.D, A:o.A, S:o.S}));
+  return { raceTotal:races.length, digitalShared, races:races.slice(0,3000), ringsTotal:sccs.length, oscCandidates:digitalLoops, analogLoops:comb.length-digitalLoops, loopsNoBreaker:comb.length, rings };
 }
 wireDrop($("#dropC"),$("#fileC"),f=>{
   $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
@@ -1171,16 +1176,18 @@ function runAudit(){
     html+=card("Signals",sigs.length,body,false);
   }
   if(sa){
-    let rb=`<div class="banner" style="border-left-color:var(--warn)">Cycles in the wiring with no wave-breaker. Topology is exact; whether one oscillates is a live question.</div>`;
-    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback loops.</p>';
-    html+=card("Feedback loops",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
+    const ltype=r=>{ const p=[]; if(r.D)p.push("digital"); if(r.A)p.push("analog"); if(r.S)p.push("serial"); return p.join(" + ")||"?"; };
+    const lpill=r=>r.D?'<span class="pill warn">'+esc(ltype(r))+'</span>':r.A?'<span class="pill">'+esc(ltype(r))+'</span>':'<span class="pill ok">'+esc(ltype(r))+'</span>';
+    let rb=`<div class="banner" style="border-left-color:var(--warn)">Cycles in the wiring with no wave-breaker. <b>Digital</b> loops are the oscillation risk (rapid toggling / wave storms). <b>Analog / serial</b> loops usually <b>self-limit</b> &mdash; a value only propagates when it changes, so a stable value stops the loop &mdash; but they can still cause analog-specific symptoms: a <b>jumpy slider</b>, a slider that <b>won&rsquo;t move</b>, or two sources fighting over a value. Topology is exact; whether one actually misbehaves is confirmed on the live box.</div>`;
+    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Type"},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td>${lpill(r)}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),54))}</td><td class="data muted">${esc(trim(r.mods.join(", "),26))}</td></tr>`).join(""))+`<p class="foot-note">${sa.oscCandidates.toLocaleString()} carry a digital signal (oscillation candidates); ${sa.analogLoops.toLocaleString()} are analog/serial-only (self-limiting, but watch for slider weirdness).</p>`:'<p class="empty">No unbroken feedback loops.</p>';
+    html+=card("Feedback loops",`${sa.loopsNoBreaker.toLocaleString()}`,rb,false);
   }
   if(m && actionN){
     { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
       if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
       if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
       if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
-      if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback loops with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback loops card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
+      if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Digital feedback loops (oscillation risk) &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback loops card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }

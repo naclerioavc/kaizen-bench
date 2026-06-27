@@ -190,5 +190,9 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
 
 { w.eval('state.prog={name:"junk.smw",model:null,smw:"random junk not a crestron file",smft:null,dip:null,ir:[]};runAudit();');
   has("garbage/unreadable file shows a clear message (not a blank hero)", /no readable SIMPL data/.test(w.document.getElementById('censusBody').textContent)); }
+{ const sg2=(h,nm)=>`[\nObjTp=Sg\nH=${h}\nNm=${nm}\nSgTp=2\n]`;
+  const loop=[sg2(1,"Vol.A"),sg2(2,"Vol.B"),`[\nObjTp=Sm\nH=10\nNm=Gain\nI1=1\nO1=2\n]`,`[\nObjTp=Sm\nH=11\nNm=Scale\nI1=2\nO1=1\n]`].join("\n");
+  const sa=w.structAnalysis(w.parseSmw(loop));
+  has("analog-only loop classified self-limiting (not an oscillation candidate)", sa.loopsNoBreaker>=1 && sa.oscCandidates===0 && sa.analogLoops>=1); }
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

@@ -159,3 +159,12 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   client, dealer, file, compiler/database/device-DB versions, counts, generated date) followed by
   the device schedule, port connections, IP-ID table, third-party IPs and checks — the thing a
   tech hands to a client or colleague. Cover is screen-hidden; print-only, its own first page.
+
+## Feedback-loop honesty (domain fact)
+Crestron propagates an **analog/serial** signal only when its **value changes**, so an
+analog/serial-only feedback loop **self-limits** — once the value is stable, it stops; it does not
+oscillate. The real oscillation risk is a loop carrying a **digital** signal (rapid toggling / wave
+storms). So `structAnalysis` classifies each unbroken loop by signal type: `oscCandidates` =
+loops with a digital signal; `analogLoops` = analog/serial-only (self-limiting). Analog loops aren't
+harmless though — they can cause analog-specific symptoms (jumpy slider, a slider that won't move,
+two sources fighting a value), so we surface them, just not as oscillation candidates.
