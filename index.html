@@ -891,9 +891,13 @@ function drill(type,val){
     const hs=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)hs.add(h); });
     const drivers=[], loads=[];
     for(const x of m.syms){ if(x.outs.some(h=>hs.has(h)))drivers.push(x); if(x.ins.some(h=>hs.has(h)))loads.push(x); }
-    const row=x=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`;
+    const sd=state.prog._symToDev||new Map();
+    const coord=(x,dir)=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; const arr=dir==="out"?x.outs:x.ins; let p=null; for(let i=0;i<arr.length;i++){ if(hs.has(arr[i])){p=i+1;break;} }
+      const bits=[]; if(dd.host)bits.push(dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:"")); if(dd.dev&&dd.dev!==dd.host)bits.push(dd.dev+(dd.ad?` ID ${dd.ad}`:"")); if(p!=null)bits.push(`pin ${p}`); return bits.join(" · "); };
+    const row=(x,dir)=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data" title="${esc(coord(x,dir))}">${esc(coord(x,dir)||'—')}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`;
+    const cols=[{t:"Module"},{t:"Physical coordinate (device · IP-ID · pin)"},{t:"Folder path (where to find it)"}];
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
-      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Folder path (where to find it)"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Folder path (where to find it)"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
+      `<p class="card-intro">Where this signal is driven from and read &mdash; the module, its <b>physical landing point</b> (device, IP-ID and pin where it&rsquo;s wired), and its folder path in the program.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
     openModal(`Feedback loop &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
@@ -987,6 +991,10 @@ function runAudit(){
     byH.forEach(d=>{ if(!d.SmH)return; const sy=symByH.get(String(d.SmH)); if(!sy)return; const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return;
       if([...sy.ins,...sy.outs].some(h=>{const n=m.sigName.get(h);return n&&n[0]!=="/";})){ const bus=dvBus(byH,d.H); if(bus)sigAds.add(bus+":"+ad); } }); }
   state.prog._sigAds=sigAds;
+  if(m){ const symToDev=new Map(); const byH2=state.prog._dvByH||dvIndex(pr.smw);
+    byH2.forEach(dd=>{ if(dd.SmH){ const ad=(dd.Ad||"").toUpperCase();
+      symToDev.set(String(dd.SmH), { dev:dd.Nm||"", ad:/^[0-9A-F]{1,2}$/.test(ad)?ad:"", host:dvLandsOn(byH2,dd.H), hostIpid:dvHostIpid(byH2,dd.H) }); } });
+    state.prog._symToDev=symToDev; }
   const devCell=(id,txt,bus)=>sigAds.has(bus+":"+String(id).toUpperCase())?`<td class="data drill" data-drill="devsignals" data-val="${bus}:${esc(id)}" title="click to see every signal wired to this device">${esc(txt)}</td>`:`<td class="data">${esc(txt)}</td>`;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
   let html="";

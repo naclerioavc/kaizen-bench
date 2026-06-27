@@ -87,3 +87,8 @@ Log analyzer (`.err` / Info-Tool / PLOG `.zip`):
   lost ~2/3 of errors (3,930 → 11,587), incl. the Fatal "missing program files"
 - ✅ System strip (model/firmware/boot count from "System startup …") + Critical panel
   (missing program files at boot, device claimed by two programs)
+
+Physical coordinates (the "go find it" rule):
+- ✅ Signal tracer shows each driver/load's exact landing point — host device · IP-ID · the
+  device/card ID · pin — alongside the program folder path. Built from a symbol→`Dv` reverse
+  map. Not "lands on an NVX" but "DM-NVX Zone 5 (IP-ID B2) · IR Ports ID 06 · pin 1".

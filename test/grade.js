@@ -144,6 +144,8 @@ has("Checks card is accented (.card.attn)", w.document.querySelector("#censusBod
   has("device row drillable to its wired signals", dc!=null);
   if(dc){ dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true})); has("device-signals drill lists the wired signals", w.document.querySelectorAll('#modalBody [data-drill=signal]').length>=1); } }
 has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').length>=3);
+{ w.eval('drill("signal","Audio.Vol")'); const txt=w.document.getElementById('modalBody').textContent;
+  has("signal tracer shows physical coordinate (device + pin)", /Matrix/.test(txt) && /pin 1/.test(txt)); }
 { const bomCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/bill of materials/.test(c.querySelector('.card-title').textContent));
   has("BOM model rows drillable to device instances", bomCard&&bomCard.querySelector('[data-drill=bom]')!=null); }
 { const serCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/Serial ports/.test(c.querySelector('.card-title').textContent));
