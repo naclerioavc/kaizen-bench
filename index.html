@@ -285,7 +285,7 @@
       <p class="verdict">A field diagnostic kit for Crestron 4-Series work. Drop a program or a log; it reads the file format directly and surfaces what changed, what's heavy, and what's recurring. Built by Kaizen Logic. Runs entirely client-side — safe for client files. SIMPL-produced files are opened <b>read-only</b>; nothing is written back to them, and an Info-Tool <code>.zip</code> is unpacked in your browser without leaving your machine.</p>
       <dl class="help">
         <dt>Version Diff <span class="muted">— two .smw</span></dt>
-        <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Does not detect</b> rewiring of existing signals, parameter/constant changes, or device/IP-table changes (those land with the Device Map module). Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
+        <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Also detects</b> parameter changes on symbols whose wiring is unchanged (the silent &ldquo;programming may be lost&rdquo; edits). <b>Does not detect</b> rewiring of existing signals or constant edits inside compiled modules. Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
         <dt>Audit <span class="muted">— program .zip / .smw / .smft / .dip</span></dt>
         <dd>The whole program at a glance, no SIMPL Windows: device list (model, IP-ID / Cresnet ID, IP), the full IP-ID table, third-party IP gear with what each address is <i>for</i>, subsystem and custom-module inventory, and the wire-map structure (feedback rings, multi-driver signals, coupling). Collapsible cards; copy-to-table export.</dd>
         <dt>Log Analyzer <span class="muted">— .err / Info-Tool dump / .zip</span></dt>
@@ -1258,15 +1258,16 @@ function analyzeLog(text){
   proc=[...byName.entries()].map(([nm,cpu])=>({nm,cpu})).sort((a,b)=>b.cpu-a.cpu).slice(0,40);
 
   // device socket drops
-  const drops=new Map();
+  const drops=new Map(); let authFails=0; const dropIds=new Set();
   lines.forEach(l=>{
-    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){drops.set("Dev "+m[1],(drops.get("Dev "+m[1])||0)+1);return;}
-    m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m)drops.set("IP-ID "+m[1],(drops.get("IP-ID "+m[1])||0)+1);
+    if(/login attempt|authentication fail|failed login|incorrect (user|pass)|ssh[^a-z]{0,3}(fail|attempt|denied|brute|connection)/i.test(l))authFails++;
+    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){drops.set("Dev "+m[1],(drops.get("Dev "+m[1])||0)+1);dropIds.add(m[1].toUpperCase());return;}
+    m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m){drops.set("IP-ID "+m[1],(drops.get("IP-ID "+m[1])||0)+1);dropIds.add(m[1].toUpperCase());}
   });
   const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,60);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
-    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop };
+    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds] };
 }
 function parseDiscovered(text){
   const sec=sectionOf(text,"autodiscovery query tableformat"); if(!sec)return [];
@@ -1447,6 +1448,29 @@ function runLog(name,text){
     </tbody></table><p class="foot-note">A few drops over a long log usually mean upload/power events; many on one device points at a flaky link or PoE.</p></div>`;
   }
 
+  if(a.authFails>=10){
+    html+=`<div class="panel" style="margin-top:14px"><h3>Failed-login / SSH attempts <span class="ct">${a.authFails.toLocaleString()}</span></h3><div class="banner" style="border-left-color:var(--warn)">The log shows <b>${a.authFails.toLocaleString()}</b> failed-login / SSH connection attempts. A steady stream usually means something on the network is probing the processor (or a saved app with a stale password is hammering it). Worth locking down management access.</div></div>`;
+  }
+  // ---- cross-reference with the loaded program ----
+  try {
+    const pr=state.prog;
+    if(pr&&pr.smw){
+      if(!pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){} }
+      const smft=pr.smft?parseSmft(pr.smft):[]; const roles=dvNetRoles(pr.smw); const et=parseEt(pr.smw); const dip=pr.dip?parseDip(pr.dip):new Map();
+      const byId=new Map(); smft.forEach(d=>{ if(d.id&&!byId.has(d.id))byId.set(d.id,{name:d.name||d.model,model:d.model}); });
+      const label=id=>{ const d=byId.get(id)||{}; const r=roles.get(id)||{}; const e=et.get(id)||{}; const nm=d.name||r.name||e.name||""; const md=d.model||""; const ipx=dip.get(id)||e.ip||""; const parts=[nm||md||"(unknown device)"]; if(md&&md!==nm)parts.push(md); if(r.role)parts.push(r.role); return {text:parts.filter(Boolean).join(" — "), ip:ipx}; };
+      let xref="";
+      const idDrops=a.dropTop.filter(([dv])=>/^(IP-ID|Dev) /.test(dv)).map(([dv,n])=>({id:dv.replace(/^(IP-ID|Dev) /,"").toUpperCase(),n})).filter(x=>byId.has(x.id)||roles.has(x.id)||et.has(x.id));
+      if(idDrops.length){
+        xref+=`<div class="lbl">Dropping devices, identified from the program</div>`+tbl([{t:"IP-ID"},{t:"Device (from the program)"},{t:"IP"},{t:"Drops",num:1}], idDrops.map(x=>{ const L=label(x.id); return `<tr><td class="data">${esc(x.id)}</td><td class="data">${esc(L.text)}</td><td class="data muted">${esc(L.ip||'—')}</td><td class="num data">${x.n.toLocaleString()}</td></tr>`; }).join(""));
+      }
+      const rings=pr.model?structAnalysis(pr.model):null;
+      if(a.toRows.length&&rings&&rings.oscCandidates){
+        xref+=`<div class="lbl" style="margin-top:12px">Logic-solve timeouts ↔ feedback rings</div><p class="foot-note">This log has <b>${a.toRows.length.toLocaleString()}</b> &ldquo;could not be solved&rdquo; timeout(s), and the loaded program has <b>${rings.oscCandidates}</b> feedback ring(s) with no wave-breaker. Those rings are the prime suspects — open the Feedback rings card in Audit and trace them.</p>`;
+      }
+      if(xref) html+=`<div class="panel" style="margin-top:14px"><h3>Cross-reference with the loaded program <span class="muted" style="text-transform:none;letter-spacing:0">— who is this, really</span></h3>${xref}</div>`;
+    }
+  } catch(e){}
   $("#logBody").innerHTML=html||'<p class="empty">Parsed the log but found nothing notable.</p>'; wrapScroll("#logBody");
 }
 

@@ -143,6 +143,9 @@ const lb=w.document.getElementById('logBody').textContent;
 has("log: System panel", lb.includes("Model")||lb.includes("CP4-LAB"));
 has("log: Discovered devices", lb.includes("Discovered network devices"));
 has("log: Open ports (netstat)", lb.includes("Open ports"));
+{ const al=w.analyzeLog(["Notice: Console # 2026-06-25 12:00:00 # SSH connection attempt failed from 10.0.0.9","Warning: Eth # 2026-06-25 12:01:00 # End of Query Acknowledge not received from IP-ID-1A"].join("\n"));
+  has("log: SSH/auth attempts counted", al.authFails>=1);
+  has("log: dropping IP-IDs captured for correlation", al.dropIds.includes("1A")); }
 
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
