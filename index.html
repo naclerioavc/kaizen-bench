@@ -148,9 +148,16 @@
   @media print{ .subchips{display:none} }
   .trace-actions{display:flex;gap:8px;margin:10px 0 6px}
   .tracewrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
-  .trrow{padding:2px 0;font-size:12.5px;white-space:nowrap}
-  .trrow .tw{display:inline-block;width:34px;color:var(--dim);font-size:11px}
-  .trrow.mod{color:var(--mut)} .trrow.mod b{color:var(--ink);font-weight:600}
+  .trrow{padding:2.5px 0;font-size:12.5px;white-space:nowrap;border-left:1px solid var(--line);margin-left:2px}
+  .trrow .tw{display:inline-block;width:24px;color:var(--dim);font-size:11px;text-align:center}
+  .trrow.sig{color:var(--ink);font-weight:500}
+  .trrow.sig .drill{color:var(--ink)} .trrow.sig .drill:hover{color:var(--trace)}
+  .trrow.mod{color:var(--mut);font-size:11.5px}
+  .trrow.mod .tw{color:var(--dim);font-style:italic}
+  .trmod{color:var(--mut)} .trrow.mod .trmod{color:#c9c9cf;font-weight:600}
+  .trco{color:var(--trace);font-size:11px;margin-left:4px}
+  .trad{color:var(--dim);font-size:11px;margin-left:6px}
+  .trcyc{color:var(--warn);font-size:10.5px;margin-left:4px}
   .drill{cursor:pointer;border-bottom:1px dotted var(--dim)}
   td.drill:hover,.data.drill:hover{color:var(--trace);border-bottom-color:var(--trace);background:rgba(154,160,255,.08)}
   td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
@@ -857,7 +864,7 @@ $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal();
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
 let sigNameSet=null;
 function traceRows(m, startName, dir){
-  const MAXD=7, MAXN=600;
+  const MAXD=5, MAXN=250;
   const drvOf=new Map(), ldOf=new Map();
   for(const x of m.syms){ for(const h of x.outs){ if(!drvOf.has(h))drvOf.set(h,[]); drvOf.get(h).push(x); } for(const h of x.ins){ if(!ldOf.has(h))ldOf.set(h,[]); ldOf.get(h).push(x); } }
   const byName=new Map(); m.sigName.forEach((n,h)=>{ if(n){ if(!byName.has(n))byName.set(n,[]); byName.get(n).push(h); } });
@@ -955,12 +962,13 @@ function drill(type,val){
     const rows=traceRows(m,val,dir);
     const sd=state.prog._symToDev||new Map();
     const coordOf=x=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; return [dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "); };
-    const body=rows.map(r=>{ const pad=Math.round(r.depth*18);
-      if(r.type==="sig"){ return `<div class="trrow" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"↑":"↓"}</span><span class="data drill" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="muted" style="font-size:11px">↻ shown above</span>':""}</div>`; }
-      const co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"via ◂":"via ▸"}</span><b>${esc(r.x.Nm||"?")}</b>${co?` <span class="muted">· ${esc(co)}</span>`:""} <span class="muted" style="font-size:11px" title="${esc(folderPath(m,r.x.H)||"")}">· ${esc(symAddr(m,r.x.H)||folderPath(m,r.x.H)||"")}</span></div>`; }).join("");
+    const maxd=Math.max(0,...rows.map(r=>r.depth));
+    const body=rows.map(r=>{ const pad=8+Math.round(r.depth*16);
+      if(r.type==="sig"){ const lead=r.depth===0?"target":(dir==="back"?"↑":"↓"); return `<div class="trrow sig" style="padding-left:${pad}px"><span class="tw">${r.depth===0?"●":lead}</span><span class="data drill" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="trcyc">↻ shown above</span>':""}</div>`; }
+      const ad=symAddr(m,r.x.H), co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">via</span><span class="trmod">${esc(r.x.Nm||"?")}</span>${co?` <span class="trco">${esc(co)}</span>`:""}${ad?` <span class="trad" title="${esc(folderPath(m,r.x.H)||"")}">${esc(ad)}</span>`:""}</div>`; }).join("");
     const roots=rows.filter(r=>r.type==="sig"&&!r.dup&&r.depth>0&&!rows.some(z=>z.type==="mod"&&Math.abs(z.depth-(r.depth+1))<0.1&&rows.indexOf(z)>rows.indexOf(r))).length;
     openModal(`${dir==="back"?"What triggers":"What&rsquo;s affected by"} ${esc(val)}`,
-      `<p class="card-intro">${dir==="back"?"The full upstream chain &mdash; every module and signal that can drive this, hop by hop back toward the original trigger (a button, schedule, or device feedback)." : "The full downstream chain &mdash; everything this signal drives, hop by hop."} Indent = one hop. Click any signal to re-trace from there. <code>↻</code> = already shown (loop or shared).</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
+      `<p class="card-intro">${dir==="back"?"The full upstream chain &mdash; every module and signal that can drive this, hop by hop back toward the original trigger (a button, schedule, or device feedback)." : "The full downstream chain &mdash; everything this signal drives, hop by hop."} Each indent is one hop &mdash; <b style="color:var(--ink)">signals</b> in white, the <span class="trmod">modules</span> between them in grey. Click any signal to re-trace from it. <code>↻</code> = already shown above (a loop or a shared signal). Showing up to ${maxd} hops; click a leaf to keep going.</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
     openModal(`Feedback loop &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
@@ -1176,6 +1184,16 @@ function runAudit(){
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
+  if(m && state.logXref){ const lx=state.logXref;
+    const total=lx.drops.length+(lx.loops&&lx.waveTimeouts?1:0)+lx.missingFiles.length+lx.devConflicts.length;
+    if(total){ let lb=`<p class="card-intro">Pulled from the error log you loaded, tied back to this program &mdash; click to dig in.</p>`;
+      if(lx.drops.length){ lb+=`<div class="lbl">Devices dropping in the log</div>`+tbl([{t:"IP-ID"},{t:"Device (click to open)"},{t:"Drops",num:1}], lx.drops.slice(0,40).map(dd=>`<tr><td class="data">${esc(dd.id)}</td><td class="data drill" data-drill="devsignals" data-val="E:${esc(dd.id)}">${esc(dd.name)}</td><td class="num data">${dd.n.toLocaleString()}</td></tr>`).join("")); }
+      if(lx.waveTimeouts&&lx.loops){ lb+=`<div class="lbl" style="margin-top:12px">Logic-solve timeouts &harr; feedback loops</div><p class="foot-note"><b>${lx.waveTimeouts.toLocaleString()}</b> &ldquo;could not be solved&rdquo; timeout(s) in the log; the <b>${lx.loops}</b> feedback loop(s) below are the prime suspects &mdash; see the Feedback loops card.</p>`; }
+      if(lx.missingFiles.length){ lb+=`<div class="lbl" style="margin-top:12px">Program files missing at boot (failed/partial upload)</div>`+tbl([{t:"Missing file"}],lx.missingFiles.map(f=>`<tr><td class="data">${esc(f)}</td></tr>`).join("")); }
+      if(lx.devConflicts.length){ lb+=`<div class="lbl" style="margin-top:12px">Device claimed by more than one program</div>`+tbl([{t:"Conflict"}],lx.devConflicts.map(c=>`<tr><td class="data">${esc(c)}</td></tr>`).join("")); }
+      html+=`<div class="section-label">From the error log</div>`+card("Issues seen in the log",total,lb,true,"attn");
+    }
+  }
   if(!html){
     if(pr.name && (pr.smw||pr.smft||pr.dip)){
       html=`<div class="hero-empty"><div class="he-icon">⚠</div><div class="he-title">Loaded, but no readable SIMPL data</div><div class="he-sub"><b>${esc(pr.name)}</b> opened but didn&rsquo;t contain signals or devices we could parse. If it&rsquo;s a compiled <code>.zip</code>, make sure it includes the uncompiled <code>.smw</code> (and ideally <code>.smft</code> / <code>.dip</code>) &mdash; a compiled-only archive (just <code>.bin</code>/<code>.lpz</code>) has no readable source. Files are read-only and nothing leaves your machine.</div></div>`;
@@ -1340,7 +1358,7 @@ async function loadProgram(file){
 wireDrop($("#dropL"),$("#fileL"),f=>{
   $("#logBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
   readPayload(f,"log")
-    .then(p=>runLog(p.name,p.text))
+    .then(p=>{runLog(p.name,p.text); if(state.prog&&state.prog.smw)runAudit();})
     .catch(err=>{ $("#logBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 function analyzeLog(text){
@@ -1553,7 +1571,11 @@ function fmtSpan(h){
   if(h<48) return `${h.toFixed(1)} h`;
   return `${(h/24).toFixed(1)} days`;
 }
-$("#logBody").addEventListener("click",e=>{ const h=e.target.closest("h3"); if(h&&h.parentElement.classList.contains("panel"))h.parentElement.classList.toggle("lc"); });
+$("#logBody").addEventListener("click",e=>{
+  const xj=e.target.closest("[data-xjump]");
+  if(xj){ e.stopPropagation(); const id=xj.dataset.xjump; const tb=document.querySelector('#nav button[data-tab="census"]'); if(tb)tb.click();
+    setTimeout(()=>{ if(id==="__audit__"){ /* tab already switched */ } else if(id==="__loops__"){ const c=[...document.querySelectorAll("#censusBody .card")].find(k=>/Feedback loops/.test(k.querySelector(".card-title").textContent)); if(c){c.classList.remove("collapsed");c.scrollIntoView({behavior:"smooth",block:"start"});} } else { drill("devsignals","E:"+id); } },60); return; }
+  const h=e.target.closest("h3"); if(h&&h.parentElement.classList.contains("panel"))h.parentElement.classList.toggle("lc"); });
 function runLog(name,text){
   const nm=$("#logName"); nm.classList.remove("hide"); nm.querySelector(".mono").textContent=name;
   const a=analyzeLog(text);
@@ -1566,8 +1588,11 @@ function runLog(name,text){
       devName=id=>{ id=String(id).toUpperCase(); const nm=byId.get(id)||(roles.get(id)||{}).name||(et.get(id)||{}).name||""; const ip=dip.get(id)||(et.get(id)||{}).ip||""; return nm||ip?`${nm||"(unknown)"}${ip?" "+ip:""}`:""; };
       if(pr.model){ const sAddr=new Map(); pr.model.syms.forEach(x=>{ if(x.Nm){ const a2=symAddr(pr.model,x.H); if(a2&&!sAddr.has(a2))sAddr.set(a2,x.Nm); } });
         enrichMsg=t=>String(t).replace(/\bS-[\d.]+/g,m2=>{ const nm=sAddr.get(m2); return nm?`${m2} (${nm})`:m2; }); }
-    }
-  }catch(e){}
+      const sa=pr.model?structAnalysis(pr.model):null;
+      const namedDrops=a.dropTop.map(([dv,n])=>{ const id=dv.replace(/^(IP-ID|Dev)\s+/,"").toUpperCase(); return {id,name:devName(id),n}; }).filter(x=>x.name);
+      state.logXref={ drops:namedDrops, waveTimeouts:a.toRows.length, loops:(sa?sa.oscCandidates:0), missingFiles:a.missingFiles||[], devConflicts:a.devConflicts||[] };
+    } else { state.logXref=null; }
+  }catch(e){ state.logXref=null; }
   if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
 
   const worst=a.recurring[0];
@@ -1623,7 +1648,7 @@ function runLog(name,text){
     const summary=a.noStart
       ? `At least one has no preceding program start in this log, so its timing can't be placed.`
       : `Largest gap after a program start: <b>${a.maxGap}s</b>. Timeouts bunched within seconds of a start are typically upload/settling transients; a timeout long after a stable start is the one worth a live look.`;
-    html+=`<div class="panel" style="margin-top:14px"><h3>Signal-solve timeouts <span class="muted" style="text-transform:none;letter-spacing:0">— logic engine couldn't settle a wave</span><span class="ct">${a.toRows.length.toLocaleString()}</span></h3>
+    html+=`<div class="panel" style="margin-top:14px"><h3>Signal-solve timeouts <span class="muted" style="text-transform:none;letter-spacing:0">— logic engine couldn't settle a wave</span><span class="ct">${a.toRows.length.toLocaleString()}</span></h3>${(state.logXref&&state.logXref.loops&&a.toRows.length)?`<div class="banner" style="border-left-color:var(--warn)">Tied to the program: <b>${state.logXref.loops}</b> feedback loop(s) with no wave-breaker &mdash; the prime suspects. <span class="data drill" data-xjump="__loops__">Open Feedback loops in the Audit →</span></div>`:""}
       <p class="verdict">${summary}</p>
       <table><thead><tr><th>Timestamp</th><th class="num">Seconds after last program start</th></tr></thead><tbody>
       ${a.toRows.slice(0,500).map(r=>`<tr><td class="data">${esc(r.w)}</td><td class="num data">${r.gap==null?"— no preceding start":r.gap+"s"}</td></tr>`).join("")}
@@ -1656,7 +1681,7 @@ function runLog(name,text){
     html+=`<div class="panel" style="margin-top:14px"><h3>Device socket drops <span class="ct">${a.dropTop.length.toLocaleString()}</span></h3>
     ${a.periodic.length?`<div class="banner" style="border-left-color:var(--warn)">Regular-interval drops detected &mdash; ${a.periodic.slice(0,4).map(p=>`<b>${esc(p.dev)}</b> ~every ${p.everyS<90?Math.round(p.everyS)+"s":(p.everyS<5400?Math.round(p.everyS/60)+" min":(p.everyS/3600).toFixed(1)+" hr")}`).join("; ")}. A steady cadence (vs. random) usually means a flaky link/PoE, a device rebooting on a timer, or a duplicate IP fighting on the network.</div>`:""}
     <table><thead><tr><th>Device (Id / IP-ID)</th><th>Identified from the program</th><th class="num">Drops</th></tr></thead><tbody>
-    ${a.dropTop.map(([dv,n])=>{ const id=dv.replace(/^(IP-ID|Dev)\s+/,""); const nm=devName?devName(id):""; return `<tr><td class="data">${esc(dv)}</td><td class="data${nm?"":" muted"}">${esc(nm||"— load the program in Audit to name it —")}</td><td class="num data">${n}</td></tr>`; }).join("")}
+    ${a.dropTop.map(([dv,n])=>{ const id=dv.replace(/^(IP-ID|Dev)\s+/,""); const nm=devName?devName(id):""; return `<tr><td class="data">${esc(dv)}</td><td class="data${nm?"":" muted"}">${nm?`<span class="data drill" data-xjump="${esc(id.toUpperCase())}" title="open this device in the Audit">${esc(nm)}</span>`:"— load the program in Audit to name it —"}</td><td class="num data">${n}</td></tr>`; }).join("")}
     </tbody></table><p class="foot-note">A few drops over a long log usually mean upload/power events; many on one device points at a flaky link or PoE.</p></div>`;
   }
 
@@ -1671,18 +1696,10 @@ function runLog(name,text){
       const smft=pr.smft?parseSmft(pr.smft):[]; const roles=dvNetRoles(pr.smw); const et=parseEt(pr.smw); const dip=pr.dip?parseDip(pr.dip):new Map();
       const byId=new Map(); smft.forEach(d=>{ if(d.id&&!byId.has(d.id))byId.set(d.id,{name:d.name||d.model,model:d.model}); });
       const label=id=>{ const d=byId.get(id)||{}; const r=roles.get(id)||{}; const e=et.get(id)||{}; const nm=d.name||r.name||e.name||""; const md=d.model||""; const ipx=dip.get(id)||e.ip||""; const parts=[nm||md||"(unknown device)"]; if(md&&md!==nm)parts.push(md); if(r.role)parts.push(r.role); return {text:parts.filter(Boolean).join(" — "), ip:ipx}; };
-      let xref="";
-      const idDrops=a.dropTop.filter(([dv])=>/^(IP-ID|Dev) /.test(dv)).map(([dv,n])=>({id:dv.replace(/^(IP-ID|Dev) /,"").toUpperCase(),n})).filter(x=>byId.has(x.id)||roles.has(x.id)||et.has(x.id));
-      if(idDrops.length){
-        xref+=`<div class="lbl">Dropping devices, identified from the program</div>`+tbl([{t:"IP-ID"},{t:"Device (from the program)"},{t:"IP"},{t:"Drops",num:1}], idDrops.map(x=>{ const L=label(x.id); return `<tr><td class="data">${esc(x.id)}</td><td class="data">${esc(L.text)}</td><td class="data muted">${esc(L.ip||'—')}</td><td class="num data">${x.n.toLocaleString()}</td></tr>`; }).join(""));
-      }
-      const rings=pr.model?structAnalysis(pr.model):null;
-      if(a.toRows.length&&rings&&rings.oscCandidates){
-        xref+=`<div class="lbl" style="margin-top:12px">Logic-solve timeouts ↔ feedback loops</div><p class="foot-note">This log has <b>${a.toRows.length.toLocaleString()}</b> &ldquo;could not be solved&rdquo; timeout(s), and the loaded program has <b>${rings.oscCandidates}</b> feedback loop(s) with no wave-breaker. Those rings are the prime suspects — open the Feedback loops card in Audit and trace them.</p>`;
-      }
-      if(xref) html+=`<div class="panel" style="margin-top:14px"><h3>Cross-reference with the loaded program <span class="muted" style="text-transform:none;letter-spacing:0">— who is this, really</span></h3>${xref}</div>`;
     }
   } catch(e){}
+  if(state.logXref){ const lx=state.logXref; const t=lx.drops.length+(lx.loops&&lx.waveTimeouts?1:0)+lx.missingFiles.length+lx.devConflicts.length;
+    if(t) html+=`<div class="banner" style="border-left-color:var(--trace);margin-top:14px"><b>${t}</b> of these are tied to your loaded program &mdash; collected into a <b>From the error log</b> card on the <span class="data drill" data-xjump="__audit__">Audit tab →</span>.</div>`; }
   $("#logBody").innerHTML=html||'<p class="empty">Parsed the log but found nothing notable.</p>'; wrapScroll("#logBody");
 }
 
