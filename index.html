@@ -142,6 +142,10 @@
   .gtext{fill:var(--ink);font-size:11px;font-family:"JetBrains Mono",ui-monospace,monospace}
   .gtext.sig{fill:#000;font-weight:600}
   .gedge{fill:none;stroke:var(--dim);stroke-width:1.2}
+  .subchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 10px}
+  .subchip{font:inherit;font-size:11.5px;color:var(--mut);background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:3px 10px;cursor:pointer}
+  .subchip:hover{color:var(--ink);border-color:var(--dim)} .subchip.on{color:var(--ink);border-color:var(--trace);background:rgba(154,160,255,.1)} .subchip b{color:var(--ink);font-weight:600}
+  @media print{ .subchips{display:none} }
   .trace-actions{display:flex;gap:8px;margin:10px 0 6px}
   .tracewrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
   .trrow{padding:2px 0;font-size:12.5px;white-space:nowrap}
@@ -815,6 +819,8 @@ wireDrop($("#dropC"),$("#fileC"),f=>{
 $("#censusBody").addEventListener("click",e=>{
   const d=e.target.closest("[data-drill]");
   if(d){ e.stopPropagation(); drill(d.dataset.drill, d.dataset.val); return; }
+  const sc=e.target.closest(".subchip");
+  if(sc){ const q="["+sc.dataset.sub+"]"; const f=document.querySelector("#tab-census .sigfilter"); if(f)f.value=q; const tb=document.getElementById("sigBody"); if(tb)tb.innerHTML=signalRows(q); document.querySelectorAll("#tab-census .subchip").forEach(b=>b.classList.toggle("on",b===sc)); return; }
   const ab=e.target.closest(".actionbar");
   if(ab){ const t=document.querySelector("#censusBody .card.attn"); if(t){ t.classList.remove("collapsed"); t.scrollIntoView({behavior:"smooth",block:"start"}); } return; }
   const sb=e.target.closest(".cardsel");
@@ -1150,7 +1156,10 @@ function runAudit(){
     html+=card("Module inventory",inv.size,`<p class="card-intro">Every module type and how many are used. Click one to see each instance and what it&rsquo;s wired to.</p>`+tbl([{t:"Module"},{t:"Count",num:1}],rows,1),false);
   }
   if(m){
-    const body=`<p class="card-intro">Every signal, with how many places drive it (sources) and read it (loads). Type to find one; click to trace where it comes from and where it goes.</p><input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
+    const subT=new Map(); sigs.forEach(g=>{ const mm=g.nm.match(/\[([^\]]+)\]/); if(mm)subT.set(mm[1],(subT.get(mm[1])||0)+1); });
+    const topSub=[...subT.entries()].sort((a,b)=>b[1]-a[1]).slice(0,18);
+    const chips=topSub.length>=3?`<div class="subchips"><span class="muted" style="font-size:11px;margin-right:4px">Jump to a subsystem:</span>${topSub.map(([t,n])=>`<button class="subchip" data-sub="${esc(t)}">${esc(t)} <b>${n.toLocaleString()}</b></button>`).join("")}</div>`:"";
+    const body=`<p class="card-intro">Every signal, with how many places drive it (sources) and read it (loads). Type to find one, or jump to a <b>subsystem</b> by its name tag; click any signal to trace it.</p>${chips}<input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
     html+=card("Signals",sigs.length,body,false);
   }
   if(sa){
