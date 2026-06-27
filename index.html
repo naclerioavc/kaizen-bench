@@ -887,8 +887,8 @@ function runAudit(){
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
   if(netIds.length){
     const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const nr=netRoles.get(id)||{}; const loop=ip==="127.0.0.1";
-      const name=d.name||nr.name||""; const role=nr.role||c.type||""; const detail=nr.detail||"";
-      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||nr.name||'')}">${esc(d.model||nr.name||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${role?'':' muted'}" title="${esc(detail||role)}">${esc(role||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+      const name=d.name||nr.name||""; const detail=nr.detail||""; const role=(nr.role?nr.role+(detail?" → "+detail:""):"")||c.type||"";
+      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||nr.name||'')}">${esc(d.model||nr.name||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${role?'':' muted'}" title="${esc(role)}">${esc(role||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
     html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
@@ -903,8 +903,8 @@ function runAudit(){
   { const irDev=pr.smw?parseIrDevices(pr.smw):[];
     if(irDev.length){
       const loc=x=>{ if(m&&x.smH!=null){ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||p||""; } return ""; };
-      const rows=irDev.map(x=>`<tr><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`).join("");
-      html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port it&rsquo;s wired to, and where it lives in the program.</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"Driver file"},{t:"Location"}],rows,1),false);
+      const rows=irDev.map(x=>{ const hip=x.hostIpid?(dip.get(x.hostIpid)||""):""; return `<tr><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data" title="${esc(x.host||'')}">${esc(x.host||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data${hip==='127.0.0.1'?' muted':''}">${esc(hip||'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`; }).join("");
+      html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port, and the <b>specific endpoint it lands on</b> &mdash; the exact device by name, its IP-ID, and resolved IP &mdash; so you can find the physical port, not just &ldquo;an NVX somewhere.&rdquo;</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"On endpoint"},{t:"Endpoint IP-ID"},{t:"Endpoint IP"},{t:"Driver file"},{t:"Location"}],rows,1),false);
     } else if(state.prog.ir&&state.prog.ir.length){
       const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
       html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">IR driver files in the program. Load the full program <code>.smw</code>/<code>.zip</code> for the wired view (port + location).</p>`+tbl([{t:"IR driver file"}],rows,1),false);
@@ -1032,8 +1032,10 @@ function dvIndex(smw){ const lines=smw.split("\n"); let cur=null,typ=null; const
     if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue; const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
   return byH; }
 const DV_GENERIC=/slot$|card$|ports?$|^com$|versiport|^relays?$|^ir$|ethernet devices$|cresnet devices$|p4ethernet$|^rf$|^fixed|^not_used$/i;
-function dvLandsOn(byH,h){ let p=byH.get(String(h)); if(!p)return ""; p=byH.get(String(p.PrH)); let g=0;
-  while(p&&g++<12){ const nm=(p.Nm||"").trim(); if(nm&&!DV_GENERIC.test(nm))return nm; p=byH.get(String(p.PrH)); } return ""; }
+function dvHostNode(byH,h){ let p=byH.get(String(h)); if(!p)return null; p=byH.get(String(p.PrH)); let g=0;
+  while(p&&g++<12){ const nm=(p.Nm||"").trim(); if(nm&&!DV_GENERIC.test(nm))return p; p=byH.get(String(p.PrH)); } return null; }
+function dvLandsOn(byH,h){ const n=dvHostNode(byH,h); return n?(n.Nm||""):""; }
+function dvHostIpid(byH,h){ const n=dvHostNode(byH,h); const ad=n&&(n.Ad||"").toUpperCase(); return (ad&&/^[0-9A-F]{1,2}$/.test(ad)&&ad!=="00")?ad:""; }
 function dvNetRoles(smw){ const byH=dvIndex(smw); const out=new Map();
   byH.forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return; const nm=(d.Nm||"").trim();
     if(!nm||/^p4ethernet$|^not_used$|^ethernet devices$|^ethernetcard$|^cresnet/i.test(nm))return;
@@ -1218,15 +1220,15 @@ function parseNetstat(text){
   return out;
 }
 function parseIrDevices(smw){
-  const lines=smw.split("\n"); let cur=null,typ=null; const dv=new Map(); const dbs=[];
+  const byH=dvIndex(smw); const lines=smw.split("\n"); let cur=null,typ=null; const dbs=[];
   for(const raw of lines){ const line=raw.replace(/\r$/,"");
     if(line==="["){cur={};typ=null;continue;}
-    if(line==="]"){ if(typ==="Dv"&&cur.H!=null)dv.set(String(cur.H),cur); else if(typ==="Db"&&cur.DrF)dbs.push(cur); cur=null; continue; }
+    if(line==="]"){ if(typ==="Db"&&cur.DrF)dbs.push(cur); cur=null; continue; }
     if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
     const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
-  return dbs.map(db=>{ const d=dv.get(String(db.DvH))||{};
-    return { device:d.Nm||db.Mdl||"", model:db.Mdl||"", mfr:db.Mnf||"", port:d.Ad||"", driver:String(db.DrF).replace(/\.ir$/i,""), smH:d.SmH!=null?parseInt(d.SmH,10):null }; })
-    .sort((a,b)=>(a.port||"").localeCompare(b.port||"",undefined,{numeric:true})||a.device.localeCompare(b.device));
+  return dbs.map(db=>{ const d=byH.get(String(db.DvH))||{}; const host=dvHostNode(byH,db.DvH);
+    return { device:d.Nm||db.Mdl||"", model:db.Mdl||"", mfr:db.Mnf||"", port:d.Ad||"", driver:String(db.DrF).replace(/\.ir$/i,""), smH:d.SmH!=null?parseInt(d.SmH,10):null, host:host?(host.Nm||""):"", hostIpid:(host&&/^[0-9A-F]{1,2}$/i.test(host.Ad||"")&&(host.Ad||"").toUpperCase()!=="00")?(host.Ad||"").toUpperCase():"" }; })
+    .sort((a,b)=>(a.host||"").localeCompare(b.host||"")||(a.port||"").localeCompare(b.port||"",undefined,{numeric:true})||a.device.localeCompare(b.device));
 }
 function parseDeviceCatalog(smw){
   const lines=smw.split("\n"); let cur=null,typ=null; const seen=new Map();
@@ -1394,7 +1396,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvNetRoles,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
 </script>
 </body>
 </html>
