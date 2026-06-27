@@ -928,6 +928,21 @@ function runAudit(){
     rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback rings.</p>';
     html+=card("Feedback rings",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
   }
+  if(m){
+    const contention=(state.signals||[]).filter(g=>g.t!=="D"&&g.d>=2).sort((a,b)=>b.d-a.d);
+    const dupConf=[];
+    if(pr.dip){ const reId=/^id(\d+)[ \t]*=[ \t]*([0-9A-Fa-f]+)/gm, reA=/^addr(\d+)[ \t]*=[ \t]*([^\r\n]*)/gm; const ids={},ad={}; let mm;
+      while(mm=reId.exec(pr.dip))ids[mm[1]]=mm[2].toUpperCase(); while(mm=reA.exec(pr.dip))ad[mm[1]]=mm[2].trim();
+      const byId=new Map(); for(const n in ids){ const id=ids[n],a=ad[n]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
+      byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
+    const n=dupConf.length+(contention.length?1:0)+((sa&&sa.oscCandidates)?1:0);
+    if(n){ let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
+      if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
+      if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
+      if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback rings with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback rings card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
+      html+=`<div class="section-label">Checks</div>`+card("Things to review",n,b,true);
+    }
+  }
   if(!html) html=`<p class="empty">Drop a program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>).</p>`;
   $("#censusBody").innerHTML=html;
 }

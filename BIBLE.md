@@ -53,7 +53,8 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
 - ✅ Serial ports: COM #, what it controls, the card it's on, protocol, baud, data/parity/stop, handshaking
 - ✅ Relay / IR / I-O ports that are wired, with what each controls
 - ✅ Full IP-ID table (`.dip`); third-party IPs hidden in module params (with purpose + address, creds stripped)
-- ⬜ Device manufacturer/type enrichment (`Db`) merged into device rows
+- ✅ Device catalog (`Db`): manufacturer / model / type bill-of-materials card
+- ⬜ Per-row `Db` enrichment merged inline into each device row
 - ⬜ Ethernet config records (`Et`: IP/mask) merged where useful
 
 Log Analyzer (`.err` / Info-Tool dump / PLOG `.zip`):
@@ -61,27 +62,25 @@ Log Analyzer (`.err` / Info-Tool dump / PLOG `.zip`):
   Hardware (processor + slots), programs + uptimes, triage, recurring w/ rate, solve timeouts,
   processor load + hogs, device drops, log-suspension, gzip rotations, multi-boot merge
 - ✅ Non-SIMPL logs detected and declined cleanly
-- ⬜ More Info-Tool sections: netstat, Cresnet report, DHCP leases, autodiscovery
+- ✅ Discovered network devices (autodiscovery) + open ports / connections (netstat)
+- ⬜ More Info-Tool sections: Cresnet report, DHCP leases
 
 Diff (two `.smw`/`.umc`): ✅ signals add/remove/rename, type changes, module deltas, copy-as-text
 
 ## 5. Roadmap (⬜ not started unless noted)
 
-- ⬜ **Wiring map** — render the signal↔symbol graph the Signals tracer already computes.
-- ⬜ **Debug / issue-finder** on the wiring graph (honest, candidate-framed; live box confirms).
+- ✅ **Wiring map** — per-signal node-link graph (drivers → signal → loads) in the tracer modal.
+- ✅ **Debug / issue-finder** — Checks card: duplicate IP-IDs (real conflict), analog/serial
+  value contention (candidate), feedback rings (candidate). Honest; live box confirms.
+- ✅ **As-built / printable report** — Print / Save PDF expands all cards into a clean
+  black-on-white document via a print stylesheet.
+- ⬜ Per-card CSV export; row-selection (checkboxes) for export/monitor.
 - ⬜ **Multi-program / multi-processor systems** — load several programs together, link them
   across EISC bridges / shared IP-IDs, trace across the whole system.
-- ⬜ **As-built / printable report**; per-card CSV export; row-selection for export.
 - ⬜ Companion app for live, on-device data (kept out of this repo).
 
 ## 6. Correctness — the grading harness
 
-`test/grade.js` (`npm test`) loads the shipped `index.html` in a DOM and asserts the extraction
-functions against synthetic fixtures with known ground truth. Run the same checks ad-hoc on
-real programs; they must pass exactly. The harness has already caught real parser bugs.
-
-## 7. File formats & coverage
-
-Program: `.smw`, `.umc`, `.chd` (same `ObjTp=` grammar), `.smft` (device XML), `.dip` (IP table),
-program `.zip` (all + `.ir`). Logs: `.err`, Info-Tool `.log`, PLOG `.zip` (incl. gz rotations).
-Verified across CP4, RMC4 (4-Series) and PRO3 (3-Series) via the grader.
+`test/grade.js` (`npm test`) loads the shipped `index.html` in a DOM and (1) asserts **every**
+extraction function against synthetic fixtures with known ground truth — header, IP-ID table
+(incl. blank + duplicate-conf
