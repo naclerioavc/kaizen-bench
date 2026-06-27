@@ -92,3 +92,47 @@ Physical coordinates (the "go find it" rule):
 - ✅ Signal tracer shows each driver/load's exact landing point — host device · IP-ID · the
   device/card ID · pin — alongside the program folder path. Built from a symbol→`Dv` reverse
   map. Not "lands on an NVX" but "DM-NVX Zone 5 (IP-ID B2) · IR Ports ID 06 · pin 1".
+
+---
+
+## File-format facts (hard-won — verified against real programs; do not relitigate)
+
+These are confirmed against real `.smw`/`.err` files. If something here is wrong, prove it against
+a real file and update this section — don't re-derive from scratch.
+
+**Records** (`ObjTp=`): `Sg` signal · `Sm` symbol/module · `Dv` device · `Db` device-DB entry ·
+`Cm` comm spec (serial) · `Et` ethernet config · `VTP` touchpanel project · `Hd` header.
+
+**Signals** (`Sg`): `SgTp` → digital = absent/`0`/`1`, analog = `2`, serial = `4`. Names starting
+with `/` (e.g. `//__reserved__`) are reserved/disabled — filter them from user views.
+
+**Symbols** (`Sm`): `I1,I2…` input pins → signal handle; `O1,O2…` output pins → signal handle;
+`C1,C2…` children (tree); `P1,P2…` parameters. **A `P#` is one of three things** — classify by
+value: a **signal name** (matches a real signal → it's wired through a parameter pin), a **value**
+(`0d`,`9600`,`75%`,`0x…` → real config), or a **pin/function name** (identifier like `Power_ON`,
+`Up` → the module's own label for a pin). On IR/command drivers (`Nm="Crestron DB IR-controlled
+device"`, `SmC=107`) the `P#` are the function names and the `I#` are the trigger signals — they
+correlate, **but the I↔P index offset is NOT consistent across drivers**, so we do NOT positionally
+correlate them (that would be guessing). We label each param's Kind instead.
+
+**Folders**: SIMPL stores folders as generic symbols `Nm=SUBSYSTEM`; the programmer's real label
+is in `Cmn1` (strip trailing `\`). `folderPath` walks `parentOf` (from `C#` children) using the
+resolved label.
+
+**Device tree** (`Dv`): `PrH` = parent handle (the physical tree: processor → card → port/device).
+`Ad` = address (IP-ID **or** Cresnet ID **or** port number) — **NOT unique across buses**, so any
+`Ad`-keyed lookup must be bus-scoped (walk `PrH` for an `Ethernet`/`Cresnet`/`RF` ancestor). `SmH` =
+the symbol that carries the device's signals (reverse-map `SmH→Dv` to get a signal's physical
+coordinate). `DvC` present = a real device; pure containers (slots/cards/`P4Ethernet`) have none.
+
+**Device enrichment**: `Db.DvH→Dv` gives manufacturer/model/type; `Db.DrF` = the `.ir` driver file
+(IR devices). `Et.DvH→Dv` gives static IP/mask **and** a descriptive `Nm` that catches intersystem
+links the `.smft` doesn't model as EISCs (e.g. a `To/From <other-processor>: [subsystem]` link). `.smft` nests devices
+under their gateway → that's the "behind which gateway" relationship.
+
+**Error logs** (`.err`): line format `Level: Source # timestamp # message`. Three real gotchas:
+(1) some lines end `\r\r\n` — strip **all** trailing `\r`, or `.*$` fails and the line is dropped
+(cost us ~2/3 of one log's errors). (2) `(written N times)` is a repeat count, inline or on a
+trailing line — multiply, don't count as 1. (3) Crestron wraps one long message across several
+re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `System startup
+<model> Cntrl Eng [v…]` = model + firmware + a boot event.

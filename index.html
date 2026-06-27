@@ -870,8 +870,10 @@ function drill(type,val){
     const erIn=`<tr><td class="muted" colspan="2">${resIn>0?resIn+" reserved / internal input"+(resIn===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
     const erOut=`<tr><td class="muted" colspan="2">${resOut>0?resOut+" reserved / internal output"+(resOut===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
     const prm=(x.params||[]).filter(p=>p.v!=="");
+    const pkind=v=>{ if(sigNameSet.has(v))return "signal"; if(/^[+-]?[\d.]+\s*[dhsf%]?$|^0x[0-9a-fA-F]+$/.test(v))return "value"; return "name"; };
+    const kindLbl={signal:"signal (wired)",value:"value",name:"pin / function name"};
     const pcell=v=>sigNameSet.has(v)?`<td class="data drill" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
-    const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div>`+tbl([{t:"#",num:1},{t:"Value"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td>${pcell(p.v)}</tr>`).join("")):"";
+    const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div><p class="foot-note">A parameter can be a config <b>value</b>, a <b>signal</b> wired through a parameter pin, or a <b>pin/function name</b> the module defines &mdash; the Kind column says which.</p>`+tbl([{t:"#",num:1},{t:"Kind"},{t:"Value / name"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td><td class="data muted">${kindLbl[pkind(p.v)]}</td>${pcell(p.v)}</tr>`).join("")):"";
     const dd=(state.prog._symToDev||new Map()).get(String(x.H));
     const coordStr=dd?[dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "):"";
     openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,

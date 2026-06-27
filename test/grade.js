@@ -149,6 +149,8 @@ has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').
 { w.eval('drill("syminst","970")'); const mb=w.document.getElementById('modalBody');
   has("instance drill shows a pin map (I1/O1 ...)", [...mb.querySelectorAll('thead th')].some(t=>t.textContent==='Pin') && /I1/.test(mb.textContent));
   has("instance drill shows the instance's physical landing", /Physical landing/.test(mb.textContent) && /Matrix/.test(mb.textContent)); }
+{ w.eval('drill("syminst","11")'); const mb=w.document.getElementById('modalBody');
+  has("parameters classified by Kind (value vs pin/function name)", [...mb.querySelectorAll('thead th')].some(t=>t.textContent==='Kind') && /pin \/ function name/.test(mb.textContent) && /value/.test(mb.textContent)); }
 { const net=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/Network devices/.test(c.querySelector('.card-title').textContent));
   const dc=net.querySelector('[data-drill=devsignals]'); dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   has("device-signals drill shows join/pin numbers", [...w.document.querySelectorAll('#modalBody thead th')].some(t=>/Join \/ pin/.test(t.textContent))); }
