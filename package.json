@@ -1,0 +1,7 @@
+{
+  "name": "simpl-bench",
+  "private": true,
+  "description": "Client-side Crestron SIMPL Windows diagnostics (browser). Single self-contained index.html.",
+  "scripts": { "test": "node test/grade.js" },
+  "devDependencies": { "jsdom": "^24.0.0" }
+}

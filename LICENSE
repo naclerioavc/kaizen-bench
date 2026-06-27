@@ -1,0 +1,21 @@
+Copyright (c) 2026 Kaizen Logic. All rights reserved.
+
+This source is made publicly viewable for transparency, review, and trust.
+It is NOT open-source and is NOT licensed for redistribution.
+
+You MAY:
+  - View and read the source.
+  - Run the tools from kaizenlogic.com for your own AV work.
+  - Reference techniques and report issues.
+
+You MAY NOT, without prior written permission from Kaizen Logic:
+  - Copy, fork, rehost, or redistribute this code or substantial portions of it.
+  - Offer it, modified or unmodified, as a product or service.
+  - Remove or alter attribution.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. The tools perform static analysis and surface candidates; they do not
+replace verification on live hardware. Kaizen Logic is not liable for any
+damages arising from use of this software.
+
+Contact: chris@kaizenlogic.com

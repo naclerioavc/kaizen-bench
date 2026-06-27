@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+*.smw
+*.chd
+*.sgd
+*.umc
+uploads/
+node_modules/

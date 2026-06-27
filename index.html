@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kaizen Logic · SIMPL Diagnostics</title>
+<meta name="description" content="Free, 100% client-side Crestron SIMPL Windows diagnostics — diff two .smw programs, map program structure, and read processor error logs entirely in your browser. By Kaizen Logic.">
+<style>
+  :root{
+    --bg:#0a0a0b; --panel:#101012; --panel2:#161618; --line:#26262a;
+    --ink:#f4f4f5; --mut:#8a8a92; --dim:#5a5a62;
+    --stripe:#ffffff; --ok:#3ad29f; --bad:#ff5a5f; --warn:#f5b14c; --trace:#9aa0ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;}
+  code,.mono,pre,.data{font-family:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;}
+  a{color:var(--ink)}
+  ::selection{background:#fff;color:#000}
+
+  header{border-bottom:1px solid var(--line);padding:22px 28px 0;position:relative}
+  .brand{display:flex;align-items:flex-end;gap:16px}
+  .lockup{line-height:.92;text-align:center}
+  .lockup .logo{display:block;font-weight:800;letter-spacing:-.03em;font-size:24px;line-height:.94}
+  .lockup .logo.light{font-weight:300}
+  .tagline{color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding-bottom:3px}
+  .stripe{height:3px;background:var(--stripe);width:46px;margin:14px 0 0;position:relative;overflow:hidden}
+  .stripe::after{content:"";position:absolute;inset:0;left:-46px;width:46px;background:var(--bg);
+    animation:sweep 3.2s cubic-bezier(.7,0,.3,1) infinite}
+  @keyframes sweep{0%{left:-46px}55%,100%{left:46px}}
+  nav{display:flex;gap:2px;margin-top:16px;flex-wrap:wrap}
+  nav button{background:none;border:0;color:var(--mut);font:inherit;font-size:13px;letter-spacing:.02em;
+    padding:11px 16px;cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
+  nav button:hover{color:var(--ink)}
+  nav button.on{color:var(--ink);border-bottom-color:var(--stripe)}
+  nav button:focus-visible{outline:2px solid var(--trace);outline-offset:-2px}
+  nav .hero{font-weight:600;color:var(--ink)}
+
+  main{max-width:1180px;margin:0 auto;padding:30px 28px 80px}
+
+  .drop{border:1px dashed var(--line);border-radius:10px;padding:34px 24px;text-align:center;
+    background:linear-gradient(180deg,var(--panel),var(--bg));transition:.18s;cursor:pointer}
+  .drop.slim{padding:20px 18px}
+  .drop.hot{border-color:var(--stripe);background:var(--panel2)}
+  .drop.set{border-style:solid;border-color:var(--ok)}
+  .drop p{margin:4px 0;color:var(--mut);font-size:13px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .slot h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+    display:flex;align-items:center;gap:8px}
+  .slot h4 .tag{color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400}
+  .slot .loaded{font-size:12.5px;color:var(--ok);font-family:inherit}
+  .slot .loaded .nm{color:var(--ink);font-family:"JetBrains Mono",monospace}
+  .diffbar{display:flex;align-items:center;gap:14px;margin:16px 0 4px;flex-wrap:wrap}
+
+  .grid{display:grid;gap:14px;margin-top:8px}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+  .panel h3{margin:0 0 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+    display:flex;align-items:center;gap:8px}
+  .panel h3::before{content:"";width:18px;height:1px;background:var(--stripe)}
+  .panel h3 .ct{margin-left:auto;color:var(--ink);font-weight:600;letter-spacing:0;
+    font-family:"JetBrains Mono",monospace;text-transform:none}
+  .stat{font-size:30px;font-weight:300;letter-spacing:-.02em;line-height:1}
+  .stat .data{font-weight:500}
+  .stat small{display:block;font-size:11px;color:var(--mut);margin-top:8px;letter-spacing:.04em;
+    text-transform:uppercase;font-weight:400;font-family:Inter,sans-serif}
+  .stat .delta{font-size:13px;font-weight:500;margin-left:8px}
+  .delta.up{color:var(--ok)} .delta.down{color:var(--bad)} .delta.flat{color:var(--dim)}
+  .verdict{font-size:13px;line-height:1.55;color:var(--ink)}
+  .verdict b{font-weight:600}
+  .muted{color:var(--mut)}
+  .foot-note{font-size:12px;color:var(--dim);line-height:1.5;margin-top:10px}
+  .foot-note b{color:var(--mut)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:hover{background:var(--panel2)}
+  .bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:3px}
+  .bar i{display:block;height:100%;background:var(--stripe)}
+
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;letter-spacing:.03em}
+  .pill.ok{background:rgba(58,210,159,.12);color:var(--ok)}
+  .pill.bad{background:rgba(255,90,95,.13);color:var(--bad)}
+  .pill.warn{background:rgba(245,177,76,.13);color:var(--warn)}
+  .pill.add{background:rgba(58,210,159,.12);color:var(--ok)}
+  .pill.rem{background:rgba(255,90,95,.13);color:var(--bad)}
+  .arrow{color:var(--dim);padding:0 6px}
+
+  .banner{border:1px solid var(--line);border-left:2px solid var(--trace);background:var(--panel);
+    border-radius:8px;padding:13px 16px;font-size:12.5px;line-height:1.5;color:var(--mut);margin-bottom:14px}
+  .banner b{color:var(--ink)}
+
+  .btn{background:var(--ink);color:#000;border:0;font:inherit;font-weight:600;font-size:13px;
+    padding:9px 16px;border-radius:7px;cursor:pointer;letter-spacing:.01em}
+  .btn:hover{opacity:.88}
+  .btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn:focus-visible{outline:2px solid var(--trace);outline-offset:2px}
+
+  .empty{color:var(--dim);font-size:13px;text-align:center;padding:40px 20px;line-height:1.6}
+  .err{color:var(--bad);font-size:13px;padding:20px;text-align:center}
+  .hide{display:none}
+  .filename{font-size:12px;color:var(--mut);margin:0 0 16px;display:flex;align-items:center;gap:10px}
+  .filename .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+  .help dt{font-weight:600;font-size:13px;margin-top:16px}
+  .help dd{margin:5px 0 0;color:var(--mut);font-size:13px;line-height:1.6}
+  footer{border-top:1px solid var(--line);color:var(--dim);font-size:11px;padding:18px 28px;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;letter-spacing:.03em;align-items:center}
+  footer .cta{color:var(--mut)}
+  footer .cta a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--stripe)}
+  .working{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:13px;padding:30px 0}
+  .working .stripe{margin:0;width:80px}
+  .lockup .eyebrow{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:4px}
+  .scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:2px}
+  .scroll table{border:0}
+  .scroll thead th, .modal-body thead th{cursor:pointer;user-select:none}
+  thead th[data-dir=asc]::after{content:" ▲";color:var(--mut);font-size:9px}
+  thead th[data-dir=desc]::after{content:" ▼";color:var(--mut);font-size:9px}
+  .scroll thead th{position:sticky;top:0;background:var(--panel);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
+  .modal-body thead th{position:sticky;top:-14px;background:var(--panel);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
+  .filter{display:block;width:100%;max-width:300px;margin:0 0 10px;background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12.5px;padding:7px 11px;border-radius:7px}
+  .filter:focus{outline:none;border-color:var(--stripe)}
+  .beta{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#000;background:var(--stripe);padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:6px;font-weight:700}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal.hide{display:none}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:780px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:15px 20px;border-bottom:1px solid var(--line)}
+  .modal-head span{font-size:13px;font-weight:600;color:var(--ink)}
+  .modal-head button{margin-left:auto;background:none;border:0;color:var(--mut);font-size:15px;cursor:pointer;line-height:1}
+  .modal-head button:hover{color:var(--ink)}
+  .modal-body{padding:14px 20px;overflow:auto}
+  .modal-body .scroll{max-height:none;overflow:visible;border:0}
+  .drill{cursor:pointer}
+  td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
+  .drill:hover{color:#fff;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+  tr.drill{cursor:pointer}
+  tr.drill:hover{background:var(--panel2)}
+  .card{border:1px solid var(--line);border-radius:10px;margin-top:14px;background:var(--panel);overflow:hidden}
+  .card-head{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none}
+  .card-head:hover{background:var(--panel2)}
+  .card-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);font-weight:600;display:flex;align-items:center;gap:8px}
+  .card-title::before{content:"";width:18px;height:1px;background:var(--stripe)}
+  .card-badge{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mut);background:var(--panel2);padding:2px 9px;border-radius:999px}
+  .chev{color:var(--mut);transition:transform .15s;margin-left:8px;font-size:11px}
+  .card.collapsed .chev{transform:rotate(-90deg)}
+  .card.collapsed .card-body{display:none}
+  .card-body{padding:2px 18px 18px}
+  .card-body .scroll{margin-top:0}
+  .card-intro{font-size:12px;color:var(--mut);line-height:1.5;margin:0 0 11px}
+  .section-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);font-weight:700;margin:26px 0 2px;padding-top:16px;border-top:1px solid var(--line)}
+  .section-label:first-child{border-top:0;padding-top:0;margin-top:8px}
+  .kvgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:0 28px}
+  .kv{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .kv span{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
+  .kv b{font-weight:500;font-size:14px;color:var(--ink);font-family:"JetBrains Mono",ui-monospace,monospace;word-break:break-word}
+  #logBody .panel > h3{cursor:pointer}
+  #logBody .panel > h3::after{content:"▾";margin-left:auto;color:var(--mut);font-size:11px}
+  #logBody .panel.lc > h3::after{content:"▸"}
+  #logBody .panel.lc > *:not(h3){display:none}
+  .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-bottom:7px}
+  .stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel2)}
+  .stack .seg{height:100%}
+  .seg.s1{background:#f4f4f5}.seg.s2{background:#8a8a92}.seg.s3{background:#4a4a52}
+  .stack-key{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:var(--mut)}
+  .stack-key .kdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .kdot.s1{background:#f4f4f5}.kdot.s2{background:#8a8a92}.kdot.s3{background:#4a4a52}
+  .stack-key b{color:var(--ink);font-weight:600}
+  @media(max-width:680px){main{padding:20px 16px 60px}header{padding:18px 16px 0}.pair{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="lockup">
+      <span class="logo">kaizen</span>
+      <span class="logo light">Logic</span>
+    </div>
+    <span class="tagline">SIMPL Windows Diagnostics <span class="beta">beta</span></span>
+  </div>
+  <div class="stripe"></div>
+  <nav id="nav">
+    <button class="on hero" data-tab="diff">Version Diff</button>
+    <button data-tab="census">Audit</button>
+    <button data-tab="log">Log Analyzer</button>
+    <button data-tab="help">Help</button>
+  </nav>
+</header>
+
+<main>
+  <!-- DIFF (hero) -->
+  <section id="tab-diff">
+    <div class="pair">
+      <div class="slot">
+        <h4>A — Baseline <span class="tag">(older build)</span></h4>
+        <div class="drop slim" id="dropA" tabindex="0" role="button" aria-label="Load baseline .smw or .zip">
+          <p id="dropAlabel">Drop the <b>older</b> <code>.smw</code> / <code>.zip</code></p>
+          <p class="muted" style="font-size:12px">or click to browse</p>
+          <input type="file" id="fileA" class="hide" accept=".smw,.umc,.chd,.zip">
+        </div>
+      </div>
+      <div class="slot">
+        <h4>B — Current <span class="tag">(newer build)</span></h4>
+        <div class="drop slim" id="dropB" tabindex="0" role="button" aria-label="Load current .smw or .zip">
+          <p id="dropBlabel">Drop the <b>newer</b> <code>.smw</code> / <code>.zip</code></p>
+          <p class="muted" style="font-size:12px">or click to browse</p>
+          <input type="file" id="fileB" class="hide" accept=".smw,.umc,.chd,.zip">
+        </div>
+      </div>
+    </div>
+    <div class="diffbar">
+      <button class="btn" id="diffRun" disabled>Compare A → B</button>
+      <button class="btn ghost" id="diffSwap" disabled>Swap A / B</button>
+      <button class="btn ghost" id="diffCopy" disabled>Copy as text</button>
+      <button class="btn ghost hide" id="diffUseA"></button>
+      <button class="btn ghost hide" id="diffUseB"></button>
+      <span class="muted" id="diffHint" style="font-size:12.5px">Load both files to compare.</span>
+    </div>
+    <div id="diffBody"></div>
+  </section>
+
+  <!-- CENSUS -->
+  <section id="tab-census" class="hide">
+    <div class="drop slim" id="dropC" tabindex="0" role="button" aria-label="Load a program">
+      <p>Drop the program <code>.zip</code> &mdash; or a <code>.smw</code> / <code>.umc</code> / <code>.smft</code> / <code>.dip</code></p>
+      <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
+      <input type="file" id="fileC" class="hide" accept=".zip,.smw,.umc,.chd,.smft,.dip">
+    </div>
+    <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
+    <p class="filename hide" id="censusName"><span class="dot"></span><span class="mono"></span></p>
+    <div id="censusBody"></div>
+  </section>
+
+  <!-- LOG -->
+  <section id="tab-log" class="hide">
+    <div class="drop slim" id="dropL" tabindex="0" role="button" aria-label="Load a log file or zip">
+      <p>Drop a processor error log or Info-Tool dump</p>
+      <p class="muted" style="font-size:12px">.err / .log / .txt / .zip · or click to browse</p>
+      <input type="file" id="fileL" class="hide" accept=".err,.log,.txt,.zip">
+    </div>
+    <p class="filename hide" id="logName"><span class="dot"></span><span class="mono"></span></p>
+    <div id="logBody"></div>
+  </section>
+
+  <!-- HELP -->
+  <section id="tab-help" class="hide">
+    <div class="panel">
+      <h3>What this is</h3>
+      <p class="verdict">A field diagnostic kit for Crestron 4-Series work. Drop a program or a log; it reads the file format directly and surfaces what changed, what's heavy, and what's recurring. Built by Kaizen Logic. Runs entirely client-side — safe for client files. SIMPL-produced files are opened <b>read-only</b>; nothing is written back to them, and an Info-Tool <code>.zip</code> is unpacked in your browser without leaving your machine.</p>
+      <dl class="help">
+        <dt>Version Diff <span class="muted">— two .smw</span></dt>
+        <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Does not detect</b> rewiring of existing signals, parameter/constant changes, or device/IP-table changes (those land with the Device Map module). Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
+        <dt>Audit <span class="muted">— program .zip / .smw / .smft / .dip</span></dt>
+        <dd>The whole program at a glance, no SIMPL Windows: device list (model, IP-ID / Cresnet ID, IP), the full IP-ID table, third-party IP gear with what each address is <i>for</i>, subsystem and custom-module inventory, and the wire-map structure (feedback rings, multi-driver signals, coupling). Collapsible cards; copy-to-table export.</dd>
+        <dt>Log Analyzer <span class="muted">— .err / Info-Tool dump / .zip</span></dt>
+        <dd>Leads with a <b>triage summary</b> — log time span, error/warning counts, and the worst recurring issue. Then recurring errors with a <b>rate</b> (a burst right after boot reads very differently from a steady background hum), signal-solve-timeout vs restart correlation, processor load exactly as logged (no assumptions about which processor), and device socket drops.</dd>
+      </dl>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h3>How to read a result</h3>
+      <p class="verdict muted">Facts are read straight from the file. Anything inferred (a rename, a likely cause) is labeled as such. Static analysis sees structure and what the box already wrote down — not runtime values or the inside of compiled <code>.umc/.clz</code> modules. The Bench narrows the search; the live SIMPL debugger or a <code>cpuload</code> capture confirms it.</p>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal hide">
+  <div class="modal-card">
+    <div class="modal-head"><span id="modalTitle"></span><button id="modalClose" aria-label="Close">&#10005;</button></div>
+    <div id="modalBody" class="modal-body"></div>
+  </div>
+</div>
+
+<footer>
+  <span>kaizen Logic · SIMPL Windows Diagnostics</span>
+  <span class="cta"><a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
+</footer>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const TABS=["diff","census","log","help"];
+const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, census:null, censusName:null, lastDiff:null, signals:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,auditDone:false,devDone:false} };
+
+/* ---------- tabs ---------- */
+function show(tab){
+  $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  TABS.forEach(t=>$("#tab-"+t).classList.toggle("hide",t!==tab));
+  maybeAuto(tab);
+}
+function maybeAuto(tab){
+  const pr=state.prog;
+  if(tab==="census" && (pr.smw||pr.smft||pr.dip) && !pr.auditDone){
+    $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Analyzing ${esc(pr.name||"")}…</div>`;
+    setTimeout(()=>{ runAudit(); pr.auditDone=true; },20);
+  } else if(tab==="diff"){ updateDiffLoaded(); }
+}
+function updateDiffLoaded(){
+  const has=!!(state.prog.model||state.prog.smw), nm=state.prog.name||"";
+  ["A","B"].forEach(w=>{ const b=$("#diffUse"+w); if(!b)return; b.classList.toggle("hide",!has); b.textContent=`Use ${trim(nm,16)} → ${w}`; });
+}
+$("#nav").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b||b.disabled)return; show(b.dataset.tab);
+});
+
+/* ---------- drop wiring ---------- */
+function wireDrop(dropEl, inputEl, onFile){
+  dropEl.addEventListener("click",()=>inputEl.click());
+  dropEl.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();inputEl.click();}});
+  ["dragover","dragenter"].forEach(ev=>dropEl.addEventListener(ev,e=>{e.preventDefault();dropEl.classList.add("hot");}));
+  ["dragleave","drop"].forEach(ev=>dropEl.addEventListener(ev,e=>{e.preventDefault();dropEl.classList.remove("hot");}));
+  dropEl.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f)onFile(f);});
+  inputEl.addEventListener("change",e=>{const f=e.target.files[0]; if(f)onFile(f);});
+}
+
+/* ---------- intake: plain text, or a .zip unpacked in-browser ---------- */
+function decodeText(u8){ return new TextDecoder("utf-8",{fatal:false}).decode(u8); }
+function looksTextual(u8){
+  const n=Math.min(u8.length,512); if(!n) return false; let bad=0;
+  for(let i=0;i<n;i++){ const c=u8[i]; if(c===0) return false; if(c<9||(c>13&&c<32)) bad++; }
+  return bad/n < 0.05;
+}
+async function inflateRaw(u8){
+  if(typeof DecompressionStream==="undefined") throw new Error("this browser can't unzip here — drop the extracted file instead");
+  const ds=new DecompressionStream("deflate-raw");
+  const stream=new Blob([u8]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function gunzip(u8){
+  if(typeof DecompressionStream==="undefined") throw new Error("no gzip support in this browser");
+  const ds=new DecompressionStream("gzip");
+  const stream=new Blob([u8]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function unzip(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  let eocd=-1;
+  for(let i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error("archive isn't a readable zip");
+  const count=dv.getUint16(eocd+10,true); let off=dv.getUint32(eocd+16,true);
+  const entries=[];
+  for(let n=0;n<count && off+46<=u8.length;n++){
+    if(dv.getUint32(off,true)!==0x02014b50) break;
+    const method=dv.getUint16(off+10,true);
+    const compSize=dv.getUint32(off+20,true);
+    const nameLen=dv.getUint16(off+28,true);
+    const extraLen=dv.getUint16(off+30,true);
+    const commentLen=dv.getUint16(off+32,true);
+    const lhOff=dv.getUint32(off+42,true);
+    const name=decodeText(u8.subarray(off+46,off+46+nameLen));
+    const lhNameLen=dv.getUint16(lhOff+26,true);
+    const lhExtraLen=dv.getUint16(lhOff+28,true);
+    const dataStart=lhOff+30+lhNameLen+lhExtraLen;
+    entries.push({name,method,comp:u8.subarray(dataStart,dataStart+compSize)});
+    off+=46+nameLen+extraLen+commentLen;
+  }
+  const files=[];
+  for(const e of entries){
+    if(e.name.endsWith("/")) continue;
+    let bytes;
+    if(e.method===0) bytes=e.comp;
+    else if(e.method===8) bytes=await inflateRaw(e.comp);
+    else continue;
+    files.push({name:e.name, bytes});
+  }
+  return files;
+}
+function chooseEntry(files, kind){
+  const c=files.filter(f=>!f.name.endsWith("/"));
+  if(kind==="smw") return c.find(f=>/\.smw$/i.test(f.name)) || null;
+  return c.find(f=>/\.err$/i.test(f.name))
+      || c.find(f=>/\.(log|txt)$/i.test(f.name))
+      || c.filter(f=>looksTextual(f.bytes)).sort((a,b)=>b.bytes.length-a.bytes.length)[0]
+      || null;
+}
+async function readPayload(file, kind){
+  const buf=await file.arrayBuffer();
+  const u8=new Uint8Array(buf);
+  const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04) || /\.zip$/i.test(file.name);
+  if(isZip){
+    const files=await unzip(buf);
+    if(kind==="log"){
+      const out=[];
+      for(const f of files){
+        if(f.name.endsWith("/")) continue;
+        let bytes=f.bytes, name=f.name;
+        if(/\.gz$/i.test(name) || (bytes[0]===0x1f&&bytes[1]===0x8b)){
+          try{ bytes=await gunzip(bytes); name=name.replace(/\.gz$/i,""); }catch(e){ continue; }
+        }
+        if(looksTextual(bytes)) out.push({name, text:decodeText(bytes)});
+      }
+      if(!out.length) throw new Error("no log / console text found inside the zip");
+      out.sort((a,b)=>a.name<b.name?-1:1);
+      const merged=out.map(f=>`===== ${f.name} =====\n${f.text}`).join("\n");
+      return {name:`${file.name} › ${out.length} log file${out.length>1?'s':''}`, text:merged};
+    }
+    const pick=chooseEntry(files,kind);
+    if(!pick) throw new Error("no .smw program found inside the zip");
+    return {name:`${file.name} › ${pick.name}`, text:decodeText(pick.bytes)};
+  }
+  return {name:file.name, text:decodeText(u8)};
+}
+
+/* ---------- .smw parser (read-only; ported from smwlib) ---------- */
+function parseSmw(text){
+  if(!/ObjTp=S[mg]/.test(text)) throw new Error("no SIMPL signal/symbol records found — is this a raw, uncompiled .smw?");
+  const sigName=new Map(), sigType=new Map(), H2nm=new Map(), H2pr=new Map(), parentOf=new Map(), syms=[];
+  let cur=null, typ=null;
+  const lines=text.split("\n");
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].replace(/\r$/,"");
+    if(line==="["){cur={ins:[],outs:[]};typ=null;continue;}
+    if(line==="]"){
+      if(cur){
+        const h=cur.H;
+        if(typ==="Sg"&&h!=null){sigName.set(h,cur.Nm||"");sigType.set(h,cur.SgTp||"");}
+        else if(typ==="Sm"&&h!=null){
+          H2nm.set(h,cur.Nm||"");H2pr.set(h,cur.PrH||"");
+          if(cur.ch)cur.ch.forEach(c=>parentOf.set(c,h));
+          if(cur.ins.length||cur.outs.length||cur.Nm)
+            syms.push({H:h,Nm:cur.Nm||"",SmC:cur.SmC||"",PrH:cur.PrH||"",ins:cur.ins,outs:cur.outs});
+        }
+      }
+      cur=null;continue;
+    }
+    if(!cur)continue;
+    const eq=line.indexOf("=");
+    if(eq<0)continue;
+    const k=line.slice(0,eq), v=line.slice(eq+1);
+    if(k==="ObjTp")typ=v;
+    else if(k==="H"){const n=parseInt(v,10);cur.H=isNaN(n)?null:n;}
+    else if(k[0]==="I"&&/^I\d+$/.test(k)){const n=parseInt(v,10);if(n>0)cur.ins.push(n);}
+    else if(k[0]==="O"&&/^O\d+$/.test(k)){const n=parseInt(v,10);if(n>0)cur.outs.push(n);}
+    else if(k[0]==="C"&&/^C\d+$/.test(k)){const n=parseInt(v,10);if(n>0)(cur.ch||(cur.ch=[])).push(n);}
+    else cur[k]=v;
+  }
+  return {sigName,sigType,H2nm,H2pr,parentOf,syms};
+}
+const SGT={"":"D","0":"D","1":"D","2":"A","4":"S"};
+function typeClass(t){return SGT[t||""]||"D";}
+function folderPath(model,h){ const out=[]; let p=model.parentOf?model.parentOf.get(h):null, g=0; while(p!=null&&g++<40){ const nm=model.H2nm.get(p); if(nm)out.push(nm); p=model.parentOf.get(p); } return out.reverse().join(" › "); }
+const TYPE_LONG={D:"digital",A:"analog",S:"serial"};
+
+/* ---------- diff engine ---------- */
+function wiringSignatures(model){
+  const h2tok=new Map();
+  for(const x of model.syms){
+    const nm=x.Nm; if(!nm) continue;
+    for(let i=0;i<x.ins.length;i++){const h=x.ins[i]; if(!h2tok.has(h))h2tok.set(h,[]); h2tok.get(h).push(nm+"|I"+i);}
+    for(let i=0;i<x.outs.length;i++){const h=x.outs[i]; if(!h2tok.has(h))h2tok.set(h,[]); h2tok.get(h).push(nm+"|O"+i);}
+  }
+  const sig=new Map();
+  model.sigName.forEach((nm,h)=>{
+    if(!nm) return;
+    const toks=h2tok.get(h); if(!toks||!toks.length) return;
+    const s=toks.slice().sort().join("§");
+    sig.set(nm, sig.has(nm)? sig.get(nm)+"‖"+s : s);
+  });
+  return sig;
+}
+function nameTypeMap(model){
+  const m=new Map();
+  model.sigName.forEach((nm,h)=>{ if(nm&&!m.has(nm)) m.set(nm, typeClass(model.sigType.get(h))); });
+  return m;
+}
+function nameSet(model){ const s=new Set(); model.sigName.forEach(nm=>{if(nm)s.add(nm);}); return s; }
+function typeCounts(model){ let D=0,A=0,S=0; model.sigType.forEach(t=>{const c=typeClass(t); if(c==="D")D++; else if(c==="A")A++; else S++;}); return {D,A,S}; }
+function moduleCounts(model){
+  const m=new Map();
+  for(const x of model.syms){ if(!x.Nm) continue; if(!(x.ins.length||x.outs.length)) continue; m.set(x.Nm,(m.get(x.Nm)||0)+1); }
+  return m;
+}
+
+function computeDiff(A,B){
+  const setA=nameSet(A), setB=nameSet(B);
+  let added=[], removed=[];
+  setB.forEach(n=>{ if(!setA.has(n)) added.push(n); });
+  setA.forEach(n=>{ if(!setB.has(n)) removed.push(n); });
+
+  // rename inference: a removed and an added name sharing one identical, unique wiring signature
+  const sigA=wiringSignatures(A), sigB=wiringSignatures(B);
+  const group=(list,sigmap)=>{ const g=new Map(); for(const n of list){ const s=sigmap.get(n); if(!s) continue; if(!g.has(s))g.set(s,[]); g.get(s).push(n); } return g; };
+  const rg=group(removed,sigA), ag=group(added,sigB);
+  const renames=[], rFrom=new Set(), rTo=new Set();
+  rg.forEach((rn,s)=>{ const an=ag.get(s); if(rn.length===1 && an && an.length===1){ renames.push({from:rn[0],to:an[0]}); rFrom.add(rn[0]); rTo.add(an[0]); } });
+  added=added.filter(n=>!rTo.has(n));
+  removed=removed.filter(n=>!rFrom.has(n));
+
+  const ntA=nameTypeMap(A), ntB=nameTypeMap(B);
+
+  // type changes: name in both builds, signal type differs (exact, not inferred)
+  const typeChanges=[];
+  setA.forEach(n=>{ if(setB.has(n)){ const a=ntA.get(n), b=ntB.get(n); if(a&&b&&a!==b) typeChanges.push({n,from:a,to:b}); } });
+  typeChanges.sort((x,y)=>x.n<y.n?-1:1);
+
+  added.sort(); removed.sort();
+  const addedT=added.map(n=>({n,t:ntB.get(n)||"D"}));
+  const removedT=removed.map(n=>({n,t:ntA.get(n)||"D"}));
+  const renamesT=renames.map(r=>({from:r.from,to:r.to,t:ntB.get(r.to)||"D"})).sort((a,b)=>a.to<b.to?-1:1);
+
+  const mA=moduleCounts(A), mB=moduleCounts(B);
+  const mods=new Set([...mA.keys(),...mB.keys()]);
+  const modDeltas=[...mods].map(nm=>({nm,a:mA.get(nm)||0,b:mB.get(nm)||0,d:(mB.get(nm)||0)-(mA.get(nm)||0)}))
+                            .filter(x=>x.d!==0).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d)||(x.nm<y.nm?-1:1));
+
+  return {
+    sigA:setA.size, sigB:setB.size,
+    symA:[...mA.values()].reduce((s,n)=>s+n,0), symB:[...mB.values()].reduce((s,n)=>s+n,0),
+    tcA:typeCounts(A), tcB:typeCounts(B),
+    added:addedT, removed:removedT, renames:renamesT, typeChanges, modDeltas
+  };
+}
+
+/* ---------- diff UI ---------- */
+function setSlot(which,name,model){
+  state["diff"+which]=model; state["diff"+which+"name"]=name;
+  $("#drop"+which).classList.add("set");
+  $("#drop"+which+"label").innerHTML=`<span class="loaded">&#10003; <span class="nm">${esc(name)}</span> · ${model.sigName.size.toLocaleString()} signals</span>`;
+  const ready=state.diffA&&state.diffB;
+  $("#diffRun").disabled=!ready; $("#diffSwap").disabled=!ready;
+  $("#diffHint").textContent=ready?"Ready — press Compare.":"Load the other file to compare.";
+  if(ready) runDiff();
+}
+function loadSlot(which,file){
+  $("#diffHint").textContent="Reading "+file.name+"…";
+  readPayload(file,"smw")
+    .then(p=>setSlot(which,p.name,parseSmw(p.text)))
+    .catch(err=>{ $("#diffHint").innerHTML=`<span style="color:var(--bad)">${esc(file.name)}: ${esc(err.message)}</span>`; });
+}
+wireDrop($("#dropA"),$("#fileA"),f=>loadSlot("A",f));
+wireDrop($("#dropB"),$("#fileB"),f=>loadSlot("B",f));
+$("#diffRun").addEventListener("click",runDiff);
+$("#diffSwap").addEventListener("click",()=>{
+  if(!(state.diffA&&state.diffB))return;
+  [state.diffA,state.diffB]=[state.diffB,state.diffA];
+  [state.diffAname,state.diffBname]=[state.diffBname,state.diffAname];
+  $("#dropAlabel").innerHTML=`<span class="loaded">&#10003; <span class="nm">${esc(state.diffAname)}</span> · ${state.diffA.sigName.size.toLocaleString()} signals</span>`;
+  $("#dropBlabel").innerHTML=`<span class="loaded">&#10003; <span class="nm">${esc(state.diffBname)}</span> · ${state.diffB.sigName.size.toLocaleString()} signals</span>`;
+  runDiff();
+});
+function useLoaded(w){ const pr=state.prog; if(!pr.model&&pr.smw)pr.model=parseSmw(pr.smw); if(pr.model) setSlot(w,pr.name,pr.model); }
+$("#diffUseA").addEventListener("click",()=>useLoaded("A"));
+$("#diffUseB").addEventListener("click",()=>useLoaded("B"));
+$("#diffCopy").addEventListener("click",()=>{
+  if(!state.lastDiff) return;
+  const txt=diffToText(state.lastDiff, state.diffAname, state.diffBname);
+  navigator.clipboard.writeText(txt).then(()=>{
+    const b=$("#diffCopy"); const old=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=old,1500);
+  }).catch(()=>{});
+});
+
+function diffToText(d,aName,bName){
+  const L=[];
+  L.push(`Kaizen Bench — Version Diff`);
+  L.push(`A (baseline): ${aName||"baseline"}`);
+  L.push(`B (current):  ${bName||"current"}`);
+  L.push(`Signals: ${d.sigA} -> ${d.sigB} (${sign(d.sigB-d.sigA)})   Module instances: ${d.symA} -> ${d.symB} (${sign(d.symB-d.symA)})`);
+  L.push("");
+  const sec=(title,arr,fmt)=>{ L.push(`${title} (${arr.length})`); if(!arr.length){L.push("  none");} else arr.forEach(x=>L.push("  "+fmt(x))); L.push(""); };
+  sec("ADDED", d.added, x=>`+ [${x.t}] ${x.n}`);
+  sec("REMOVED", d.removed, x=>`- [${x.t}] ${x.n}`);
+  sec("RENAMED (inferred from wiring — confirm)", d.renames, x=>`~ [${x.t}] ${x.from}  ->  ${x.to}`);
+  sec("TYPE CHANGES", d.typeChanges, x=>`! ${x.n}: ${x.from} -> ${x.to}`);
+  sec("MODULE INSTANCE CHANGES", d.modDeltas, x=>`${x.d>0?"+":""}${x.d}  ${x.nm}  (${x.a} -> ${x.b})`);
+  return L.join("\n");
+}
+function sign(n){return n>=0?"+"+n:""+n;}
+
+function sigTable(rows,kind,cap){
+  const shown=rows.slice(0,cap), more=rows.length-shown.length;
+  return `<table><thead><tr><th>Signal</th><th class="num">Type</th></tr></thead><tbody>
+    ${shown.map(r=>`<tr><td class="data" title="${esc(r.n)}">${esc(trim(r.n,64))}</td><td class="num"><span class="pill ${r.t==='A'?'warn':r.t==='S'?'':'ok'}">${r.t}</span></td></tr>`).join("")}
+    ${more>0?`<tr><td class="muted" colspan="2">…and ${more.toLocaleString()} more ${kind}</td></tr>`:""}
+    </tbody></table>`;
+}
+function deltaStat(value,delta,label){
+  const cls=delta>0?'up':delta<0?'down':'flat';
+  return stat(`${value.toLocaleString()} <span class="delta ${cls}">${delta>=0?'+':''}${delta.toLocaleString()}</span>`,label);
+}
+function runDiff(){
+  const A=state.diffA, B=state.diffB; if(!(A&&B))return;
+  $("#diffBody").innerHTML=`<div class="working"><span class="stripe"></span>Comparing…</div>`;
+  setTimeout(()=>{
+    const d=computeDiff(A,B);
+    state.lastDiff=d; $("#diffCopy").disabled=false;
+    const CAP=300;
+    const total=d.added.length+d.removed.length+d.renames.length+d.typeChanges.length+d.modDeltas.length;
+    const verdict = total===0
+      ? "No structural differences between these two builds — same signal names, types, and module instance counts. (A static diff doesn't see runtime constants or the inside of compiled modules.)"
+      : `${d.added.length.toLocaleString()} added, ${d.removed.length.toLocaleString()} removed, ${d.renames.length.toLocaleString()} renamed, ${d.typeChanges.length.toLocaleString()} retyped — across ${d.modDeltas.length.toLocaleString()} module${d.modDeltas.length===1?'':'s'} with instance changes.`;
+
+    let html=`
+      <div class="row">
+        ${deltaStat(d.sigB,d.sigB-d.sigA,"Signals (B)")}
+        ${deltaStat(d.symB,d.symB-d.symA,"Module instances (B)")}
+        ${stat(`<span class="data">${d.added.length.toLocaleString()}</span>`,"Added")}
+        ${stat(`<span class="data">${d.removed.length.toLocaleString()}</span>`,"Removed")}
+        ${stat(`<span class="data">${d.renames.length.toLocaleString()}</span>`,"Renamed*")}
+      </div>
+      <div class="panel" style="margin-top:14px"><h3>Read</h3>
+        <p class="verdict">${verdict}</p>
+        <p class="foot-note">A = <span class="data">${esc(state.diffAname||"baseline")}</span> · B = <span class="data">${esc(state.diffBname||"current")}</span>. Type mix D/A/S: ${d.tcA.D.toLocaleString()}/${d.tcA.A.toLocaleString()}/${d.tcA.S.toLocaleString()} → ${d.tcB.D.toLocaleString()}/${d.tcB.A.toLocaleString()}/${d.tcB.S.toLocaleString()}.
+        <br><b>Detects:</b> name add/remove/rename, signal type changes, module instance counts. <b>Not detected:</b> rewiring of existing signals, constant/parameter edits, device/IP-table changes. <b>*Renamed</b> is inferred from identical wiring — confirm any that matter.</p>
+      </div>`;
+
+    if(total===0){ $("#diffBody").innerHTML=html; return; }
+
+    html+=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+      <div class="panel"><h3>Signals added <span class="ct">${d.added.length.toLocaleString()}</span></h3>
+        ${d.added.length?sigTable(d.added,"added",CAP):'<p class="empty">None.</p>'}</div>
+      <div class="panel"><h3>Signals removed <span class="ct">${d.removed.length.toLocaleString()}</span></h3>
+        ${d.removed.length?sigTable(d.removed,"removed",CAP):'<p class="empty">None.</p>'}</div>
+    </div>`;
+
+    html+=`<div class="panel" style="margin-top:14px"><h3>Likely renamed <span class="muted" style="text-transform:none;letter-spacing:0">— same wiring, confirm live</span><span class="ct">${d.renames.length.toLocaleString()}</span></h3>`;
+    if(d.renames.length){
+      const shown=d.renames.slice(0,CAP), more=d.renames.length-shown.length;
+      html+=`<table><thead><tr><th>Was (A)</th><th>Now (B)</th><th class="num">Type</th></tr></thead><tbody>
+        ${shown.map(r=>`<tr><td class="data muted" title="${esc(r.from)}">${esc(trim(r.from,44))}</td><td class="data" title="${esc(r.to)}">${esc(trim(r.to,44))}</td><td class="num"><span class="pill ${r.t==='A'?'warn':r.t==='S'?'':'ok'}">${r.t}</span></td></tr>`).join("")}
+        ${more>0?`<tr><td class="muted" colspan="3">…and ${more.toLocaleString()} more</td></tr>`:""}
+        </tbody></table>
+        <p class="foot-note">A removed and an added signal sharing one identical wiring fingerprint. Strong signal, not proof.</p>`;
+    } else html+=`<p class="empty">No rename candidates — every add/remove looks like a real structural change.</p>`;
+    html+=`</div>`;
+
+    html+=`<div class="panel" style="margin-top:14px"><h3>Signal type changes <span class="muted" style="text-transform:none;letter-spacing:0">— same name, different type</span><span class="ct">${d.typeChanges.length.toLocaleString()}</span></h3>`;
+    if(d.typeChanges.length){
+      const shown=d.typeChanges.slice(0,CAP), more=d.typeChanges.length-shown.length;
+      html+=`<table><thead><tr><th>Signal</th><th>Change</th></tr></thead><tbody>
+        ${shown.map(c=>`<tr><td class="data" title="${esc(c.n)}">${esc(trim(c.n,58))}</td><td><span class="pill ${c.from==='A'?'warn':c.from==='S'?'':'ok'}">${c.from}</span><span class="arrow">→</span><span class="pill ${c.to==='A'?'warn':c.to==='S'?'':'ok'}">${c.to}</span> <span class="muted" style="font-size:11px">${TYPE_LONG[c.from]} → ${TYPE_LONG[c.to]}</span></td></tr>`).join("")}
+        ${more>0?`<tr><td class="muted" colspan="2">…and ${more.toLocaleString()} more</td></tr>`:""}
+        </tbody></table>
+        <p class="foot-note">Exact, read from the file — a join that changed digital↔analog↔serial. Often deliberate, sometimes a wiring mistake.</p>`;
+    } else html+=`<p class="empty">No signal kept its name while changing type.</p>`;
+    html+=`</div>`;
+
+    html+=`<div class="panel" style="margin-top:14px"><h3>Module instance changes <span class="ct">${d.modDeltas.length.toLocaleString()}</span></h3>`;
+    if(d.modDeltas.length){
+      const shown=d.modDeltas.slice(0,CAP), more=d.modDeltas.length-shown.length;
+      html+=`<table><thead><tr><th>Module</th><th class="num">A</th><th class="num">B</th><th class="num">Δ</th></tr></thead><tbody>
+        ${shown.map(m=>`<tr><td class="data" title="${esc(m.nm)}">${esc(trim(m.nm,52))}</td><td class="num data muted">${m.a}</td><td class="num data muted">${m.b}</td><td class="num"><span class="pill ${m.d>0?'add':'rem'}">${m.d>0?'+':''}${m.d}</span></td></tr>`).join("")}
+        ${more>0?`<tr><td class="muted" colspan="4">…and ${more.toLocaleString()} more</td></tr>`:""}
+        </tbody></table>`;
+    } else html+=`<p class="empty">No change in module instance counts.</p>`;
+    html+=`</div>`;
+
+    $("#diffBody").innerHTML=html;
+  },20);
+}
+
+/* ---------- Program Structure (census + wire-map analysis) ---------- */
+function isReservedSig(nm){ return !nm || nm==="?" || nm.charAt(0)==="/" ; }
+const CUSTOM_RE=/\.(usp|ush|umc|cmc|clz|ced|smw)$/i;
+function censusStats(s){
+  const withIO=s.syms.filter(x=>x.ins.length||x.outs.length);
+  let D=0,A=0,Ser=0;
+  s.sigType.forEach(t=>{const c=typeClass(t);if(c==="D")D++;else if(c==="A")A++;else Ser++;});
+  const inst=new Map(); let custom=0;
+  for(const x of withIO){ if(!x.Nm)continue; inst.set(x.Nm,(inst.get(x.Nm)||0)+1); if(CUSTOM_RE.test(x.Nm))custom++; }
+  return { sigTot:s.sigName.size, symActive:withIO.length, D,A,Ser,
+    distinctMods:inst.size, custom, customPct: withIO.length?custom/withIO.length*100:0 };
+}
+function auditExtras(model){
+  const cm=new Map(); for(const x of model.syms){ if(x.Nm&&CUSTOM_RE.test(x.Nm))cm.set(x.Nm,(cm.get(x.Nm)||0)+1); }
+  const customMods=[...cm.entries()].map(([nm,count])=>({nm,count})).sort((a,b)=>b.count-a.count).slice(0,800);
+  return { customMods, customDistinct:cm.size };
+}
+function structAnalysis(model){
+  const drivers=new Map(), loads=new Map();
+  for(const x of model.syms){
+    for(const h of x.outs){ if(!drivers.has(h))drivers.set(h,new Set()); drivers.get(h).add(x.H); }
+    for(const h of x.ins){ loads.set(h,(loads.get(h)||0)+1); }
+  }
+  const races=[]; let digitalShared=0;
+  drivers.forEach((set,h)=>{ if(set.size>=2){ const nm=model.sigName.get(h)||""; if(isReservedSig(nm))return;
+    const cl=typeClass(model.sigType.get(h)); if(cl==="D"){digitalShared++;return;}
+    races.push({nm,t:cl,drivers:set.size,loads:loads.get(h)||0}); }});
+  races.sort((a,b)=>b.drivers-a.drivers||b.loads-a.loads||(a.nm<b.nm?-1:1));
+  // feedback rings via iterative Tarjan SCC on the signal graph
+  const CAP=12, adj=new Map(), edgeMod=new Map();
+  const isBreaker=nm=>{const n=(nm||"").toLowerCase(); return /\.(usp|ush|umc|cmc|clz|ced)$|crpc|serial|one ?shot|toggle|interlock|stepper|com 2-way|delay|clock|ring counter|cross ?point|buffer|\brouter\b|\brouting\b/.test(n);};
+  for(const x of model.syms){ if(x.ins.length>CAP||x.outs.length>CAP)continue;
+    for(const a of x.ins)for(const b of x.outs){ if(!adj.has(a))adj.set(a,new Set()); adj.get(a).add(b);
+      const k=a+","+b; if(!edgeMod.has(k))edgeMod.set(k,new Set()); edgeMod.get(k).add(x.Nm); } }
+  const index=new Map(),low=new Map(),onst=new Map(),stk=[];let idx=0;const sccs=[];
+  for(const root of adj.keys()){ if(index.has(root))continue;
+    const work=[[root,[...(adj.get(root)||[])],0]]; index.set(root,idx);low.set(root,idx);idx++;stk.push(root);onst.set(root,true);
+    while(work.length){ const fr=work[work.length-1];const v=fr[0];let adv=false;
+      while(fr[2]<fr[1].length){ const w=fr[1][fr[2]++];
+        if(!index.has(w)){index.set(w,idx);low.set(w,idx);idx++;stk.push(w);onst.set(w,true);work.push([w,[...(adj.get(w)||[])],0]);adv=true;break;}
+        else if(onst.get(w))low.set(v,Math.min(low.get(v),index.get(w))); }
+      if(adv)continue;
+      if(low.get(v)===index.get(v)){const comp=[];let w;do{w=stk.pop();onst.set(w,false);comp.push(w);}while(w!==v);if(comp.length>1)sccs.push(comp);}
+      work.pop(); if(work.length)low.set(work[work.length-1][0],Math.min(low.get(work[work.length-1][0]),low.get(v))); } }
+  const modsOf=comp=>{const cs=new Set(comp);const set=new Set();for(const a of comp)for(const b of (adj.get(a)||[]))if(cs.has(b))(edgeMod.get(a+","+b)||new Set()).forEach(x=>set.add(x));return set;};
+  const comb=sccs.filter(c=>{const ms=modsOf(c);return ![...ms].some(isBreaker);});
+  comb.sort((a,b)=>a.length-b.length);
+  const rings=comb.slice(0,500).map(c=>({len:c.length, sigs:c.map(h=>model.sigName.get(h)||"?").filter(n=>!isReservedSig(n)), mods:[...modsOf(c)].filter(Boolean)}));
+  return { raceTotal:races.length, digitalShared, races:races.slice(0,3000), ringsTotal:sccs.length, oscCandidates:comb.length, rings };
+}
+wireDrop($("#dropC"),$("#fileC"),f=>{
+  $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
+  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,auditDone:true,devDone:true}); updateDiffLoaded(); setTimeout(runAudit,20); })
+    .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
+});
+$("#censusBody").addEventListener("click",e=>{
+  const d=e.target.closest("[data-drill]");
+  if(d){ e.stopPropagation(); drill(d.dataset.drill, d.dataset.val); return; }
+  const h=e.target.closest(".card-head"); if(h) h.parentElement.classList.toggle("collapsed");
+});
+function sortTable(th){
+  const table=th.closest("table"); if(!table||!table.tBodies[0])return; const tb=table.tBodies[0];
+  const idx=[...th.parentNode.children].indexOf(th);
+  const dir=th.getAttribute("data-dir")==="asc"?"desc":"asc";
+  [...th.parentNode.children].forEach(x=>x.removeAttribute("data-dir")); th.setAttribute("data-dir",dir);
+  const num=th.classList.contains("num");
+  const rows=[...tb.rows].filter(r=>r.cells.length>idx);
+  rows.sort((a,b)=>{ let x=a.cells[idx].textContent.trim(), y=b.cells[idx].textContent.trim();
+    if(num){ x=parseFloat(x.replace(/[^\d.-]/g,""))||0; y=parseFloat(y.replace(/[^\d.-]/g,""))||0; return dir==="asc"?x-y:y-x; }
+    return dir==="asc"?x.localeCompare(y,undefined,{numeric:true}):y.localeCompare(x,undefined,{numeric:true}); });
+  rows.forEach(r=>tb.appendChild(r));
+}
+document.addEventListener("click",e=>{ const th=e.target.closest("thead th"); if(th && th.closest("table")) sortTable(th); });
+function openModal(title,body){ $("#modalTitle").innerHTML=title; $("#modalBody").innerHTML=body; $("#modal").classList.remove("hide"); }
+function closeModal(){ $("#modal").classList.add("hide"); }
+$("#censusBody").addEventListener("input",e=>{
+  if(e.target.classList&&e.target.classList.contains("sigfilter")){ const tb=document.getElementById("sigBody"); if(tb)tb.innerHTML=signalRows(e.target.value); return; }
+  if(!e.target.classList||!e.target.classList.contains("filter"))return;
+  const q=e.target.value.toLowerCase(); const sc=e.target.nextElementSibling; const tb=sc&&sc.querySelector("tbody"); if(!tb)return;
+  [...tb.rows].forEach(r=>{ r.style.display = r.textContent.toLowerCase().indexOf(q)>=0?"":"none"; });
+});
+$("#modalClose").addEventListener("click",closeModal);
+$("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
+function drill(type,val){
+  const m=state.prog&&state.prog.model;
+  if(type==="module" && m){
+    const insts=m.syms.filter(x=>x.Nm===val);
+    const ctx=x=>{ const ns=[...x.ins,...x.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); return ns[0]||""; };
+    const rows=insts.map(x=>`<tr><td class="data" title="${esc(folderPath(m,x.H))}">${esc(trim(folderPath(m,x.H)||'—',46))}</td><td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),40))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
+    openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Where each instance lives in the program tree, and the signal it&rsquo;s wired to.</p>`+tbl([{t:"Program location (folder path)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
+  } else if(type==="mdriver" && m){
+    const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
+    const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
+    openModal(`${esc(val)} &mdash; ${drv.length} driver${drv.length===1?'':'s'}`, tbl([{t:"Driving module"},{t:"Symbol #",num:1}], drv.map(x=>`<tr><td class="data" title="${esc(x.Nm)}">${esc(trim(x.Nm,48))}</td><td class="num data">${x.H}</td></tr>`).join("")));
+  } else if(type==="ip"){
+    const all=(state.audit&&state.audit.hits||[]).filter(h=>h.ip===val);
+    openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data" title="${esc(h.module)}">${esc(trim(h.module,34))}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(trim(h.value||h.ip,40))}</td><td class="data" title="${esc(h.context||'')}">${esc(trim(h.context||'',26))}</td></tr>`).join("")));
+  } else if(type==="signal" && m){
+    const hs=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)hs.add(h); });
+    const drivers=[], loads=[];
+    for(const x of m.syms){ if(x.outs.some(h=>hs.has(h)))drivers.push(x); if(x.ins.some(h=>hs.has(h)))loads.push(x); }
+    const row=x=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(trim(x.Nm||'?',38))}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(trim(folderPath(m,x.H).replace(/^[^›]+›\s*/,""),34))}</td></tr>`;
+    openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
+      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p><div class="lbl">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Location"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Location"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
+  } else if(type==="ring"){
+    const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
+    openModal(`Feedback ring &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
+  }
+}
+$("#auditCopy").addEventListener("click",()=>{ navigator.clipboard.writeText(auditToText()).then(()=>{ const b=$("#auditCopy"),o=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=o,1500); }); });
+function auditToText(){
+  const a=state.audit; if(!a) return "";
+  const L=["DEVICES","NETWORK\tID\tMODEL\tNAME\tIP"];
+  a.devRows.forEach(d=>L.push([d.net,d.id,d.model,d.name,d.ip].join("\t")));
+  L.push("","IP-ID TABLE","IP-ID\tIP ADDRESS"); a.dipList.forEach(([id,ip])=>L.push([id,ip].join("\t")));
+  L.push("","THIRD-PARTY IPs","IP\tFOR / CONNECTED TO\tMODULE"); a.thirdParty.forEach(x=>L.push([x.ip,x.context||"",x.module].join("\t")));
+  return L.join("\n");
+}
+function card(title,badge,body,open){ return `<div class="card${open?'':' collapsed'}"><div class="card-head"><span class="card-title">${title}</span>${badge!=null?`<span class="card-badge">${badge}</span>`:''}<span class="chev">&#9662;</span></div><div class="card-body">${body}</div></div>`; }
+function stackBar(parts){ const tot=parts.reduce((a,p)=>a+p.val,0)||1; return `<div class="stack">${parts.map(p=>p.val?`<span class="seg ${p.cls}" style="width:${(p.val/tot*100).toFixed(2)}%" title="${esc(p.label)}: ${p.val.toLocaleString()}"></span>`:'').join("")}</div><div class="stack-key">${parts.map(p=>`<span><i class="kdot ${p.cls}"></i>${esc(p.label)} <b>${p.val.toLocaleString()}</b></span>`).join("")}</div>`; }
+function signalRows(q){
+  const all=state.signals||[]; q=(q||"").trim().toLowerCase();
+  const list = q ? all.filter(s=>s.nm.toLowerCase().indexOf(q)>=0) : all.slice().sort((a,b)=>(b.d+b.l)-(a.d+a.l)||(a.nm<b.nm?-1:1));
+  const shown=list.slice(0,1500);
+  return shown.map(s=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(s.nm)}" title="${esc(s.nm)}">${esc(trim(s.nm,54))}</td><td class="num"><span class="pill ${s.t==='A'?'warn':s.t==='S'?'':'ok'}">${s.t}</span></td><td class="num data">${s.d}</td><td class="num data">${s.l}</td></tr>`).join("")
+    + (list.length>shown.length?`<tr><td class="muted" colspan="4">\u2026${(list.length-shown.length).toLocaleString()} more \u2014 type above to find a specific signal</td></tr>`:"");
+}
+function tbl(head,rows,flt){ return `${flt?`<input class="filter" placeholder="filter\u2026" aria-label="filter">`:""}<div class="scroll"><table><thead><tr>${head.map(h=>`<th${h.num?' class="num"':''}>${h.t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`; }
+function runAudit(){
+  const pr=state.prog;
+  if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; } }
+  const m=pr.model;
+  const hdr=pr.smw?parseHeader(pr.smw):null;
+  const tps=pr.smw?parseTouchpanels(pr.smw):[];
+  const fn=$("#censusName"); fn.classList.remove("hide"); fn.querySelector(".mono").textContent=pr.name||"";
+  const dip=pr.dip?parseDip(pr.dip):new Map();
+  const dipList=[...dip.entries()].sort((a,b)=>parseInt(a[0],16)-parseInt(b[0],16));
+  const devs=pr.smft?parseSmft(pr.smft):[];
+  const devRows=devs.map(d=>({...d, ip:d.net==="Ethernet"?(dip.get(d.id)||""):""}));
+  const hits=pr.smw?scanProgramIPs(pr.smw):[];
+  const dipIPs=new Set([...dip.values()]);
+  const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
+  const thirdParty=[...seen.values()].filter(x=>!dipIPs.has(x.ip)).sort((a,b)=>a.ip.localeCompare(b.ip,undefined,{numeric:true}));
+  state.audit={devRows,dipList,thirdParty,hits,rings:[]};
+  $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length);
+  const c=m?censusStats(m):null, ax=m?auditExtras(m):null, sa=m?structAnalysis(m):null;
+  if(sa) state.audit.rings=sa.rings;
+  const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
+  let html="";
+  let ov=`<div class="row">`;
+  if(c){ ov+=stat(c.sigTot.toLocaleString(),"Signals")+stat(c.symActive.toLocaleString(),"Symbols")+stat(`${c.customPct.toFixed(0)}%`,"Custom / SIMPL+"); }
+  ov+=stat(devRows.length.toLocaleString(),"Devices")+stat(thirdParty.length.toLocaleString(),"3rd-party IPs")+`</div>`;
+  if(c){ ov+=`<div style="margin-top:16px"><div class="lbl">Signal mix &mdash; digital / analog / serial</div>${stackBar([{label:"Digital",val:c.D,cls:"s1"},{label:"Analog",val:c.A,cls:"s2"},{label:"Serial",val:c.Ser,cls:"s3"}])}</div>`; }
+  if(devRows.length){ ov+=`<div style="margin-top:16px"><div class="lbl">Devices by network</div>${stackBar([{label:"Ethernet",val:eth.length,cls:"s1"},{label:"Cresnet",val:cres.length,cls:"s2"},{label:"Other",val:devRows.length-eth.length-cres.length,cls:"s3"}])}</div>`; }
+  html+=`<div class="section-label">Program</div>`;
+  if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
+  html+=card("Overview",null,ov,true);
+  if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
+  if(eth.length){
+    const rows=eth.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,34))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',30))}</td><td class="data">${esc(d.ip||'')}</td></tr>`).join("");
+    html+=card("Ethernet devices",eth.length,`<p class="card-intro">IP-controlled Crestron devices: IP-ID and the address from the IP table. <code>127.0.0.1</code> = an internal/loopback slot (XPanel, mobile app).</p>`+tbl([{t:"IP-ID"},{t:"Model"},{t:"Name"},{t:"IP / hostname"}],rows,1),true);
+  }
+  if(cres.length){
+    const rows=cres.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,40))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',34))}</td></tr>`).join("");
+    html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"}],rows,1),false);
+  }
+  const rfDev=devRows.filter(d=>d.net!=="Ethernet"&&d.net!=="Cresnet"&&d.net!=="Processor");
+  if(rfDev.length){
+    const rows=rfDev.map(d=>`<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,38))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',30))}</td></tr>`).join("");
+    html+=card("RF / other devices",rfDev.length,tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"}],rows,1),false);
+  }
+  if(state.prog.ir&&state.prog.ir.length){
+    const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
+    html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">Devices controlled by infrared, from the <code>.ir</code> driver files in the program.</p>`+tbl([{t:"IR device / driver"}],rows,1),false);
+  }
+  if(tps.length){
+    const rows=tps.map(t=>`<tr><td class="data" title="${esc(t.model)}">${esc(trim(t.model,28))}</td><td class="data muted" title="${esc(t.type||'')}">${esc(trim(t.type||'',24))}</td><td class="data">${esc(t.addr||'—')}</td><td class="data" title="${esc(t.project)}">${esc(trim(t.project,32))}</td></tr>`).join("");
+    html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"Project file"}],rows,1),false);
+  }
+  if(pr.smw && m){ const io=scanIO(pr.smw);
+    if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
+      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.port)}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(trim(onIO(x),46))}</td></tr>`).join("");
+      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports wired in the program, and what each one controls.</p>`+tbl([{t:"Type"},{t:"Port"},{t:"Controls"}],rows,1),false);
+    }
+  }
+  if(pr.smw){ const serial=scanSerial(pr.smw).filter(x=>x.proto||x.baud);
+    if(serial.length){
+      const hs=x=>{ const a=[]; if(x.hHs&&x.hHs!=="None")a.push(x.hHs); if(x.sHs&&x.sHs!=="None")a.push(x.sHs); return a.join(" + ")||"none"; };
+      const byH=new Map(); if(m)for(const sy of m.syms)byH.set(sy.H,sy);
+      const generic=/serial driver|two.?way|com[\s\-]?\d|^na$/i;
+      const controls=x=>{ if(x.device && !generic.test(x.device)) return x.device;
+        const sy=(m&&x.smH!=null)?byH.get(x.smH):null;
+        if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
+        return ""; };
+      const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p.replace(/^[^›]+›\s*/,"")||x.device||"—"; };
+      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(trim(controls(x)||'—',32))}</td><td class="data muted">${esc(trim(onCol(x),26))}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
+      html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"On (card)"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
+    }
+  }
+  if(dipList.length){
+    const rows=dipList.map(([id,ip])=>`<tr><td class="data">${esc(id)}</td><td class="data">${esc(ip)}</td></tr>`).join("");
+    html+=card("IP-ID table",dipList.length,`<p class="card-intro">The processor&rsquo;s IP table: each IP-ID and the address it points to.</p>`+tbl([{t:"IP-ID"},{t:"IP address"}],rows,1)+`<p class="foot-note">The processor&rsquo;s full IP table (<code>.dip</code>).</p>`,false);
+  }
+  if(thirdParty.length){
+    const rows=thirdParty.map(x=>`<tr><td class="data drill" data-drill="ip" data-val="${esc(x.ip)}">${esc(x.ip)}${x.port?':'+esc(x.port):''}</td><td class="data" title="${esc(x.context||'')}">${esc(trim(x.context||'—',34))}</td><td class="data muted" title="${esc(x.value||'')}">${esc(trim(x.value||'—',42))}</td></tr>`).join("");
+    html+=card("Third-party IPs",thirdParty.length,`<p class="card-intro">Networked gear controlled by IP, read from inside module settings &mdash; these never show up in the IP table. Click an IP to see every place it&rsquo;s used.</p>`+tbl([{t:"IP"},{t:"For / connected to"},{t:"Address / URL"}],rows,1)+`<p class="foot-note">IP-controlled gear set in module parameters &mdash; invisible to the IP-ID table. As-configured; verify live.</p>`,false);
+  }
+  if(m) html+=`<div class="section-label">Program logic</div>`;
+  if(ax&&ax.customMods.length){
+    const rows=ax.customMods.map(x=>`<tr><td class="data drill" data-drill="module" data-val="${esc(x.nm)}" title="${esc(x.nm)}">${esc(trim(x.nm,46))}</td><td class="num data">${x.count}</td></tr>`).join("");
+    html+=card("Custom / SIMPL+ modules",ax.customDistinct,`<p class="card-intro">Code written for this job (not stock Crestron) &mdash; the part only you test. Click a module to see its instances.</p>`+tbl([{t:"Module"},{t:"Inst",num:1}],rows)+`<p class="foot-note">Your owned, you-test-it code.</p>`,false);
+  }
+  if(m){
+    const inv=new Map(); for(const x of m.syms){ if(x.Nm&&(x.ins.length||x.outs.length))inv.set(x.Nm,(inv.get(x.Nm)||0)+1); }
+    const top=[...inv.entries()].sort((a,b)=>b[1]-a[1]).slice(0,2000);
+    const rows=top.map(([nm,n])=>`<tr><td class="data drill" data-drill="module" data-val="${esc(nm)}" title="${esc(nm)}">${esc(trim(nm,46))}</td><td class="num data">${n}</td></tr>`).join("");
+    html+=card("Module inventory",inv.size,`<p class="card-intro">Every module type and how many are used. Click one to see each instance and what it&rsquo;s wired to.</p>`+tbl([{t:"Module"},{t:"Count",num:1}],rows,1),false);
+  }
+  if(m){
+    const drv=new Map(), load=new Map();
+    for(const x of m.syms){ for(const h of x.outs)drv.set(h,(drv.get(h)||0)+1); for(const h of x.ins)load.set(h,(load.get(h)||0)+1); }
+    const sigs=[]; m.sigName.forEach((nm,h)=>{ if(!nm||nm[0]==="/")return; sigs.push({nm,t:typeClass(m.sigType.get(h)),d:drv.get(h)||0,l:load.get(h)||0}); });
+    state.signals=sigs;
+    const body=`<p class="card-intro">Every signal, with how many places drive it (sources) and read it (loads). Type to find one; click to trace where it comes from and where it goes.</p><input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
+    html+=card("Signals",sigs.length,body,false);
+  }
+  if(sa){
+    let rb=`<div class="banner" style="border-left-color:var(--warn)">Cycles in the wiring with no wave-breaker. Topology is exact; whether one oscillates is a live question.</div>`;
+    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback rings.</p>';
+    html+=card("Feedback rings",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
+  }
+  if(!html) html=`<p class="empty">Drop a program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>).</p>`;
+  $("#censusBody").innerHTML=html;
+}
+
+/* ---------- Device Map (as-built audit) ---------- */
+const IP_RE=/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g;
+function parseDip(text){
+  const map=new Map(); const ids={}, addrs={}; let m;
+  const reId=/^id(\d+)[ \t]*=[ \t]*([0-9A-Fa-f]+)/gm, reAddr=/^addr(\d+)[ \t]*=[ \t]*([^\r\n]*)/gm;
+  while((m=reId.exec(text))) ids[m[1]]=m[2].toUpperCase();
+  while((m=reAddr.exec(text))) addrs[m[1]]=m[2].replace(/\r/g,"").trim();
+  for(const n in ids) map.set(ids[n], addrs[n]||"");
+  return map;
+}
+function parseSmft(text){
+  const tags=text.match(/<[^>]+>/g)||[]; const net=[]; const devices=[];
+  const attr=(t,a)=>{const m=new RegExp(a+'="([^"]*)"').exec(t);return m?m[1]:"";};
+  for(const t of tags){
+    const close=/^<\//.test(t), self=/\/>\s*$/.test(t);
+    const tag=(t.match(/^<\/?\s*([A-Za-z]+)/)||[])[1];
+    if(tag==="Network"){ if(close) net.pop(); else { net.push(attr(t,"Type")||"?"); if(self) net.pop(); } }
+    else if(tag==="Device" && !close){ devices.push({ model:attr(t,"Model"), name:attr(t,"Name"), id:(attr(t,"DeviceId")||"").toUpperCase(), net: net[net.length-1]||"Processor" }); }
+  }
+  return devices;
+}
+function scanSerial(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const cms=[]; const dv=new Map();
+  for(let i=0;i<lines.length;i++){ const line=lines[i].replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(cur){ if(typ==="Cm")cms.push(cur); else if(typ==="Dv"&&cur.H!=null)dv.set(String(cur.H),cur); } cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq), v=line.slice(eq+1);
+    if(k==="ObjTp")typ=v; else cur[k]=v;
+  }
+  const clean=v=>(v||"").replace(/^\(|\)$/g,"").trim();
+  return cms.map(c=>{ const d=dv.get(String(c.DvH))||{};
+    return { device:d.Nm||"(serial driver)", port:d.Ad||"", smH:d.SmH!=null?parseInt(d.SmH,10):null, proto:clean(c.Ptl)||"", baud:c.BRt||"", data:c.DBt||"", parity:c.Pty||"", stop:c.SBt||"", hHs:clean(c.hHs), sHs:clean(c.sHs) };
+  });
+}
+function scanIO(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const ports=[];
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="Dv"&&cur.Nm&&cur.Ad!=null&&cur.SmH!=null){ const nm=cur.Nm;
+      if(!/com|serial|card$/i.test(nm)){ let t=null;
+        if(/relay/i.test(nm))t="Relay"; else if(/\bir\b|ir[_ ]?port/i.test(nm))t="IR"; else if(/versiport|dio|digital|\bio\b/i.test(nm))t="I/O";
+        if(t)ports.push({type:t, port:cur.Ad, smH:parseInt(cur.SmH,10), nm}); } }
+      cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return ports;
+}
+function parseHeader(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null,hd=null;
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="Hd"){hd=cur;break;} cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  if(!hd)return null;
+  return { program:hd.PgmNm||"", dealer:hd.DlrNm||"", client:hd.CltNm||"", file:hd.PrNm||"", compiler:hd.CmVr||"", dbVer:hd.DbVr||"", devDbVer:hd.DvcDbVr||"" };
+}
+function parseTouchpanels(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const vtps=[]; const db=new Map();
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="VTP")vtps.push(cur); else if(typ==="Db"&&cur.DvH!=null)db.set(String(cur.DvH),cur); cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return vtps.map(v=>{ const d=db.get(String(v.DvH))||{};
+    return { model:d.Mdl||"", type:d.Tpe||"", mfr:d.Mnf||"", addr:(v.TSAddr||"").toUpperCase(), project:(v.VTPFile||"").replace(/^.*[\\\/]/,"") }; });
+}
+function scanProgramIPs(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const sig=new Map(); const raw=[];
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].replace(/\r$/,"");
+    if(line==="["){cur={io:[],ips:[]};typ=null;continue;}
+    if(line==="]"){ if(cur){ if(typ==="Sg"&&cur.H!=null) sig.set(cur.H,cur.Nm||""); else if(typ==="Sm"&&cur.ips.length) cur.ips.forEach(p=>raw.push({ip:p.ip,param:p.k,value:p.value,module:cur.Nm||"?",io:cur.io})); } cur=null; continue; }
+    if(!cur)continue;
+    const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq), v=line.slice(eq+1);
+    if(k==="ObjTp")typ=v;
+    else if(k==="H")cur.H=parseInt(v,10);
+    else if(k==="Nm")cur.Nm=v;
+    else if(typ==="Sm" && /^P\d+$/.test(k)){ const f=v.match(IP_RE); if(f) f.forEach(ip=>cur.ips.push({ip,k,value:v})); }
+    else if(typ==="Sm" && /^[IO]\d+$/.test(k)){ const nn=parseInt(v,10); if(nn>0)cur.io.push(nn); }
+  }
+  const ctx=io=>{ const names=io.map(h=>sig.get(h)).filter(n=>n&&n[0]!=="/"); names.sort((a,b)=>b.length-a.length); return names[0]||""; };
+  const safeAddr=(v)=>{ v=v.replace(/(\w+:\/\/)[^/@\s]*@/,"$1"); const u=v.match(/\w+:\/\/[^/\s?#]+/); return u?u[0]:""; };
+  return raw.map(h=>{
+    let port=""; const i=h.value.indexOf(h.ip); if(i>=0){ const pm=h.value.slice(i+h.ip.length).match(/^:(\d{1,5})/); if(pm)port=pm[1]; }
+    return {ip:h.ip, port, value: safeAddr(h.value), module:h.module, param:h.param, context:ctx(h.io)};
+  });
+}
+async function loadProgram(file){
+  const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
+  const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04)||/\.zip$/i.test(file.name);
+  const out={smft:null,dip:null,smw:null,ir:[],name:file.name};
+  if(isZip){
+    const files=await unzip(buf);
+    const g=ext=>{const e=files.find(f=>new RegExp("\\."+ext+"$","i").test(f.name)); return e?decodeText(e.bytes):null;};
+    out.smft=g("smft"); out.dip=g("dip"); out.smw=g("smw"); out.ir=files.filter(f=>/\.ir$/i.test(f.name)).map(f=>f.name.replace(/.*\//,"").replace(/\.ir$/i,""));
+    if(!out.smft&&!out.dip&&!out.smw) throw new Error("no .smft / .dip / .smw inside the zip");
+  } else {
+    const txt=decodeText(u8); const n=file.name.toLowerCase();
+    if(n.endsWith(".smft"))out.smft=txt; else if(n.endsWith(".dip"))out.dip=txt; else if(n.endsWith(".smw")||n.endsWith(".umc")||n.endsWith(".chd"))out.smw=txt;
+    else throw new Error("drop the program .zip, or a .smw / .umc / .chd / .smft / .dip file");
+  }
+  return out;
+}
+
+
+/* ---------- Log Analyzer ---------- */
+wireDrop($("#dropL"),$("#fileL"),f=>{
+  $("#logBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
+  readPayload(f,"log")
+    .then(p=>runLog(p.name,p.text))
+    .catch(err=>{ $("#logBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
+});
+function analyzeLog(text){
+  const lines=text.split("\n").map(l=>l.replace(/\r$/,""));
+  const compatible = /^(Fatal|Error|Warning|Notice|Info|Ok):\s+\S.*#.*#/m.test(text) || /Crestron Information Tool|={6,}=|err plogcurrent|could not be solved|LogicEngine|cpuload/i.test(text);
+  const tsRe=/(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)/;
+  const ts=l=>{const m=l.match(tsRe);return m?m[1]:null;};
+  const toS=str=>{if(!str)return null;const d=new Date(str.replace(" ","T"));const t=d.getTime();return isNaN(t)?null:t/1000;};
+
+  // log time span
+  let firstTs=null,lastTs=null;
+  for(const l of lines){const t=ts(l); if(t){ if(firstTs===null)firstTs=t; lastTs=t; }}
+  const spanH=(firstTs&&lastTs)?Math.max(0,(toS(lastTs)-toS(firstTs))/3600):null;
+  const suspended=lines.some(l=>/logging is suspended|Error state threshold met|Consecutive error states detected/i.test(l));
+
+  // recurring errors, with per-group timing
+  const reErr=/^\s*\d*\.?\s*(Fatal|Error|Warning|Notice|Info|Ok):\s*([^#]+)#\s*[\d:\- ]+#\s*(.*)$/;
+  const tally=new Map(); let errN=0,warnN=0,fatalN=0; const sources=new Set();
+  for(const l of lines){
+    const m=l.match(reErr); if(!m)continue;
+    const sev=m[1], who=m[2].trim().replace(/\[App\d+\]|\[\d+\]/g,"").trim();
+    const raw=m[3].trim();
+    let msg=raw.replace(/\d+/g,"N").replace(/0x[0-9a-fA-F]+/g,"0xN").slice(0,90);
+    if(sev==="Ok"&&/read only access/.test(msg))continue;
+    if(sev==="Error"||sev==="Fatal"){errN++; if(sev==="Fatal")fatalN++;} else if(sev==="Warning")warnN++;
+    if(who)sources.add(who);
+    const t=toS(ts(l));
+    const key=sev+"|"+who+"|"+msg;
+    let g=tally.get(key); if(!g){g={sev,who,msg,example:raw.slice(0,140),n:0,first:null,last:null};tally.set(key,g);}
+    g.n++; if(t!=null){ if(g.first===null||t<g.first)g.first=t; if(g.last===null||t>g.last)g.last=t; }
+  }
+  const rated=g=>{
+    const span=(g.first!=null&&g.last!=null)?(g.last-g.first):null;
+    let rate;
+    if(g.n<=1) rate={kind:"once",txt:"once"};
+    else if(span!=null && span<60) rate={kind:"burst",txt:"burst"};
+    else if(span!=null && span>0) rate={kind:"rate",txt:Math.max(1,Math.round(g.n/(span/3600)))+"/h"};
+    else rate={kind:"flat",txt:g.n+"×"};
+    return {...g,span,rate};
+  };
+  const ALL=[...tally.values()];
+  const recurring=ALL.filter(t=>t.sev==="Fatal"||t.sev==="Error"||t.sev==="Warning").sort((a,b)=>b.n-a.n).slice(0,16).map(rated);
+  const infoGroups=ALL.filter(t=>t.sev==="Notice"||t.sev==="Info"||t.sev==="Ok").sort((a,b)=>b.n-a.n);
+  const infoTotal=infoGroups.reduce((s,g)=>s+g.n,0);
+  const infoTop=infoGroups.slice(0,3).map(rated);
+
+  // signal-solve timeouts vs program restarts
+  const timeouts=[], starts=[];
+  lines.forEach(l=>{
+    if(/could not be solved/.test(l)&&!/written/.test(l)){const t=ts(l);if(t)timeouts.push(t);}
+    if(/Program \d+ Started|Loading Program .*\.bin/.test(l)){const t=toS(ts(l));if(t)starts.push(t);}
+  });
+  const toRows=timeouts.map(w=>{const ws=toS(w);let best=null;starts.forEach(st=>{if(st<=ws&&(best===null||st>best))best=st;});return {w,gap:best!==null?Math.round(ws-best):null};});
+  const gaps=toRows.map(r=>r.gap).filter(g=>g!==null); const maxGap=gaps.length?Math.max(...gaps):null; const noStart=toRows.some(r=>r.gap===null);
+
+  // processor load — parsed from the real Info-Tool cpuload / ramfree / taskstat sections
+  let cpu=null, loadavg=null, proc=[], cores=null, mem=null;
+  const la=text.match(/[Ll]oad average:\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/); if(la)loadavg=[la[1],la[2],la[3]];
+  const cpul=text.match(/CPU:\s*([\d.]+)%\s*usr\s+([\d.]+)%\s*sys.*?([\d.]+)%\s*idle/); if(cpul)cpu={usr:cpul[1],sys:cpul[2],idle:cpul[3]};
+  // cores: count per-core lines (cpu00:, cpu01: ...) from cpuload, else an explicit statement
+  const coreIdx=new Set((text.match(/^cpu\d+:/gim)||[]).map(x=>x.match(/\d+/)[0])); if(coreIdx.size>1)cores=coreIdx.size;
+  if(!cores){ const cm=text.match(/\b(\d+)[ \t]*(?:cpu cores|processors|cores online)\b/i); if(cm)cores=parseInt(cm[1],10); }
+  // memory from ramfree section
+  const rf=text.match(/(\d+)\s*percent of memory in use/i);
+  const rfFree=text.match(/(\d+)\s*bytes free/i);
+  const rfTot=text.match(/(\d+)\s*total bytes of physical memory/i);
+  if(rf) mem={pct:parseInt(rf[1],10), freeB: rfFree?parseInt(rfFree[1],10):null, totalB: rfTot?parseInt(rfTot[1],10):null};
+  // per-process CPU from taskstat: pid ppid st user% sys% core pri nice thd rss vsz pss name command
+  lines.forEach(l=>{
+    const m=l.match(/^\s*(\d+)\s+(\d+)\s+\S+\s+(\d+\.\d+)%\s+(\d+\.\d+)%/);
+    if(!m) return;
+    const usr=parseFloat(m[3]); if(usr<=0) return;
+    const f=l.trim().split(/\s+/);
+    const nm=f.length>=13 ? f[12] : (f[f.length-1]||"");
+    proc.push({cpu:usr, nm});
+  });
+  const byName=new Map(); proc.forEach(x=>{ if(!byName.has(x.nm)||byName.get(x.nm)<x.cpu) byName.set(x.nm,x.cpu); });
+  proc=[...byName.entries()].map(([nm,cpu])=>({nm,cpu})).sort((a,b)=>b.cpu-a.cpu).slice(0,8);
+
+  // device socket drops
+  const drops=new Map();
+  lines.forEach(l=>{
+    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){drops.set("Dev "+m[1],(drops.get("Dev "+m[1])||0)+1);return;}
+    m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m)drops.set("IP-ID "+m[1],(drops.get("IP-ID "+m[1])||0)+1);
+  });
+  const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
+    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop };
+}
+function sectionOf(text,h){ const re=new RegExp("={6,}\\s*"+h.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*={6,}([\\s\\S]*?)(?:\\n={6,}|$)"); const m=text.match(re); return m?m[1]:""; }
+function systemInfo(text){
+  if(!/Discovered Device Info|Control Console|========== showhw/.test(text)) return null;
+  const grab=k=>{ const m=new RegExp(k+"\\s*:\\s*(.+)").exec(text); return m?m[1].trim():""; };
+  const identity={ model:grab("ModelName"), hostname:grab("Hostname"), ip:grab("IpAddress"), firmware:grab("Firmware"), serial:grab("SerialNumber"), mac:grab("MacAddress") };
+  const programs=[];
+  const re=/App Name:\s*(.+?)\s*\r?\n\s*Friendly Name:\s*(.+?)\s*\r?\n\s*App Id:\s*(\S+?),\s*App Index:\s*(\d+)[\s\S]{0,400}?App State is (\w+)/g;
+  let m; while((m=re.exec(text))){ programs.push({name:m[1].trim(), friendly:m[2].trim(), appId:m[3], index:m[4], state:m[5]}); }
+  const slots=[];
+  const ure=/proguptime:(\d+)[\s\S]{0,160}?running for\s*(.+?)\.?\r?\n[\s\S]{0,120}?last started on:\s*(.+)/g;
+  let u; while((u=ure.exec(text))){ slots.push({slot:u[1], uptime:u[2].trim(), started:u[3].trim()}); }
+  // network (ipconfig /all) + hardware (showhw)
+  let network=null; const ipc=sectionOf(text,"ipconfig /all");
+  if(ipc){ const g=re=>{const m=ipc.match(re);return m?m[1].trim():"";};
+    network={ ip:g(/IP Address\s*[.\s]*:\s*([\d.]+)/), subnet:g(/Subnet Mask\s*[.\s]*:\s*([\d.]+)/), gateway:g(/Default Gateway\s*[.\s]*:\s*([\d.]+)/), dhcp:g(/DHCP\s*[.\s]*:\s*(\w+)/), speed:g(/Link Speed\s*[.\s]*:\s*(.+)/), domain:g(/Domain Name\s*[.\s]*:\s*(\S+)/) };
+    if(!network.ip) network=null;
+  }
+  let hardware=null; const hw=sectionOf(text,"showhw");
+  if(hw){ const proc=(hw.match(/Processor Type:\s*(\S+)/)||[])[1]||""; const slots=[];
+    hw.split("\n").forEach(l=>{ const m=l.match(/^\s*(\d+):\s*(.+?)\s*$/); if(m)slots.push(m[2]); });
+    if(proc||slots.length) hardware={proc,slots};
+  }
+  if(!identity.model && !programs.length && !slots.length && !network && !hardware) return null;
+  return { identity, programs, slots, network, hardware };
+}
+function renderSystem(sys){
+  const id=sys.identity;
+  let h=`<div class="panel"><h3>System <span class="muted" style="text-transform:none;letter-spacing:0">— from the Info-Tool dump</span></h3><div class="row">`;
+  if(id.model) h+=stat(`<span class="data">${esc(id.model)}</span>`,"Model");
+  if(id.firmware) h+=stat(`<span class="data">${esc(id.firmware)}</span>`,"Firmware");
+  if(id.hostname) h+=stat(`<span class="data">${esc(id.hostname)}</span>`,"Hostname");
+  if(id.ip) h+=stat(`<span class="data">${esc(id.ip)}</span>`,"IP address");
+  if(id.serial) h+=stat(`<span class="data">${esc(id.serial)}</span>`,"Serial");
+  h+=`</div>`;
+  if(sys.programs.length){
+    h+=`<table style="margin-top:12px"><thead><tr><th>Program (friendly name)</th><th>App</th><th>State</th></tr></thead><tbody>${sys.programs.map(p=>`<tr><td class="data" title="${esc(p.name)}">${esc(trim(p.friendly,30))}</td><td class="data muted">${esc(p.appId)}</td><td><span class="pill ${/online/i.test(p.state)?'ok':'bad'}">${esc(p.state)}</span></td></tr>`).join("")}</tbody></table>`;
+  }
+  if(sys.slots.length){
+    h+=`<table style="margin-top:12px"><thead><tr><th class="num">Slot</th><th>Uptime</th><th>Last started</th></tr></thead><tbody>${sys.slots.map(x=>`<tr><td class="num data">${esc(x.slot)}</td><td class="data">${esc(trim(x.uptime,26))}</td><td class="data muted">${esc(trim(x.started,42))}</td></tr>`).join("")}</tbody></table>`;
+  }
+  if(sys.network){ const n=sys.network;
+    h+=`<div class="lbl" style="margin-top:16px">Network</div><div class="row">`;
+    if(n.ip)h+=stat(`<span class="data">${esc(n.ip)}</span>`,"IP");
+    if(n.subnet)h+=stat(`<span class="data">${esc(n.subnet)}</span>`,"Subnet");
+    if(n.gateway)h+=stat(`<span class="data">${esc(n.gateway)}</span>`,"Gateway");
+    if(n.dhcp)h+=stat(`<span class="data">${esc(n.dhcp)}</span>`,"DHCP");
+    if(n.speed)h+=stat(`<span class="data">${esc(trim(n.speed,14))}</span>`,"Link speed");
+    h+=`</div>`;
+  }
+  if(sys.hardware&&sys.hardware.slots.length){
+    h+=`<div class="lbl" style="margin-top:16px">Hardware${sys.hardware.proc?` &mdash; ${esc(sys.hardware.proc)}`:""}</div>`+tbl([{t:"Internal slot / card"}], sys.hardware.slots.map(x=>`<tr><td class="data">${esc(x)}</td></tr>`).join(""));
+  }
+  h+=`</div>`;
+  return h;
+}
+function fmtSpan(h){
+  if(h==null) return "no timestamps found";
+  if(h<1) return `${Math.round(h*60)} min`;
+  if(h<48) return `${h.toFixed(1)} h`;
+  return `${(h/24).toFixed(1)} days`;
+}
+$("#logBody").addEventListener("click",e=>{ const h=e.target.closest("h3"); if(h&&h.parentElement.classList.contains("panel"))h.parentElement.classList.toggle("lc"); });
+function runLog(name,text){
+  const nm=$("#logName"); nm.classList.remove("hide"); nm.querySelector(".mono").textContent=name;
+  const a=analyzeLog(text);
+  if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
+
+  const worst=a.recurring[0];
+  const triage=`This log covers <b>${fmtSpan(a.spanH)}</b>`
+    + (a.firstTs?` (${esc(a.firstTs)} → ${esc(a.lastTs)})`:"")
+    + `. <b>${a.errN.toLocaleString()}</b> errors, <b>${a.warnN.toLocaleString()}</b> warnings across <b>${a.sourceCount.toLocaleString()}</b> sources.`
+    + (worst?` Worst recurring issue: <span class="data">${esc(trim(worst.example||worst.msg,54))}</span> — ${worst.n}× (${worst.rate.txt}) from ${esc(trim(worst.who,22))}.`:" No recurring issues stood out.");
+
+  let html="";
+  const sys=systemInfo(text); if(sys) html+=renderSystem(sys);
+  if(a.suspended) html+=`<div class="banner" style="border-left-color:var(--bad)"><b>⚠ Logging was suspended in this log.</b> The control system exceeded 250 messages per 2&nbsp;min and stopped logging for a stretch — every count below is a <b>floor</b>, and the box was in a real storm during the gap.</div>`;
+  html+=`<div class="panel"><h3>Triage <span class="muted" style="text-transform:none;letter-spacing:0">— start here</span></h3>
+    <div class="row" style="margin-bottom:12px">
+      ${stat(`<span class="data">${a.errN.toLocaleString()}</span>`,a.fatalN?`Errors (${a.fatalN} fatal)`:"Errors")}
+      ${stat(`<span class="data">${a.warnN.toLocaleString()}</span>`,"Warnings")}
+      ${stat(`<span class="data">${a.toRows.length.toLocaleString()}</span>`,"Solve timeouts")}
+      ${stat(`<span class="data">${a.dropTop.length.toLocaleString()}</span>`,"Devices dropping")}
+      ${stat(`<span class="data">${fmtSpan(a.spanH)}</span>`,"Log span")}
+    </div>
+    <p class="verdict">${triage}</p></div>`;
+
+  html+=`<div class="panel" style="margin-top:14px"><h3>Recurring problems <span class="muted" style="text-transform:none;letter-spacing:0">— warnings &amp; errors by frequency</span><span class="ct">${a.recurring.length.toLocaleString()}</span></h3>`;
+  if(a.recurring.length){
+    html+=`<table><thead><tr><th>Sev</th><th>Source</th><th>Message</th><th class="num">Count</th><th>Rate</th></tr></thead><tbody>
+      ${a.recurring.map(t=>`<tr>
+        <td><span class="pill ${t.sev==='Error'||t.sev==='Fatal'?'bad':t.sev==='Warning'?'warn':''}">${t.sev}</span></td>
+        <td class="data muted" title="${esc(t.who)}">${esc(trim(t.who,18))}</td>
+        <td class="data" title="${esc(t.example||t.msg)}">${esc(trim(t.example||t.msg,58))}</td>
+        <td class="num data">${t.n.toLocaleString()}</td>
+        <td><span class="pill ${t.rate.kind==='burst'?'warn':t.rate.kind==='rate'?'':'ok'}">${t.rate.txt}</span></td>
+      </tr>`).join("")}
+      </tbody></table>
+      <p class="foot-note"><b>burst</b> = all within a minute (usually one boot/upload event); a steady <b>/h</b> rate is an ongoing condition. ${a.infoTotal?`<b>${a.infoTotal.toLocaleString()}</b> informational messages (Ok/Info/Notice) set aside${a.infoTop&&a.infoTop[0]?` — top: &ldquo;${esc(trim(a.infoTop[0].example||a.infoTop[0].msg,40))}&rdquo; ×${a.infoTop[0].n.toLocaleString()}`:""}.`:"Numbers in messages are normalized so the same error counts once."}</p>`;
+  } else html+=`<p class="empty">No recurring warnings or errors.${a.infoTotal?` (${a.infoTotal.toLocaleString()} informational messages present.)`:""}</p>`;
+  html+=`</div>`;
+
+  if(a.toRows.length){
+    const summary=a.noStart
+      ? `At least one has no preceding program start in this log, so its timing can't be placed.`
+      : `Largest gap after a program start: <b>${a.maxGap}s</b>. Timeouts bunched within seconds of a start are typically upload/settling transients; a timeout long after a stable start is the one worth a live look.`;
+    html+=`<div class="panel" style="margin-top:14px"><h3>Signal-solve timeouts <span class="muted" style="text-transform:none;letter-spacing:0">— logic engine couldn't settle a wave</span><span class="ct">${a.toRows.length.toLocaleString()}</span></h3>
+      <p class="verdict">${summary}</p>
+      <table><thead><tr><th>Timestamp</th><th class="num">Seconds after last program start</th></tr></thead><tbody>
+      ${a.toRows.slice(0,60).map(r=>`<tr><td class="data">${esc(r.w)}</td><td class="num data">${r.gap==null?"— no preceding start":r.gap+"s"}</td></tr>`).join("")}
+      ${a.toRows.length>60?`<tr><td class="muted" colspan="2">…and ${(a.toRows.length-60).toLocaleString()} more</td></tr>`:""}
+      </tbody></table>
+      <p class="foot-note">Correlation only — the gap is a fact; the cause is for the SIMPL debugger to confirm.</p></div>`;
+  }
+
+  if(a.cpu||a.loadavg){
+    const inUse=a.cpu?(100-parseFloat(a.cpu.idle)).toFixed(0)+"%":null;
+    html+=`<div class="panel" style="margin-top:14px"><h3>Processor load <span class="muted" style="text-transform:none;letter-spacing:0">— as recorded in the dump</span></h3><div class="row">
+      ${a.loadavg?stat(`<span class="data">${a.loadavg[0]}</span>`,"Load avg (1m)"):""}
+      ${a.loadavg?stat(`<span class="data">${a.loadavg[1]} / ${a.loadavg[2]}</span>`,"Load avg (5m / 15m)"):""}
+      ${inUse?stat(`<span class="data">${inUse}</span>`,"CPU in use"):""}
+      ${a.cpu?stat(`<span class="data">${a.cpu.idle}%</span>`,"Idle"):""}
+      ${a.mem?stat(`<span class="data">${a.mem.pct}%</span>`,a.mem.freeB?`Memory used (${(a.mem.freeB/1048576).toFixed(0)} MB free)`:"Memory used"):""}
+    </div>
+    <p class="foot-note">${a.loadavg
+      ? (a.cores
+          ? `Load average is threads waiting to run. This dump reports <b>${a.cores}</b> core${a.cores===1?'':'s'}, so load ≈ <b>${(parseFloat(a.loadavg[0])/a.cores).toFixed(2)} per core</b> (≥1.0 per core = fully subscribed).`
+          : `Load average is threads waiting to run — compare against this processor's core count (not stated in the dump) to judge oversubscription.`)
+      : `CPU split is the snapshot at dump time.`}</p>
+    ${a.proc.length?`<table style="margin-top:8px"><thead><tr><th>Process</th><th class="num">%CPU</th></tr></thead><tbody>
+      ${a.proc.map(p=>`<tr><td class="data">${esc(trim(p.nm,40))}</td><td class="num data">${p.cpu}%</td></tr>`).join("")}
+    </tbody></table><p class="foot-note">Highest-CPU processes in this one snapshot. A single LogicEngine near the top points at one program's solve load.</p>`:""}
+    </div>`;
+  }
+
+  if(a.dropTop.length){
+    html+=`<div class="panel" style="margin-top:14px"><h3>Device socket drops <span class="ct">${a.dropTop.length.toLocaleString()}</span></h3>
+    <table><thead><tr><th>Device</th><th class="num">Drops</th></tr></thead><tbody>
+    ${a.dropTop.map(([dv,n])=>`<tr><td class="data">${esc(dv)}</td><td class="num data">${n}</td></tr>`).join("")}
+    </tbody></table><p class="foot-note">A few drops over a long log usually mean upload/power events; many on one device points at a flaky link or PoE.</p></div>`;
+  }
+
+  $("#logBody").innerHTML=html||'<p class="empty">Parsed the log but found nothing notable.</p>'; wrapScroll("#logBody");
+}
+
+/* ---------- helpers ---------- */
+function wrapScroll(sel){ $$(sel+" table").forEach(t=>{ const tb=t.tBodies[0]; if(tb&&tb.rows.length>14&&!t.parentElement.classList.contains("scroll")){ const d=document.createElement("div"); d.className="scroll"; t.parentNode.insertBefore(d,t); d.appendChild(t); } }); }
+function stat(big,label){return `<div class="panel"><div class="stat">${big}<small>${label}</small></div></div>`;}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
+
+/* expose engine for headless tests (no-op in browser UI) */
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,diffToText}; }
+</script>
+</body>
+</html>
