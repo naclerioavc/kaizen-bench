@@ -850,30 +850,32 @@ function drill(type,val){
     const parts=String(val).split(":"); const bus=parts.length>1?parts[0]:""; const ad=(parts.length>1?parts[1]:parts[0]).toUpperCase();
     const byH=state.prog._dvByH||(state.prog._dvByH=dvIndex(state.prog.smw));
     const symByH=state.prog._symByH||(state.prog._symByH=new Map(m.syms.map(x=>[String(x.H),x])));
-    let dname=""; const inS=new Set(), outS=new Set();
+    let dname=""; const inM=new Map(), outM=new Map();
     byH.forEach(d=>{ if((d.Ad||"").toUpperCase()!==ad||!d.SmH)return; if(bus&&dvBus(byH,d.H)!==bus)return; const sy=symByH.get(String(d.SmH)); if(!sy)return;
       if(!dname&&d.Nm&&!/Devices|Card|Ports|Slot|^Not_Used/i.test(d.Nm))dname=d.Nm;
-      sy.ins.forEach(h=>{const n=m.sigName.get(h); if(n&&n[0]!=="/")inS.add(n);});
-      sy.outs.forEach(h=>{const n=m.sigName.get(h); if(n&&n[0]!=="/")outS.add(n);}); });
-    const inA=[...inS].sort(), outA=[...outS].sort();
-    const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
-    const cap=2500, sect=(t,arr)=>`<div class="lbl" style="margin-top:12px">${t} (${arr.length.toLocaleString()})</div>`+(arr.length?`<input class="mfilter" placeholder="filter\u2026" aria-label="filter"><div class="scroll">`+tbl([{t:"Signal"}],arr.slice(0,cap).map(li).join(""))+`</div>`+(arr.length>cap?`<p class="foot-note">Showing first ${cap.toLocaleString()} &mdash; filter to narrow.</p>`:""):`<p class="muted">&mdash; none &mdash;</p>`);
-    openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal wired to and from this device &mdash; feedback the program sends it, and presses/status it sends back. Click any signal to trace it.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
+      sy.ins.forEach((h,i)=>{const n=m.sigName.get(h); if(n&&n[0]!=="/"&&!inM.has(n))inM.set(n,i+1);});
+      sy.outs.forEach((h,i)=>{const n=m.sigName.get(h); if(n&&n[0]!=="/"&&!outM.has(n))outM.set(n,i+1);}); });
+    const inA=[...inM.entries()].sort((a,b)=>a[1]-b[1]), outA=[...outM.entries()].sort((a,b)=>a[1]-b[1]);
+    const li=e=>`<tr><td class="num data muted">${e[1]}</td><td class="data drill" data-drill="signal" data-val="${esc(e[0])}" title="${esc(e[0])}">${esc(e[0])}</td></tr>`;
+    const cap=2500, sect=(t,arr)=>`<div class="lbl" style="margin-top:12px">${t} (${arr.length.toLocaleString()})</div>`+(arr.length?`<input class="mfilter" placeholder="filter\u2026" aria-label="filter"><div class="scroll">`+tbl([{t:"Join / pin",num:1},{t:"Signal"}],arr.slice(0,cap).map(li).join(""))+`</div>`+(arr.length>cap?`<p class="foot-note">Showing first ${cap.toLocaleString()} &mdash; filter to narrow.</p>`:""):`<p class="muted">&mdash; none &mdash;</p>`);
+    openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal wired to and from this device, by its join/pin number &mdash; feedback the program sends it, and presses/status it sends back. Click any signal to trace it.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
   } else if(type==="syminst" && m){
     const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
     const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
-    const ins=x.ins.map(nm).filter(Boolean), outs=x.outs.map(nm).filter(Boolean);
-    const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
-    const er=`<tr><td class="muted">&mdash; none &mdash;</td></tr>`;
     if(!sigNameSet){ sigNameSet=new Set(); m.sigName.forEach(v=>{ if(v)sigNameSet.add(v); }); }
-    const resIn=x.ins.length-ins.length, resOut=x.outs.length-outs.length;
-    const erIn=resIn>0?`<tr><td class="muted">${resIn} reserved / internal input${resIn===1?'':'s'} (no named signal)</td></tr>`:er;
-    const erOut=resOut>0?`<tr><td class="muted">${resOut} reserved / internal output${resOut===1?'':'s'} (no named signal)</td></tr>`:er;
+    const inRows=x.ins.map((h,i)=>({pin:"I"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
+    const outRows=x.outs.map((h,i)=>({pin:"O"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
+    const li=o=>`<tr><td class="num data muted">${o.pin}</td><td class="data drill" data-drill="signal" data-val="${esc(o.n)}" title="${esc(o.n)}">${esc(o.n)}</td></tr>`;
+    const resIn=x.ins.length-inRows.length, resOut=x.outs.length-outRows.length;
+    const erIn=`<tr><td class="muted" colspan="2">${resIn>0?resIn+" reserved / internal input"+(resIn===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
+    const erOut=`<tr><td class="muted" colspan="2">${resOut>0?resOut+" reserved / internal output"+(resOut===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
     const prm=(x.params||[]).filter(p=>p.v!=="");
     const pcell=v=>sigNameSet.has(v)?`<td class="data drill" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
     const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div>`+tbl([{t:"#",num:1},{t:"Value"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td>${pcell(p.v)}</tr>`).join("")):"";
+    const dd=(state.prog._symToDev||new Map()).get(String(x.H));
+    const coordStr=dd?[dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "):"";
     openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,
-      `<p class="card-intro">Inputs, outputs and parameters for this one instance &mdash; the full configuration. Click any signal to trace it.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||erIn)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||erOut)+pTable);
+      `<p class="card-intro">Every input and output pin on this instance and the signal wired to it, plus its parameters &mdash; the full configuration. Click any signal to trace it.</p>`+(coordStr?`<div class="banner" style="border-left-color:var(--trace)">Physical landing: <b>${esc(coordStr)}</b></div>`:"")+`<div class="lbl">Inputs (${inRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal in"}],inRows.map(li).join("")||erIn)+`<div class="lbl" style="margin-top:12px">Outputs (${outRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal out"}],outRows.map(li).join("")||erOut)+pTable);
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
