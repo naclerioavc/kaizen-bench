@@ -142,10 +142,15 @@
   .gtext{fill:var(--ink);font-size:11px;font-family:"JetBrains Mono",ui-monospace,monospace}
   .gtext.sig{fill:#000;font-weight:600}
   .gedge{fill:none;stroke:var(--dim);stroke-width:1.2}
-  .drill{cursor:pointer}
+  .drill{cursor:pointer;border-bottom:1px dotted var(--dim)}
+  td.drill:hover,.data.drill:hover{color:var(--trace);border-bottom-color:var(--trace);background:rgba(154,160,255,.08)}
   td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
   .drill:hover{color:#fff;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
   tr.drill{cursor:pointer}
+  tr.drill:hover{background:rgba(154,160,255,.06)}
+  tr.drill td:last-child::after{content:" ›";color:var(--dim);font-weight:700}
+  tr.drill:hover td:last-child::after{color:var(--trace)}
+  tr.drill:hover td:first-child{color:var(--trace)}
   tr.drill:hover{background:var(--panel2)}
   .card{border:1px solid var(--line);border-radius:10px;margin-top:14px;background:var(--panel);overflow:hidden}
   .card-head{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none}
@@ -277,7 +282,7 @@
 
   <!-- CENSUS -->
   <section id="tab-census" class="hide">
-    <details class="tabhelp"><summary>How the Audit works</summary><div>Drop one program (a <code>.zip</code>, or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) and it builds a full as-built: every device with its IP-ID, IP and the port it physically lands on; serial / IR / relay config; touchpanels; the full signal list; and your custom modules. <b>Click anything</b> &mdash; a device, a signal, a module, a port &mdash; to drill into exactly what it connects to. The amber bar up top flags anything worth a second look. Nothing is uploaded.</div></details>
+    <details class="tabhelp"><summary>How the Audit works</summary><div>Drop one program (a <code>.zip</code>, or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) and it builds a full as-built: every device with its IP-ID, IP and the port it physically lands on; serial / IR / relay config; touchpanels; the full signal list; and your custom modules. <b>Click anything that&rsquo;s <span style="border-bottom:1px dotted">underlined</span> or a row with a ›</b> &mdash; a device, a signal, a module, a port &mdash; to drill into exactly what it connects to. Plain text isn&rsquo;t clickable. The amber bar up top flags anything worth a second look. Nothing is uploaded.</div></details>
     <div class="drop slim" id="dropC" tabindex="0" role="button" aria-label="Load a program">
       <p>Drop the program <code>.zip</code> &mdash; or a <code>.smw</code> / <code>.umc</code> / <code>.smft</code> / <code>.dip</code></p>
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
@@ -873,6 +878,12 @@ function drill(type,val){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
     openModal(`${esc(val)} &mdash; ${drv.length} driver${drv.length===1?'':'s'}`, tbl([{t:"Driving module"},{t:"Folder path (where to find it)"}], drv.map(x=>`<tr><td class="data" title="${esc(x.Nm)}">${esc(x.Nm)}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`).join("")));
+  } else if(type==="bom"){
+    const list=(state.audit&&state.audit.devRows||[]).filter(d=>d.model===val);
+    const sa=state.prog._sigAds||new Set();
+    const busOf=n=>n==="Ethernet"?"E":n==="Cresnet"?"C":"R";
+    const idCell=d=>{ const bus=busOf(d.net); return sa.has(bus+":"+String(d.id).toUpperCase())?`<td class="data drill" data-drill="devsignals" data-val="${bus}:${esc(d.id)}" title="click for this device&rsquo;s signals">${esc(d.id)}</td>`:`<td class="data">${esc(d.id)}</td>`; };
+    openModal(`${esc(val)} &mdash; ${list.length} device${list.length===1?'':'s'} in the system`, `<p class="card-intro">Every device of this model. Click an underlined IP-ID to see its wired signals.</p>`+tbl([{t:"IP-ID / Cresnet ID"},{t:"Name"},{t:"Network"}], list.map(d=>`<tr>${idCell(d)}<td class="data">${esc(d.name||'—')}</td><td class="data muted">${esc(d.net)}</td></tr>`).join("")||`<tr><td class="muted" colspan="3">&mdash; none &mdash;</td></tr>`));
   } else if(type==="ip"){
     const all=(state.audit&&state.audit.hits||[]).filter(h=>h.ip===val);
     openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Folder path (where to find it)"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data">${esc(h.module)}</td><td class="data muted" title="${esc(m&&h.H!=null?folderPath(m,h.H):'')}">${esc((m&&h.H!=null?folderPath(m,h.H):'')||'—')}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(h.value||h.ip)}</td><td class="data" title="${esc(h.context||'')}">${esc(h.context||'—')}</td></tr>`).join("")));
@@ -975,6 +986,7 @@ function runAudit(){
     const byH=dvIndex(pr.smw); state.prog._dvByH=byH;
     byH.forEach(d=>{ if(!d.SmH)return; const sy=symByH.get(String(d.SmH)); if(!sy)return; const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return;
       if([...sy.ins,...sy.outs].some(h=>{const n=m.sigName.get(h);return n&&n[0]!=="/";})){ const bus=dvBus(byH,d.H); if(bus)sigAds.add(bus+":"+ad); } }); }
+  state.prog._sigAds=sigAds;
   const devCell=(id,txt,bus)=>sigAds.has(bus+":"+String(id).toUpperCase())?`<td class="data drill" data-drill="devsignals" data-val="${bus}:${esc(id)}" title="click to see every signal wired to this device">${esc(txt)}</td>`:`<td class="data">${esc(txt)}</td>`;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
   let html="";
@@ -1012,7 +1024,7 @@ function runAudit(){
   }
   const rfDev=devRows.filter(d=>d.net!=="Ethernet"&&d.net!=="Cresnet"&&d.net!=="Processor");
   if(rfDev.length){
-    const rows=rfDev.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"—"; return `<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    const rows=rfDev.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"—"; return `<tr><td class="data">${esc(d.net)}</td>${devCell(d.id,d.id,"R")}<td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
     html+=card("RF / other devices",rfDev.length,`<p class="card-intro">RF / infiNET / other-bus devices, and the gateway each one is paired to (e.g. a wireless dimmer behind a CEN-GWEXER).</p>`+tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"},{t:"Behind (gateway)"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   { const irDev=pr.smw?parseIrDevices(pr.smw):[];
@@ -1032,7 +1044,7 @@ function runAudit(){
   if(devRows.length){
     const bom=new Map(); devRows.forEach(d=>{ if(!d.model)return; const c=enrich(d.model); if(!bom.has(d.model))bom.set(d.model,{model:d.model,mfr:c.mfr,type:c.type,n:0}); bom.get(d.model).n++; });
     const items=[...bom.values()].sort((a,b)=>b.n-a.n||a.model.localeCompare(b.model));
-    if(items.length){ const rows=items.map(d=>`<tr><td class="data" title="${esc(d.model)}">${esc(d.model)}</td><td class="data muted">${esc(d.mfr||'—')}</td><td class="data muted" title="${esc(d.type||'')}">${esc(d.type||'—')}</td><td class="num data">${d.n}</td></tr>`).join("");
+    if(items.length){ const rows=items.map(d=>`<tr><td class="data drill" data-drill="bom" data-val="${esc(d.model)}" title="${esc(d.model)}">${esc(d.model)}</td><td class="data muted">${esc(d.mfr||'—')}</td><td class="data muted" title="${esc(d.type||'')}">${esc(d.type||'—')}</td><td class="num data">${d.n}</td></tr>`).join("");
       html+=card("Device summary (bill of materials)",items.length,`<p class="card-intro">Every device model in the system and how many of each &mdash; a quick bill of materials.</p>`+tbl([{t:"Model"},{t:"Manufacturer"},{t:"Type"},{t:"Count",num:1}],rows,1),false);
     }
   }
@@ -1052,7 +1064,7 @@ function runAudit(){
         if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
         return ""; };
       const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p||x.device||"—"; };
-      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
+      const rows=serial.map(x=>`<tr${x.smH!=null?` class="drill" data-drill="syminst" data-val="${x.smH}"`:""}><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
       html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
     }
   }

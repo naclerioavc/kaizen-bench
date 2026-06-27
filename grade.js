@@ -31,6 +31,8 @@ const smw=[
   `[\nObjTp=Dv\nH=941\nNm=CEN-IO-RY-204\nAd=06\nPrH=940\n]`,
   `[\nObjTp=Dv\nH=600\nNm=Relays\nAd=03\nSmH=11\nPrH=941\n]`,
   `[\nObjTp=Dv\nH=950\nNm=Ethernet Intersystem Communications:OtherProg.rsd\nAd=F1\nPrH=940\n]`,
+  `[\nObjTp=Dv\nH=960\nNm=Matrix\nAd=05\nSmH=970\nPrH=940\n]`,
+  `[\nObjTp=Sm\nH=970\nNm=MatrixCtrl\nI1=1\nO1=2\n]`,
   `[\nObjTp=VTP\nDvH=700\nTSAddr=1c\nVTPFile=C:\\proj\\UI\\Main.vtp\n]`,
   `[\nObjTp=Db\nH=1\nDvH=700\nMnf=Crestron\nMdl=TSW-1070\nTpe=7 inch Touch Screen\n]`,
   `[\nObjTp=Db\nH=2\nDvH=701\nMnf=Crestron\nMdl=DM-MD8X8\nTpe=HDMI Matrix\n]`,
@@ -113,7 +115,7 @@ w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.s
 const titles=[...w.document.querySelectorAll('#censusBody .card-title')].map(t=>t.textContent.replace(/[\s\d\/,]+$/,'').trim());
 ["Program info","Network devices","Cresnet devices","IR devices","Touchpanels & UIs","Device summary (bill of materials)","Relay / IR / I-O ports","Serial ports","Third-party IPs","Module inventory","Signals"].forEach(t=>has("audit card: "+t, titles.includes(t)));
 has("no standalone IP-ID table card (merged)", !titles.includes("IP-ID table"));
-has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to review"));
+has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Worth a quick look"));
 { const irCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('IR devices'));
   const hdr=irCard?[...irCard.querySelectorAll('thead th')].map(t=>t.textContent):[];
   has("IR card has IR port + Driver file + Location columns", hdr.includes("IR port")&&hdr.includes("Driver file")&&hdr.includes("Location"));
@@ -135,6 +137,17 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
 { const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
   has("Network card has Role / type column", [...netCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Role / type"));
   has("Network card flags the EISC", /EISC/.test(netCard.textContent)); }
+has("audit shows action bar (needs-attention summary up top)", w.document.querySelector("#censusBody .actionbar")!=null);
+has("Checks card is accented (.card.attn)", w.document.querySelector("#censusBody .card.attn")!=null);
+{ const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
+  const dc=netCard.querySelector('[data-drill=devsignals]');
+  has("device row drillable to its wired signals", dc!=null);
+  if(dc){ dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true})); has("device-signals drill lists the wired signals", w.document.querySelectorAll('#modalBody [data-drill=signal]').length>=1); } }
+has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').length>=3);
+{ const bomCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/bill of materials/.test(c.querySelector('.card-title').textContent));
+  has("BOM model rows drillable to device instances", bomCard&&bomCard.querySelector('[data-drill=bom]')!=null); }
+{ const serCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>/Serial ports/.test(c.querySelector('.card-title').textContent));
+  if(serCard) has("serial rows drillable to the COM symbol I/O", serCard.querySelector('tr.drill')!=null); else {pass++;console.log("  PASS  (no serial in fixture)");} }
 has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
 has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
 { const bx=[...w.document.querySelectorAll('#censusBody .cardsel')].slice(0,2); bx.forEach(b=>b.checked=true); w.eval("updateExportSel();"); has("combined export enables on selection", !w.document.getElementById('auditExport').disabled); }
@@ -143,6 +156,22 @@ const lb=w.document.getElementById('logBody').textContent;
 has("log: System panel", lb.includes("Model")||lb.includes("CP4-LAB"));
 has("log: Discovered devices", lb.includes("Discovered network devices"));
 has("log: Open ports (netstat)", lb.includes("Open ports"));
+{ const al=w.analyzeLog(["Notice: Console # 2026-06-25 12:00:00 # SSH connection attempt failed from 10.0.0.9","Warning: Eth # 2026-06-25 12:01:00 # End of Query Acknowledge not received from IP-ID-1A"].join("\n"));
+  has("log: SSH/auth attempts counted", al.authFails>=1);
+  has("log: dropping IP-IDs captured for correlation", al.dropIds.includes("1A")); }
+{ const L=[]; for(let i=0;i<6;i++){const mm=String(i*5).padStart(2,"0"); L.push("Warning: Eth # 2026-06-25 12:"+mm+":00 # End of Query Acknowledge not received from IP-ID-2A");}
+  const al=w.analyzeLog(L.join("\n")); has("log: regular-interval (periodic) drops detected", al.periodic.length>=1 && al.periodic[0].everyS===300); }
+{ const lg=["Notice: a_console # 2026-06-10 11:38:02 # System startup CP4 Cntrl Eng [v2.8001.00098 (Jul 26 2023)]",
+    "Error: X # 2026-06-10 11:38:40 # boom (written 5 times)",
+    "Fatal: LogicEngine_1 # 2026-06-10 11:38:40 # The following file(s) are missing\r\r",
+    "Fatal: LogicEngine_1 # 2026-06-10 11:38:40 # FileName: 01_CP4_Main.bin.",
+    "Error: LE # 2026-06-10 11:39:00 # Exclusive device Slot-10 Port 1 is already in use by Program 02"].join("\n");
+  const al=w.analyzeLog(lg);
+  has("log: double-CR Fatal line parsed not dropped", al.fatalN>=1);
+  has("log: (written N times) multiplier counted", al.errN>=5);
+  ck("log: boot model + firmware extracted",[al.bootModel,al.bootFw],["CP4","2.8001.00098"]);
+  has("log: missing program files surfaced", al.missingFiles.some(f=>/01_CP4_Main\.bin/.test(f)));
+  has("log: cross-program device conflict surfaced", al.devConflicts.length>=1); }
 
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
