@@ -453,7 +453,7 @@ function parseSmw(text){
           {const lbl=(cur.Nm==="SUBSYSTEM"&&cur.Cmn1)?String(cur.Cmn1).replace(/[\\\/]+\s*$/,"").trim():(cur.Nm||"");H2nm.set(h,lbl);}H2pr.set(h,cur.PrH||"");
           if(cur.ch)cur.ch.forEach(c=>parentOf.set(c,h));
           if(cur.ins.length||cur.outs.length||cur.Nm)
-            syms.push({H:h,Nm:cur.Nm||"",SmC:cur.SmC||"",PrH:cur.PrH||"",ins:cur.ins,outs:cur.outs});
+            syms.push({H:h,Nm:cur.Nm||"",SmC:cur.SmC||"",PrH:cur.PrH||"",ins:cur.ins,outs:cur.outs,params:cur.prm?cur.prm.sort((a,b)=>a.i-b.i):[]});
         }
       }
       cur=null;continue;
@@ -467,6 +467,7 @@ function parseSmw(text){
     else if(k[0]==="I"&&/^I\d+$/.test(k)){const n=parseInt(v,10);if(n>0)cur.ins.push(n);}
     else if(k[0]==="O"&&/^O\d+$/.test(k)){const n=parseInt(v,10);if(n>0)cur.outs.push(n);}
     else if(k[0]==="C"&&/^C\d+$/.test(k)){const n=parseInt(v,10);if(n>0)(cur.ch||(cur.ch=[])).push(n);}
+    else if(k[0]==="P"&&/^P\d+$/.test(k)){(cur.prm||(cur.prm=[])).push({i:parseInt(k.slice(1),10),v});}
     else cur[k]=v;
   }
   return {sigName,sigType,H2nm,H2pr,parentOf,syms};
@@ -477,6 +478,16 @@ function folderPath(model,h){ const out=[]; let p=model.parentOf?model.parentOf.
 const TYPE_LONG={D:"digital",A:"analog",S:"serial"};
 
 /* ---------- diff engine ---------- */
+function symbolParams(model){
+  const id2p=new Map();
+  for(const x of model.syms){
+    if(!x.Nm||!(x.params&&x.params.length))continue;
+    const pins=[...x.ins,...x.outs].map(h=>model.sigName.get(h)||"").filter(Boolean).sort();
+    const key=x.Nm+"||"+pins.join(",");
+    if(!id2p.has(key))id2p.set(key,{nm:x.Nm,params:x.params});
+  }
+  return id2p;
+}
 function wiringSignatures(model){
   const h2tok=new Map();
   for(const x of model.syms){
@@ -533,6 +544,13 @@ function computeDiff(A,B){
   const removedT=removed.map(n=>({n,t:ntA.get(n)||"D"}));
   const renamesT=renames.map(r=>({from:r.from,to:r.to,t:ntB.get(r.to)||"D"})).sort((a,b)=>a.to<b.to?-1:1);
 
+  const pA=symbolParams(A), pB=symbolParams(B); const paramChanges=[];
+  pA.forEach((a,key)=>{ const b=pB.get(key); if(!b)return;
+    const am=new Map(a.params.map(p=>[p.i,p.v])), bm=new Map(b.params.map(p=>[p.i,p.v]));
+    const idxs=[...new Set([...am.keys(),...bm.keys()])].sort((x,y)=>x-y); const ch=[];
+    idxs.forEach(i=>{ const av=am.get(i)||"",bv=bm.get(i)||""; if(av!==bv)ch.push({i,from:av,to:bv}); });
+    if(ch.length)paramChanges.push({nm:a.nm,changes:ch}); });
+  paramChanges.sort((x,y)=>x.nm<y.nm?-1:1);
   const mA=moduleCounts(A), mB=moduleCounts(B);
   const mods=new Set([...mA.keys(),...mB.keys()]);
   const modDeltas=[...mods].map(nm=>({nm,a:mA.get(nm)||0,b:mB.get(nm)||0,d:(mB.get(nm)||0)-(mA.get(nm)||0)}))
@@ -542,7 +560,7 @@ function computeDiff(A,B){
     sigA:setA.size, sigB:setB.size,
     symA:[...mA.values()].reduce((s,n)=>s+n,0), symB:[...mB.values()].reduce((s,n)=>s+n,0),
     tcA:typeCounts(A), tcB:typeCounts(B),
-    added:addedT, removed:removedT, renames:renamesT, typeChanges, modDeltas
+    added:addedT, removed:removedT, renames:renamesT, typeChanges, modDeltas, paramChanges
   };
 }
 
@@ -597,6 +615,7 @@ function diffToText(d,aName,bName){
   sec("RENAMED (inferred from wiring — confirm)", d.renames, x=>`~ [${x.t}] ${x.from}  ->  ${x.to}`);
   sec("TYPE CHANGES", d.typeChanges, x=>`! ${x.n}: ${x.from} -> ${x.to}`);
   sec("MODULE INSTANCE CHANGES", d.modDeltas, x=>`${x.d>0?"+":""}${x.d}  ${x.nm}  (${x.a} -> ${x.b})`);
+  sec("PARAMETER CHANGES (same wiring, changed settings)", (d.paramChanges||[]).flatMap(p=>p.changes.map((c,i)=>({l:`${i===0?p.nm:" ".repeat(Math.min(p.nm.length,40))}  P${c.i}: ${c.from||"(empty)"} -> ${c.to||"(empty)"}`}))), x=>x.l);
   return L.join("\n");
 }
 function sign(n){return n>=0?"+"+n:""+n;}
@@ -619,7 +638,7 @@ function runDiff(){
     const d=computeDiff(A,B);
     state.lastDiff=d; $("#diffCopy").disabled=false;
     const CAP=300;
-    const total=d.added.length+d.removed.length+d.renames.length+d.typeChanges.length+d.modDeltas.length;
+    const total=d.added.length+d.removed.length+d.renames.length+d.typeChanges.length+d.modDeltas.length+d.paramChanges.length;
     const verdict = total===0
       ? "No structural differences between these two builds — same signal names, types, and module instance counts. (A static diff doesn't see runtime constants or the inside of compiled modules.)"
       : `${d.added.length.toLocaleString()} added, ${d.removed.length.toLocaleString()} removed, ${d.renames.length.toLocaleString()} renamed, ${d.typeChanges.length.toLocaleString()} retyped — across ${d.modDeltas.length.toLocaleString()} module${d.modDeltas.length===1?'':'s'} with instance changes.`;
@@ -677,6 +696,16 @@ function runDiff(){
         ${more>0?`<tr><td class="muted" colspan="4">…and ${more.toLocaleString()} more</td></tr>`:""}
         </tbody></table>`;
     } else html+=`<p class="empty">No change in module instance counts.</p>`;
+    html+=`</div>`;
+
+    html+=`<div class="panel" style="margin-top:14px"><h3>Parameter changes <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; same wiring, changed settings (the &ldquo;programming may be lost&rdquo; cases)</span><span class="ct">${d.paramChanges.length.toLocaleString()}</span></h3>`;
+    if(d.paramChanges.length){
+      const shown=d.paramChanges.slice(0,CAP), more=d.paramChanges.length-shown.length;
+      html+=`<div class="scroll"><table><thead><tr><th>Module</th><th class="num">Param</th><th>Was</th><th>Now</th></tr></thead><tbody>
+        ${shown.map(p=>p.changes.map((c,i)=>`<tr><td class="data" title="${esc(p.nm)}">${i===0?esc(trim(p.nm,40)):""}</td><td class="num data muted">P${c.i}</td><td class="data">${esc(c.from||'—')}</td><td class="data">${esc(c.to||'—')}</td></tr>`).join("")).join("")}
+        ${more>0?`<tr><td class="muted" colspan="4">…and ${more.toLocaleString()} more module${more===1?'':'s'}</td></tr>`:""}
+        </tbody></table></div><p class="foot-note">Symbols whose wiring is unchanged but a parameter value changed between builds &mdash; the silent edits a name-only diff misses. Confirm intent.</p>`;
+    } else html+=`<p class="empty">No parameter changes on matched symbols.</p>`;
     html+=`</div>`;
 
     $("#diffBody").innerHTML=html;
@@ -772,6 +801,7 @@ $("#modalBody").addEventListener("click",e=>{ const d=e.target.closest("[data-dr
 $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
+let sigNameSet=null;
 function drill(type,val){
   const m=state.prog&&state.prog.model;
   if(type==="module" && m){
@@ -792,8 +822,12 @@ function drill(type,val){
     const ins=x.ins.map(nm).filter(Boolean), outs=x.outs.map(nm).filter(Boolean);
     const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
     const er=`<tr><td class="muted">&mdash; none &mdash;</td></tr>`;
+    if(!sigNameSet){ sigNameSet=new Set(); m.sigName.forEach(v=>{ if(v)sigNameSet.add(v); }); }
+    const prm=(x.params||[]).filter(p=>p.v!=="");
+    const pcell=v=>sigNameSet.has(v)?`<td class="data drill" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
+    const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div>`+tbl([{t:"#",num:1},{t:"Value"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td>${pcell(p.v)}</tr>`).join("")):"";
     openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,
-      `<p class="card-intro">Inputs (signals coming in) and outputs (signals going out) for this one instance. Click any signal to trace where it comes from and goes.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||er)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||er));
+      `<p class="card-intro">Inputs, outputs and parameters for this one instance &mdash; the full configuration. Click any signal to trace it.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||er)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||er)+pTable);
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
@@ -1423,7 +1457,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
 </script>
 </body>
 </html>

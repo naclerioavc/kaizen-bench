@@ -19,7 +19,7 @@ const smw=[
   `[\nObjTp=Hd\nPgmNm=TestProg\nDlrNm=TestDealer\nCltNm=TestClient\nPrNm=test.smw\nCmVr=4.00\nDbVr=1.2.3\nDvcDbVr=9.9.9\n]`,
   sg(1,"Audio.Vol","2"), sg(2,"Lights.On",""), sg(3,"Disp.Tx","4"), sg(4,"Set.Level","2"),
   sm(10,"Folder","mC=3\nC1=11\nC2=12\nC3=519"),
-  sm(11,"AudioMod.usp","I1=1\nO1=4"),
+  sm(11,"AudioMod.usp","I1=1\nO1=4\nP1=50\nP2=Living Room"),
   sm(12,"DrvB","O1=4"),                              // 2nd driver of analog sig 4 -> value contention
   sm(13,"TCP Client","P1=10.0.0.5\nI1=2"),
   `[\nObjTp=Sm\nH=20\nNm=SUBSYSTEM\nCmn1=AudioRoom\\\\\nmC=1\nC1=21\n]`,
@@ -100,6 +100,10 @@ ck("discovered nodes",w.parseDiscovered(log).map(x=>[x.ip,x.ipid,x.host]),[["10.
 has("netstat LISTEN+ESTABLISHED >=2", w.parseNetstat(log).filter(x=>x.state==="LISTEN"||x.state==="ESTABLISHED").length>=2);
 const m=w.parseSmw(smw); let D=0,A=0,S=0; m.sigType.forEach(t=>{const c=({"":"D","1":"D","2":"A","4":"S"})[t]||"D";c==="D"?D++:c==="A"?A++:S++;});
 ck("D/A/S split",[D,A,S],[1,2,1]);
+{ const sy=m.syms.find(x=>x.Nm==="AudioMod.usp"); ck("symbol parameters captured",[sy.params.length, sy.params[0].v],[2,"50"]); }
+{ const A2=w.parseSmw(smw.replace("P1=50","P1=50")); const B2=w.parseSmw(smw.replace("P1=50","P1=80"));
+  const pc=w.computeDiff(A2,B2).paramChanges;
+  ck("parameter diff: same wiring, changed setting",[pc.length, pc[0]&&pc[0].changes[0].from, pc[0]&&pc[0].changes[0].to],[1,"50","80"]); }
 ck("folder path uses Cmn1 label not SUBSYSTEM",[w.folderPath(m,21), /SUBSYSTEM/.test(w.folderPath(m,21))],["AudioRoom",false]);
 const si=w.systemInfo(log);
 ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway],["CP4","10.0.0.1"]);
