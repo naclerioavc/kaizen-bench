@@ -117,6 +117,7 @@
   .scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:2px}
   .scroll table{border:0}
   .scroll td, .scroll th{white-space:nowrap}
+  .scroll td.wrap{white-space:normal;max-width:680px;min-width:300px}
   .scroll thead th, .modal-body thead th{cursor:pointer;user-select:none}
   thead th[data-dir=asc]::after{content:" ▲";color:var(--mut);font-size:9px}
   thead th[data-dir=desc]::after{content:" ▼";color:var(--mut);font-size:9px}
@@ -897,13 +898,19 @@ function runAudit(){
     const rows=rfDev.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
     html+=card("RF / other devices",rfDev.length,tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
-  if(state.prog.ir&&state.prog.ir.length){
-    const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
-    html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">Devices controlled by infrared, from the <code>.ir</code> driver files in the program.</p>`+tbl([{t:"IR device / driver"}],rows,1),false);
+  { const irDev=pr.smw?parseIrDevices(pr.smw):[];
+    if(irDev.length){
+      const loc=x=>{ if(m&&x.smH!=null){ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||p||""; } return ""; };
+      const rows=irDev.map(x=>`<tr><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`).join("");
+      html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port it&rsquo;s wired to, and where it lives in the program.</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"Driver file"},{t:"Location"}],rows,1),false);
+    } else if(state.prog.ir&&state.prog.ir.length){
+      const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
+      html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">IR driver files in the program. Load the full program <code>.smw</code>/<code>.zip</code> for the wired view (port + location).</p>`+tbl([{t:"IR driver file"}],rows,1),false);
+    }
   }
   if(tps.length){
-    const rows=tps.map(t=>`<tr><td class="data" title="${esc(t.model)}">${esc(t.model||'—')}</td><td class="data muted" title="${esc(t.type||'')}">${esc(t.type||'—')}</td><td class="data">${esc(t.addr||'—')}</td><td class="data" title="${esc(t.project)}">${esc(t.project||'—')}</td></tr>`).join("");
-    html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"Project file"}],rows,1),false);
+    const rows=tps.map(t=>{ const ip=dip.get((t.addr||'').toUpperCase())||""; return `<tr><td class="data" title="${esc(t.model)}">${esc(t.model||'—')}</td><td class="data muted" title="${esc(t.type||'')}">${esc(t.type||'—')}</td><td class="data">${esc(t.addr||'—')}</td><td class="data${ip==='127.0.0.1'?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(t.project)}">${esc(t.project||'—')}</td></tr>`; }).join("");
+    html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, the IP it resolves to in the IP table, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"IP address"},{t:"Project file"}],rows,1),false);
   }
   if(devRows.length){
     const bom=new Map(); devRows.forEach(d=>{ if(!d.model)return; const c=enrich(d.model); if(!bom.has(d.model))bom.set(d.model,{model:d.model,mfr:c.mfr,type:c.type,n:0}); bom.get(d.model).n++; });
@@ -1122,7 +1129,7 @@ function analyzeLog(text){
     if(who)sources.add(who);
     const t=toS(ts(l));
     const key=sev+"|"+who+"|"+msg;
-    let g=tally.get(key); if(!g){g={sev,who,msg,example:raw.slice(0,140),n:0,first:null,last:null};tally.set(key,g);}
+    let g=tally.get(key); if(!g){g={sev,who,msg,example:raw.slice(0,600),n:0,first:null,last:null};tally.set(key,g);}
     g.n++; if(t!=null){ if(g.first===null||t<g.first)g.first=t; if(g.last===null||t>g.last)g.last=t; }
   }
   const rated=g=>{
@@ -1135,7 +1142,7 @@ function analyzeLog(text){
     return {...g,span,rate};
   };
   const ALL=[...tally.values()];
-  const recurring=ALL.filter(t=>t.sev==="Fatal"||t.sev==="Error"||t.sev==="Warning").sort((a,b)=>b.n-a.n).slice(0,16).map(rated);
+  const recurring=ALL.filter(t=>t.sev==="Fatal"||t.sev==="Error"||t.sev==="Warning").sort((a,b)=>b.n-a.n).slice(0,500).map(rated);
   const infoGroups=ALL.filter(t=>t.sev==="Notice"||t.sev==="Info"||t.sev==="Ok").sort((a,b)=>b.n-a.n);
   const infoTotal=infoGroups.reduce((s,g)=>s+g.n,0);
   const infoTop=infoGroups.slice(0,3).map(rated);
@@ -1171,7 +1178,7 @@ function analyzeLog(text){
     proc.push({cpu:usr, nm});
   });
   const byName=new Map(); proc.forEach(x=>{ if(!byName.has(x.nm)||byName.get(x.nm)<x.cpu) byName.set(x.nm,x.cpu); });
-  proc=[...byName.entries()].map(([nm,cpu])=>({nm,cpu})).sort((a,b)=>b.cpu-a.cpu).slice(0,8);
+  proc=[...byName.entries()].map(([nm,cpu])=>({nm,cpu})).sort((a,b)=>b.cpu-a.cpu).slice(0,40);
 
   // device socket drops
   const drops=new Map();
@@ -1179,7 +1186,7 @@ function analyzeLog(text){
     let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){drops.set("Dev "+m[1],(drops.get("Dev "+m[1])||0)+1);return;}
     m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m)drops.set("IP-ID "+m[1],(drops.get("IP-ID "+m[1])||0)+1);
   });
-  const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,60);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
     recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop };
@@ -1195,6 +1202,17 @@ function parseNetstat(text){
   const out=[]; sec.split("\n").forEach(l=>{ const m=l.match(/^\s*(tcp\d?|udp\d?)\s+\d+\s+\d+\s+(\S+)\s+(\S+)\s*(\w+)?/);
     if(m) out.push({proto:m[1], local:m[2], foreign:m[3], state:m[4]||""}); });
   return out;
+}
+function parseIrDevices(smw){
+  const lines=smw.split("\n"); let cur=null,typ=null; const dv=new Map(); const dbs=[];
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="Dv"&&cur.H!=null)dv.set(String(cur.H),cur); else if(typ==="Db"&&cur.DrF)dbs.push(cur); cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
+    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return dbs.map(db=>{ const d=dv.get(String(db.DvH))||{};
+    return { device:d.Nm||db.Mdl||"", model:db.Mdl||"", mfr:db.Mnf||"", port:d.Ad||"", driver:String(db.DrF).replace(/\.ir$/i,""), smH:d.SmH!=null?parseInt(d.SmH,10):null }; })
+    .sort((a,b)=>(a.port||"").localeCompare(b.port||"",undefined,{numeric:true})||a.device.localeCompare(b.device));
 }
 function parseDeviceCatalog(smw){
   const lines=smw.split("\n"); let cur=null,typ=null; const seen=new Map();
@@ -1281,7 +1299,7 @@ function runLog(name,text){
   let html="";
   const sys=systemInfo(text); if(sys) html+=renderSystem(sys);
   const disc=parseDiscovered(text);
-  if(disc.length){ const rows=disc.map(d=>`<tr><td class="data">${esc(d.ip)}</td><td class="data">${esc(d.ipid||'—')}</td><td class="data" title="${esc(d.host)}">${esc(trim(d.host,26))}</td><td class="data muted" title="${esc(d.fw)}">${esc(trim(d.fw,46))}</td></tr>`).join("");
+  if(disc.length){ const rows=disc.map(d=>`<tr><td class="data">${esc(d.ip)}</td><td class="data">${esc(d.ipid||'—')}</td><td class="data">${esc(d.host||"—")}</td><td class="data muted">${esc(d.fw||"—")}</td></tr>`).join("");
     html+=`<div class="panel" style="margin-top:14px"><h3>Discovered network devices <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; live autodiscovery</span><span class="ct">${disc.length}</span></h3><p class="foot-note">Devices seen on the network with IP, IP-ID, hostname and firmware version.</p>`+tbl([{t:"IP"},{t:"IP-ID"},{t:"Hostname"},{t:"Model / firmware"}],rows,1)+`</div>`; }
   const ns=parseNetstat(text).filter(x=>x.state==="LISTEN"||x.state==="ESTABLISHED");
   if(ns.length){ const rows=ns.map(x=>`<tr><td class="data">${esc(x.proto)}</td><td class="data">${esc(x.local)}</td><td class="data muted">${esc(x.foreign)}</td><td><span class="pill ${x.state==="LISTEN"?'ok':''}">${esc(x.state)}</span></td></tr>`).join("");
@@ -1299,15 +1317,15 @@ function runLog(name,text){
 
   html+=`<div class="panel" style="margin-top:14px"><h3>Recurring problems <span class="muted" style="text-transform:none;letter-spacing:0">— warnings &amp; errors by frequency</span><span class="ct">${a.recurring.length.toLocaleString()}</span></h3>`;
   if(a.recurring.length){
-    html+=`<table><thead><tr><th>Sev</th><th>Source</th><th>Message</th><th class="num">Count</th><th>Rate</th></tr></thead><tbody>
+    html+=`<div class="scroll"><table><thead><tr><th>Sev</th><th>Source</th><th>Message</th><th class="num">Count</th><th>Rate</th></tr></thead><tbody>
       ${a.recurring.map(t=>`<tr>
         <td><span class="pill ${t.sev==='Error'||t.sev==='Fatal'?'bad':t.sev==='Warning'?'warn':''}">${t.sev}</span></td>
-        <td class="data muted" title="${esc(t.who)}">${esc(trim(t.who,18))}</td>
-        <td class="data" title="${esc(t.example||t.msg)}">${esc(trim(t.example||t.msg,58))}</td>
+        <td class="data muted">${esc(t.who||'—')}</td>
+        <td class="data wrap">${esc(t.example||t.msg)}</td>
         <td class="num data">${t.n.toLocaleString()}</td>
         <td><span class="pill ${t.rate.kind==='burst'?'warn':t.rate.kind==='rate'?'':'ok'}">${t.rate.txt}</span></td>
       </tr>`).join("")}
-      </tbody></table>
+      </tbody></table></div>
       <p class="foot-note"><b>burst</b> = all within a minute (usually one boot/upload event); a steady <b>/h</b> rate is an ongoing condition. ${a.infoTotal?`<b>${a.infoTotal.toLocaleString()}</b> informational messages (Ok/Info/Notice) set aside${a.infoTop&&a.infoTop[0]?` — top: &ldquo;${esc(trim(a.infoTop[0].example||a.infoTop[0].msg,40))}&rdquo; ×${a.infoTop[0].n.toLocaleString()}`:""}.`:"Numbers in messages are normalized so the same error counts once."}</p>`;
   } else html+=`<p class="empty">No recurring warnings or errors.${a.infoTotal?` (${a.infoTotal.toLocaleString()} informational messages present.)`:""}</p>`;
   html+=`</div>`;
@@ -1319,8 +1337,8 @@ function runLog(name,text){
     html+=`<div class="panel" style="margin-top:14px"><h3>Signal-solve timeouts <span class="muted" style="text-transform:none;letter-spacing:0">— logic engine couldn't settle a wave</span><span class="ct">${a.toRows.length.toLocaleString()}</span></h3>
       <p class="verdict">${summary}</p>
       <table><thead><tr><th>Timestamp</th><th class="num">Seconds after last program start</th></tr></thead><tbody>
-      ${a.toRows.slice(0,60).map(r=>`<tr><td class="data">${esc(r.w)}</td><td class="num data">${r.gap==null?"— no preceding start":r.gap+"s"}</td></tr>`).join("")}
-      ${a.toRows.length>60?`<tr><td class="muted" colspan="2">…and ${(a.toRows.length-60).toLocaleString()} more</td></tr>`:""}
+      ${a.toRows.slice(0,500).map(r=>`<tr><td class="data">${esc(r.w)}</td><td class="num data">${r.gap==null?"— no preceding start":r.gap+"s"}</td></tr>`).join("")}
+      ${a.toRows.length>500?`<tr><td class="muted" colspan="2">…and ${(a.toRows.length-500).toLocaleString()} more</td></tr>`:""}
       </tbody></table>
       <p class="foot-note">Correlation only — the gap is a fact; the cause is for the SIMPL debugger to confirm.</p></div>`;
   }
@@ -1340,7 +1358,7 @@ function runLog(name,text){
           : `Load average is threads waiting to run — compare against this processor's core count (not stated in the dump) to judge oversubscription.`)
       : `CPU split is the snapshot at dump time.`}</p>
     ${a.proc.length?`<table style="margin-top:8px"><thead><tr><th>Process</th><th class="num">%CPU</th></tr></thead><tbody>
-      ${a.proc.map(p=>`<tr><td class="data">${esc(trim(p.nm,40))}</td><td class="num data">${p.cpu}%</td></tr>`).join("")}
+      ${a.proc.map(p=>`<tr><td class="data">${esc(p.nm)}</td><td class="num data">${p.cpu}%</td></tr>`).join("")}
     </tbody></table><p class="foot-note">Highest-CPU processes in this one snapshot. A single LogicEngine near the top points at one program's solve load.</p>`:""}
     </div>`;
   }
@@ -1362,7 +1380,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,diffToText}; }
 </script>
 </body>
 </html>

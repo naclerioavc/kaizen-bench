@@ -27,6 +27,12 @@ files are read-only.
 - **Honest labeling.** Facts read straight from the file; anything inferred says so.
 - **UI/UX is paramount** — collapsible sections, sticky headers, sortable columns, filters,
   drill-downs, copy-to-table. Pretty and well laid out.
+- **Completeness rule (every relevant field gets a column).** If a record carries useful data
+  for a row — a port, an IP, an address, a driver file, a parent card, a location — surface it
+  as its own column. Don't make the user open SIMPL to learn something the file already states.
+  Wide tables scroll horizontally; never truncate a value to where it's unreadable even on hover.
+  This rule is **enforced by the grader**: the fixtures carry every field, and `test/grade.js`
+  asserts each card renders them. A missing column is a failing test, not a code-review catch.
 
 ## 3. Methodologies
 
@@ -56,27 +62,16 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
 - ✅ **Network devices** — one merged list: union of the device tree and the processor IP
   table (`.dip`) keyed by IP-ID, columns IP-ID / IP / model / name / manufacturer / type.
   (Replaces the old separate "Ethernet devices" + "IP-ID table" — they were two IP-ID lists.)
-- ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type. IR (`.ir` files)
+- ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type
+- ✅ IR devices: device, model, manufacturer, **IR port**, driver file, and location — joined
+  from `Db.DrF`→`Dv` (not just `.ir` filenames). Falls back to filenames if only `.ir` present.
 - ✅ Per-row `Db` enrichment (manufacturer/type by model) merged into every device row
 - ✅ Device summary (bill of materials): every model + manufacturer + type + **count**
-- ✅ Touchpanels & UIs (model, type, IP-ID, project file) from `VTP`+`Db`
+- ✅ Touchpanels & UIs: model, type, IP-ID, **resolved IP** (from the IP table), project file
 - ✅ Serial ports: COM #, what it controls, the card it's on, protocol, baud, data/parity/stop, handshaking
 - ✅ Relay / IR / I-O ports that are wired, with what each controls
 - ✅ Third-party IPs hidden in module params (with purpose + address, creds stripped)
 - ⬜ "Controlled from" (folder) for network/Cresnet devices via `Dv.Ad`→`SmH` join (have it for serial/relay/IR)
 - ⬜ Ethernet config records (`Et`: IP/mask) surfaced where useful
 
-Log Analyzer (`.err` / Info-Tool dump / PLOG `.zip`):
-- ✅ System (model, firmware, serial, hostname), Network (ip/subnet/gateway/dhcp/link),
-  Hardware (processor + slots), programs + uptimes, triage, recurring w/ rate, solve timeouts,
-  processor load + hogs, device drops, log-suspension, gzip rotations, multi-boot merge
-- ✅ Non-SIMPL logs detected and declined cleanly
-- ✅ Discovered network devices (autodiscovery) + open ports / connections (netstat)
-- ⬜ More Info-Tool sections: Cresnet report, DHCP leases
-
-Diff (two `.smw`/`.umc`): ✅ signals add/remove/rename, type changes, module deltas, copy-as-text
-
-## 5. Roadmap (⬜ not started unless noted)
-
-- ✅ **Wiring map** — per-signal node-link graph (drivers → signal → loads) in the tracer modal.
-- ✅ **Debug / issue-finder** — Checks card: 
+Log Analyzer (`.err` / Info-Tool dump / PLOG `.
