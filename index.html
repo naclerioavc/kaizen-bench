@@ -482,7 +482,7 @@ async function readPayload(file, kind){
 /* ---------- .smw parser (read-only; ported from smwlib) ---------- */
 function parseSmw(text){
   if(!/ObjTp=S[mg]/.test(text)) throw new Error("no SIMPL signal/symbol records found — is this a raw, uncompiled .smw?");
-  const sigName=new Map(), sigType=new Map(), H2nm=new Map(), H2pr=new Map(), parentOf=new Map(), syms=[];
+  const sigName=new Map(), sigType=new Map(), H2nm=new Map(), H2pr=new Map(), parentOf=new Map(), childPos=new Map(), syms=[];
   let cur=null, typ=null;
   const lines=text.split("\n");
   for(let i=0;i<lines.length;i++){
@@ -494,7 +494,7 @@ function parseSmw(text){
         if(typ==="Sg"&&h!=null){sigName.set(h,cur.Nm||"");sigType.set(h,cur.SgTp||"");}
         else if(typ==="Sm"&&h!=null){
           {const lbl=(cur.Nm==="SUBSYSTEM"&&cur.Cmn1)?String(cur.Cmn1).replace(/[\\\/]+\s*$/,"").trim():(cur.Nm||"");H2nm.set(h,lbl);}H2pr.set(h,cur.PrH||"");
-          if(cur.ch)cur.ch.forEach(c=>parentOf.set(c,h));
+          if(cur.ch)cur.ch.forEach((c,i)=>{parentOf.set(c,h);childPos.set(c,i+1);});
           if(cur.ins.length||cur.outs.length||cur.Nm)
             syms.push({H:h,Nm:cur.Nm||"",SmC:cur.SmC||"",PrH:cur.PrH||"",ins:cur.ins,outs:cur.outs,params:cur.prm?cur.prm.sort((a,b)=>a.i-b.i):[]});
         }
@@ -513,10 +513,12 @@ function parseSmw(text){
     else if(k[0]==="P"&&/^P\d+$/.test(k)){(cur.prm||(cur.prm=[])).push({i:parseInt(k.slice(1),10),v});}
     else cur[k]=v;
   }
-  return {sigName,sigType,H2nm,H2pr,parentOf,syms};
+  return {sigName,sigType,H2nm,H2pr,parentOf,childPos,syms};
 }
 const SGT={"":"D","0":"D","1":"D","2":"A","4":"S"};
 function typeClass(t){return SGT[t||""]||"D";}
+function symAddr(model,h){ if(!model.childPos)return ""; const out=[]; let cur=h,g=0; while(model.parentOf.has(cur)&&g++<40){ out.push(model.childPos.get(cur)||"?"); cur=model.parentOf.get(cur); } return out.length?"S-"+out.reverse().join("."):""; }
+function locCell(model,h){ const a=symAddr(model,h), f=folderPath(model,h); return `<td class="data" title="${esc(f||"")}">${esc(a||f||"—")}</td>`; }
 function folderPath(model,h){ const out=[]; let p=model.parentOf?model.parentOf.get(h):null, g=0; while(p!=null&&g++<40){ const nm=model.H2nm.get(p); if(nm)out.push(nm); p=model.parentOf.get(p); } return out.reverse().join(" › "); }
 const TYPE_LONG={D:"digital",A:"analog",S:"serial"};
 
@@ -876,8 +878,8 @@ function drill(type,val){
   if(type==="module" && m){
     const insts=m.syms.filter(x=>x.Nm===val);
     const ctx=x=>{ const ns=[...x.ins,...x.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); return ns[0]||""; };
-    const rows=insts.map(x=>`<tr class="drill" data-drill="syminst" data-val="${x.H}"><td class="data" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td><td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),48))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
-    openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Where each instance lives in the program tree. Click any instance to see its inputs and outputs.</p>`+tbl([{t:"Program location (folder path)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
+    const rows=insts.map(x=>`<tr class="drill" data-drill="syminst" data-val="${x.H}">${locCell(m,x.H)}<td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),48))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
+    openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Each instance&rsquo;s program address (the <b>S-number</b> you navigate to in SIMPL Windows; hover for the folder). Click an instance to see its inputs and outputs.</p>`+tbl([{t:"Program address (S-#)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
   } else if(type==="ioports" && m){
     const sm=m.syms.find(s=>String(s.H)===String(val)); if(!sm){ openModal("Ports","<p class=\"empty\">No port detail available.</p>"); return; }
     const li=(p,n)=>`<tr><td class="num data">${p}</td><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
@@ -915,8 +917,9 @@ function drill(type,val){
     const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div><p class="foot-note">A parameter can be a config <b>value</b>, a <b>signal</b> wired through a parameter pin, or a <b>pin/function name</b> the module defines &mdash; the Kind column says which.</p>`+tbl([{t:"#",num:1},{t:"Kind"},{t:"Value / name"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td><td class="data muted">${kindLbl[pkind(p.v)]}</td>${pcell(p.v)}</tr>`).join("")):"";
     const dd=(state.prog._symToDev||new Map()).get(String(x.H));
     const coordStr=dd?[dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "):"";
-    openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,
-      `<p class="card-intro">Every input and output pin on this instance and the signal wired to it, plus its parameters &mdash; the full configuration. Click any signal to trace it.</p>`+(coordStr?`<div class="banner" style="border-left-color:var(--trace)">Physical landing: <b>${esc(coordStr)}</b></div>`:"")+`<div class="lbl">Inputs (${inRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal in"}],inRows.map(li).join("")||erIn)+`<div class="lbl" style="margin-top:12px">Outputs (${outRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal out"}],outRows.map(li).join("")||erOut)+pTable);
+    const addr=symAddr(m,x.H);
+    openModal(`${esc(x.Nm||'instance')}${addr?` &mdash; ${esc(addr)}`:''}`,
+      `<p class="card-intro"><b>${esc(addr||folderPath(m,x.H)||'')}</b>${addr?` &middot; ${esc(folderPath(m,x.H)||'')}`:''} &mdash; every input and output pin on this instance and the signal wired to it, plus its parameters &mdash; the full configuration. Click any signal to trace it.</p>`+(coordStr?`<div class="banner" style="border-left-color:var(--trace)">Physical landing: <b>${esc(coordStr)}</b></div>`:"")+`<div class="lbl">Inputs (${inRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal in"}],inRows.map(li).join("")||erIn)+`<div class="lbl" style="margin-top:12px">Outputs (${outRows.length})</div>`+tbl([{t:"Pin",num:1},{t:"Signal out"}],outRows.map(li).join("")||erOut)+pTable);
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
@@ -937,8 +940,8 @@ function drill(type,val){
     const sd=state.prog._symToDev||new Map();
     const coord=(x,dir)=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; const arr=dir==="out"?x.outs:x.ins; let p=null; for(let i=0;i<arr.length;i++){ if(hs.has(arr[i])){p=i+1;break;} }
       const bits=[]; if(dd.host)bits.push(dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:"")); if(dd.dev&&dd.dev!==dd.host)bits.push(dd.dev+(dd.ad?` ID ${dd.ad}`:"")); if(p!=null)bits.push(`pin ${p}`); return bits.join(" · "); };
-    const row=(x,dir)=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data" title="${esc(coord(x,dir))}">${esc(coord(x,dir)||'—')}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`;
-    const cols=[{t:"Module"},{t:"Physical coordinate (device · IP-ID · pin)"},{t:"Folder path (where to find it)"}];
+    const row=(x,dir)=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data" title="${esc(coord(x,dir))}">${esc(coord(x,dir)||'—')}</td>${locCell(m,x.H)}</tr>`;
+    const cols=[{t:"Module"},{t:"Physical (device · IP-ID · pin)"},{t:"Program address (S-#) — hover for folder"}];
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
       `<p class="card-intro">Where this signal is driven from and read &mdash; the module, its <b>physical landing point</b> (device, IP-ID and pin where it&rsquo;s wired), and its folder path in the program.</p><div class="trace-actions"><button class="btn ghost" data-drill="rtrace" data-val="${esc(val)}">↑ What triggers this</button><button class="btn ghost" data-drill="ftrace" data-val="${esc(val)}">What this affects ↓</button></div>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
   } else if((type==="rtrace"||type==="ftrace") && m){
@@ -948,7 +951,7 @@ function drill(type,val){
     const coordOf=x=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; return [dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "); };
     const body=rows.map(r=>{ const pad=Math.round(r.depth*18);
       if(r.type==="sig"){ return `<div class="trrow" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"↑":"↓"}</span><span class="data drill" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="muted" style="font-size:11px">↻ shown above</span>':""}</div>`; }
-      const co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"via ◂":"via ▸"}</span><b>${esc(r.x.Nm||"?")}</b>${co?` <span class="muted">· ${esc(co)}</span>`:""} <span class="muted" style="font-size:11px">· ${esc(folderPath(m,r.x.H)||"")}</span></div>`; }).join("");
+      const co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">${dir==="back"?"via ◂":"via ▸"}</span><b>${esc(r.x.Nm||"?")}</b>${co?` <span class="muted">· ${esc(co)}</span>`:""} <span class="muted" style="font-size:11px" title="${esc(folderPath(m,r.x.H)||"")}">· ${esc(symAddr(m,r.x.H)||folderPath(m,r.x.H)||"")}</span></div>`; }).join("");
     const roots=rows.filter(r=>r.type==="sig"&&!r.dup&&r.depth>0&&!rows.some(z=>z.type==="mod"&&Math.abs(z.depth-(r.depth+1))<0.1&&rows.indexOf(z)>rows.indexOf(r))).length;
     openModal(`${dir==="back"?"What triggers":"What&rsquo;s affected by"} ${esc(val)}`,
       `<p class="card-intro">${dir==="back"?"The full upstream chain &mdash; every module and signal that can drive this, hop by hop back toward the original trigger (a button, schedule, or device feedback)." : "The full downstream chain &mdash; everything this signal drives, hop by hop."} Indent = one hop. Click any signal to re-trace from there. <code>↻</code> = already shown (loop or shared).</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
@@ -1670,7 +1673,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
 </script>
 </body>
 </html>
