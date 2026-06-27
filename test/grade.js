@@ -144,6 +144,7 @@ has("Checks card is accented (.card.attn)", w.document.querySelector("#censusBod
   has("device row drillable to its wired signals", dc!=null);
   if(dc){ dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true})); has("device-signals drill lists the wired signals", w.document.querySelectorAll('#modalBody [data-drill=signal]').length>=1); } }
 has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').length>=3);
+has("as-built report cover present (printable deliverable)", w.document.querySelector('#censusBody .report-cover')!=null);
 { w.eval('drill("signal","Audio.Vol")'); const txt=w.document.getElementById('modalBody').textContent;
   has("signal tracer shows physical coordinate (device + pin)", /Matrix/.test(txt) && /pin 1/.test(txt)); }
 { w.eval('drill("syminst","970")'); const mb=w.document.getElementById('modalBody');

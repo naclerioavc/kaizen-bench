@@ -153,3 +153,9 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
 - ✅ Graceful on bad input: empty → hero; a loaded file with no parseable signals/devices (garbage
   or compiled-only archive) → a clear "loaded, but no readable SIMPL data" message naming the file;
   non-SIMPL logs decline cleanly.
+
+## As-Built Report (the shareable deliverable)
+- ✅ "As-Built Report (PDF)" button: prints a clean white document with a **cover page** (program,
+  client, dealer, file, compiler/database/device-DB versions, counts, generated date) followed by
+  the device schedule, port connections, IP-ID table, third-party IPs and checks — the thing a
+  tech hands to a client or colleague. Cover is screen-hidden; print-only, its own first page.
