@@ -290,7 +290,7 @@
 
   <!-- LOG -->
   <section id="tab-log" class="hide">
-    <details class="tabhelp"><summary>How the Log Analyzer works</summary><div>Drop a processor error log or an Info-Tool / PLOG <code>.zip</code>. It triages recurring errors by rate, device socket drops (and whether they&rsquo;re on a regular cadence), logic-solve timeouts, processor load, and failed-login surges. <b>Tip:</b> load a program in the Audit tab too &mdash; the log then cross-references it, naming the dropping devices and tying &ldquo;could not be solved&rdquo; timeouts to the program&rsquo;s feedback rings.</div></details>
+    <details class="tabhelp"><summary>How the Log Analyzer works</summary><div>Drop a processor error log or an Info-Tool / PLOG <code>.zip</code>. It triages recurring errors by rate, device socket drops (and whether they&rsquo;re on a regular cadence), logic-solve timeouts, processor load, and failed-login surges. <b>Tip:</b> load a program in the Audit tab too &mdash; the log then cross-references it, naming the dropping devices and tying &ldquo;could not be solved&rdquo; timeouts to the program&rsquo;s feedback loops.</div></details>
     <div class="drop slim" id="dropL" tabindex="0" role="button" aria-label="Load a log file or zip">
       <p>Drop a processor error log or Info-Tool dump</p>
       <p class="muted" style="font-size:12px">.err / .log / .txt / .zip · or click to browse</p>
@@ -309,7 +309,7 @@
         <dt>Version Diff <span class="muted">— two .smw</span></dt>
         <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Also detects</b> parameter changes on symbols whose wiring is unchanged (the silent &ldquo;programming may be lost&rdquo; edits). <b>Does not detect</b> rewiring of existing signals or constant edits inside compiled modules. Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
         <dt>Audit <span class="muted">— program .zip / .smw / .smft / .dip</span></dt>
-        <dd>The whole program at a glance, no SIMPL Windows: device list (model, IP-ID / Cresnet ID, IP), the full IP-ID table, third-party IP gear with what each address is <i>for</i>, subsystem and custom-module inventory, and the wire-map structure (feedback rings, multi-driver signals, coupling). Collapsible cards; copy-to-table export.</dd>
+        <dd>The whole program at a glance, no SIMPL Windows: device list (model, IP-ID / Cresnet ID, IP), the full IP-ID table, third-party IP gear with what each address is <i>for</i>, custom-module inventory, the full signal list, and a checks pass (feedback loops, signals driven by multiple sources, unconnected signals). Collapsible cards; copy-to-table export.</dd>
         <dt>Log Analyzer <span class="muted">— .err / Info-Tool dump / .zip</span></dt>
         <dd>Leads with a <b>triage summary</b> — log time span, error/warning counts, and the worst recurring issue. Then recurring errors with a <b>rate</b> (a burst right after boot reads very differently from a steady background hum), signal-solve-timeout vs restart correlation, processor load exactly as logged (no assumptions about which processor), and device socket drops.</dd>
       </dl>
@@ -762,7 +762,7 @@ function structAnalysis(model){
     const cl=typeClass(model.sigType.get(h)); if(cl==="D"){digitalShared++;return;}
     races.push({nm,t:cl,drivers:set.size,loads:loads.get(h)||0}); }});
   races.sort((a,b)=>b.drivers-a.drivers||b.loads-a.loads||(a.nm<b.nm?-1:1));
-  // feedback rings via iterative Tarjan SCC on the signal graph
+  // feedback loops via iterative Tarjan SCC on the signal graph
   const CAP=12, adj=new Map(), edgeMod=new Map();
   const isBreaker=nm=>{const n=(nm||"").toLowerCase(); return /\.(usp|ush|umc|cmc|clz|ced)$|crpc|serial|one ?shot|toggle|interlock|stepper|com 2-way|delay|clock|ring counter|cross ?point|buffer|\brouter\b|\brouting\b/.test(n);};
   for(const x of model.syms){ if(x.ins.length>CAP||x.outs.length>CAP)continue;
@@ -872,20 +872,20 @@ function drill(type,val){
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
-    openModal(`${esc(val)} &mdash; ${drv.length} driver${drv.length===1?'':'s'}`, tbl([{t:"Driving module"},{t:"Symbol #",num:1}], drv.map(x=>`<tr><td class="data" title="${esc(x.Nm)}">${esc(trim(x.Nm,48))}</td><td class="num data">${x.H}</td></tr>`).join("")));
+    openModal(`${esc(val)} &mdash; ${drv.length} driver${drv.length===1?'':'s'}`, tbl([{t:"Driving module"},{t:"Folder path (where to find it)"}], drv.map(x=>`<tr><td class="data" title="${esc(x.Nm)}">${esc(x.Nm)}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`).join("")));
   } else if(type==="ip"){
     const all=(state.audit&&state.audit.hits||[]).filter(h=>h.ip===val);
-    openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data" title="${esc(h.module)}">${esc(trim(h.module,34))}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(trim(h.value||h.ip,40))}</td><td class="data" title="${esc(h.context||'')}">${esc(trim(h.context||'',26))}</td></tr>`).join("")));
+    openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Folder path (where to find it)"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data">${esc(h.module)}</td><td class="data muted" title="${esc(m&&h.H!=null?folderPath(m,h.H):'')}">${esc((m&&h.H!=null?folderPath(m,h.H):'')||'—')}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(h.value||h.ip)}</td><td class="data" title="${esc(h.context||'')}">${esc(h.context||'—')}</td></tr>`).join("")));
   } else if(type==="signal" && m){
     const hs=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)hs.add(h); });
     const drivers=[], loads=[];
     for(const x of m.syms){ if(x.outs.some(h=>hs.has(h)))drivers.push(x); if(x.ins.some(h=>hs.has(h)))loads.push(x); }
-    const row=x=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(trim(x.Nm||'?',38))}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(trim(folderPath(m,x.H).replace(/^[^›]+›\s*/,""),34))}</td></tr>`;
+    const row=x=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td></tr>`;
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
-      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Location"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Location"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
+      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Folder path (where to find it)"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Folder path (where to find it)"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
-    openModal(`Feedback ring &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
+    openModal(`Feedback loop &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
   }
 }
 $("#auditCopy").addEventListener("click",()=>{ navigator.clipboard.writeText(auditToText()).then(()=>{ const b=$("#auditCopy"),o=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=o,1500); }); });
@@ -989,7 +989,7 @@ function runAudit(){
   if(hasData) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   if(hasData) html+=card("Overview",null,ov,true);
-  if(actionN){ const cats=[]; if(dupConf.length)cats.push("duplicate IP-IDs"); if(contention.length)cats.push("signals driven by more than one source"); if(orphan.length)cats.push("signals wired to nothing"); if(sa&&sa.oscCandidates)cats.push("feedback rings");
+  if(actionN){ const cats=[]; if(dupConf.length)cats.push("duplicate IP-IDs"); if(contention.length)cats.push("signals driven by more than one source"); if(orphan.length)cats.push("signals wired to nothing"); if(sa&&sa.oscCandidates)cats.push("feedback loops");
     html+=`<div class="actionbar" role="button" tabindex="0"><span class="ab-dot"></span><span><b>${actionN}</b> thing${actionN===1?'':'s'} worth a look &mdash; ${cats.join(", ")}</span><span class="ab-go">see details ↓</span></div>`; }
   if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
   const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
@@ -1017,7 +1017,7 @@ function runAudit(){
   }
   { const irDev=pr.smw?parseIrDevices(pr.smw):[];
     if(irDev.length){
-      const loc=x=>{ if(m&&x.smH!=null){ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||p||""; } return ""; };
+      const loc=x=>{ if(m&&x.smH!=null){ return folderPath(m,x.smH)||""; } return ""; };
       const rows=irDev.map(x=>{ const hip=x.hostIpid?(dip.get(x.hostIpid)||""):""; return `<tr${x.smH!=null?` class="drill" data-drill="syminst" data-val="${x.smH}"`:""}><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data" title="${esc(x.host||'')}">${esc(x.host||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data${hip==='127.0.0.1'?' muted':''}">${esc(hip||'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`; }).join("");
       html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port, and the <b>specific endpoint it lands on</b> &mdash; the exact device by name, its IP-ID, and resolved IP &mdash; so you can find the physical port, not just &ldquo;an NVX somewhere.&rdquo;</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"On endpoint"},{t:"Endpoint IP-ID"},{t:"Endpoint IP"},{t:"Driver file"},{t:"Location"}],rows,1),false);
     } else if(state.prog.ir&&state.prog.ir.length){
@@ -1037,7 +1037,7 @@ function runAudit(){
     }
   }
   if(pr.smw && m){ const io=scanIO(pr.smw);
-    if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
+    if(io.length){ const onIO=x=>{ return folderPath(m,x.smH)||x.nm; };
       const rows=io.map(x=>`<tr class="drill" data-drill="ioports" data-val="${x.smH}"><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.host||'processor (onboard)')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.port)}${x.count>1?` (${x.count} ports)`:''}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
       html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports: the device they physically land on (onboard processor card vs. an expander like a CEN-IO or an AV-over-IP endpoint), that device&rsquo;s IP-ID, the port, and what the bank controls. <b>Click a row to break out each individual port and the exact signal it drives.</b></p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Port"},{t:"Controls"}],rows,1),false);
     }
@@ -1051,19 +1051,19 @@ function runAudit(){
         const sy=(m&&x.smH!=null)?byH.get(x.smH):null;
         if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
         return ""; };
-      const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p.replace(/^[^›]+›\s*/,"")||x.device||"—"; };
+      const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p||x.device||"—"; };
       const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
       html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
     }
   }
   if(thirdParty.length){
     const rows=thirdParty.map(x=>`<tr><td class="data drill" data-drill="ip" data-val="${esc(x.ip)}">${esc(x.ip)}${x.port?':'+esc(x.port):''}</td><td class="data" title="${esc(x.context||'')}">${esc(trim(x.context||'—',34))}</td><td class="data muted" title="${esc(x.value||'')}">${esc(trim(x.value||'—',42))}</td></tr>`).join("");
-    html+=card("Third-party IPs",thirdParty.length,`<p class="card-intro">Networked gear controlled by IP, read from inside module settings &mdash; these never show up in the IP table. Click an IP to see every place it&rsquo;s used.</p>`+tbl([{t:"IP"},{t:"For / connected to"},{t:"Address / URL"}],rows,1)+`<p class="foot-note">IP-controlled gear set in module parameters &mdash; invisible to the IP-ID table. As-configured; verify live.</p>`,false);
+    html+=card("Third-party IPs",thirdParty.length,`<p class="card-intro">Networked gear controlled by IP, configured inside module parameters. Click an IP to see every place it&rsquo;s used and the exact module and folder it sits in.</p>`+tbl([{t:"IP"},{t:"For / connected to"},{t:"Address / URL"}],rows,1),false);
   }
   if(m) html+=`<div class="section-label">Program logic</div>`;
   if(ax&&ax.customMods.length){
     const rows=ax.customMods.map(x=>`<tr><td class="data drill" data-drill="module" data-val="${esc(x.nm)}" title="${esc(x.nm)}">${esc(trim(x.nm,46))}</td><td class="num data">${x.count}</td></tr>`).join("");
-    html+=card("Custom / SIMPL+ modules",ax.customDistinct,`<p class="card-intro">Code written for this job (not stock Crestron) &mdash; the part only you test. Click a module to see its instances.</p>`+tbl([{t:"Module"},{t:"Inst",num:1}],rows)+`<p class="foot-note">Your owned, you-test-it code.</p>`,false);
+    html+=card("Custom / SIMPL+ modules",ax.customDistinct,`<p class="card-intro">Custom and SIMPL+ modules in this program. Click a module to see every instance and the exact folder each one lives in.</p>`+tbl([{t:"Module"},{t:"Inst",num:1}],rows),false);
   }
   if(m){
     const inv=new Map(); for(const x of m.syms){ if(x.Nm&&(x.ins.length||x.outs.length))inv.set(x.Nm,(inv.get(x.Nm)||0)+1); }
@@ -1077,15 +1077,15 @@ function runAudit(){
   }
   if(sa){
     let rb=`<div class="banner" style="border-left-color:var(--warn)">Cycles in the wiring with no wave-breaker. Topology is exact; whether one oscillates is a live question.</div>`;
-    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback rings.</p>';
-    html+=card("Feedback rings",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
+    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),58))}</td><td class="data muted">${esc(trim(r.mods.join(", "),28))}</td></tr>`).join("")):'<p class="empty">No unbroken feedback loops.</p>';
+    html+=card("Feedback loops",`${sa.oscCandidates}/${sa.ringsTotal}`,rb,false);
   }
   if(m && actionN){
     { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
       if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
       if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
       if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
-      if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback rings with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback rings card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
+      if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback loops with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback loops card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
@@ -1194,7 +1194,7 @@ function scanProgramIPs(smw){
   for(let i=0;i<lines.length;i++){
     const line=lines[i].replace(/\r$/,"");
     if(line==="["){cur={io:[],ips:[]};typ=null;continue;}
-    if(line==="]"){ if(cur){ if(typ==="Sg"&&cur.H!=null) sig.set(cur.H,cur.Nm||""); else if(typ==="Sm"&&cur.ips.length) cur.ips.forEach(p=>raw.push({ip:p.ip,param:p.k,value:p.value,module:cur.Nm||"?",io:cur.io})); } cur=null; continue; }
+    if(line==="]"){ if(cur){ if(typ==="Sg"&&cur.H!=null) sig.set(cur.H,cur.Nm||""); else if(typ==="Sm"&&cur.ips.length) cur.ips.forEach(p=>raw.push({ip:p.ip,param:p.k,value:p.value,module:cur.Nm||"?",io:cur.io,H:cur.H})); } cur=null; continue; }
     if(!cur)continue;
     const eq=line.indexOf("="); if(eq<0)continue;
     const k=line.slice(0,eq), v=line.slice(eq+1);
@@ -1533,7 +1533,7 @@ function runLog(name,text){
       }
       const rings=pr.model?structAnalysis(pr.model):null;
       if(a.toRows.length&&rings&&rings.oscCandidates){
-        xref+=`<div class="lbl" style="margin-top:12px">Logic-solve timeouts ↔ feedback rings</div><p class="foot-note">This log has <b>${a.toRows.length.toLocaleString()}</b> &ldquo;could not be solved&rdquo; timeout(s), and the loaded program has <b>${rings.oscCandidates}</b> feedback ring(s) with no wave-breaker. Those rings are the prime suspects — open the Feedback rings card in Audit and trace them.</p>`;
+        xref+=`<div class="lbl" style="margin-top:12px">Logic-solve timeouts ↔ feedback loops</div><p class="foot-note">This log has <b>${a.toRows.length.toLocaleString()}</b> &ldquo;could not be solved&rdquo; timeout(s), and the loaded program has <b>${rings.oscCandidates}</b> feedback loop(s) with no wave-breaker. Those rings are the prime suspects — open the Feedback loops card in Audit and trace them.</p>`;
       }
       if(xref) html+=`<div class="panel" style="margin-top:14px"><h3>Cross-reference with the loaded program <span class="muted" style="text-transform:none;letter-spacing:0">— who is this, really</span></h3>${xref}</div>`;
     }

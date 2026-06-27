@@ -63,7 +63,10 @@ Program (`.smw` / `.umc` / `.chd`):
   label is in `Cmn1` — folderPath now resolves it (was printing "SUBSYSTEM" N levels deep).
 - ✅ Signals table: every signal, # sources, # loads — searchable over the full set, sortable,
   click to trace drivers (from) and loads (to)
-- ✅ Feedback rings (cycles with no wave-breaker; crosspoints/buffers excluded)
+- ✅ Feedback loops (cycles with no wave-breaker; crosspoints/buffers excluded)
+- ✅ Full folder-path breadcrumbs on every "where it comes from" column/drill (signal tracer,
+  third-party IPs, module drivers, ports) so a clue is locatable without opening SIMPL
+- ✅ No doubt-inducing subtext: the tool obviously reads the dropped files; we don't hedge facts
 - ✅ Checks: duplicate IP-IDs, value contention, **unconnected signals** (named, not wired
   either end), feedback rings — all candidate-framed
 
