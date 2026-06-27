@@ -133,6 +133,13 @@
   .modal-head button:hover{color:var(--ink)}
   .modal-body{padding:14px 20px;overflow:auto}
   .modal-body .scroll{max-height:none;overflow:visible;border:0}
+  .gwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:6px}
+  .wiremap{display:block;width:100%;min-width:560px;height:auto}
+  .gnode{fill:var(--panel2);stroke:var(--line);stroke-width:1}
+  .gnode.src{stroke:var(--ok)} .gnode.dst{stroke:var(--trace)} .gnode.sig{fill:#fff;stroke:#fff}
+  .gtext{fill:var(--ink);font-size:11px;font-family:"JetBrains Mono",ui-monospace,monospace}
+  .gtext.sig{fill:#000;font-weight:600}
+  .gedge{fill:none;stroke:var(--dim);stroke-width:1.2}
   .drill{cursor:pointer}
   td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
   .drill:hover{color:#fff;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
@@ -168,6 +175,23 @@
   .stack-key .kdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
   .kdot.s1{background:#f4f4f5}.kdot.s2{background:#8a8a92}.kdot.s3{background:#4a4a52}
   .stack-key b{color:var(--ink);font-weight:600}
+  @media print {
+    nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro { display:none !important; }
+    html,body{ background:#fff !important; color:#000 !important; }
+    header{ border-color:#000; padding:0 0 8px; }
+    .lockup .logo{ color:#000 !important; }
+    main{ padding:0; max-width:none; }
+    .section-label{ color:#000; border-color:#000; }
+    .card,.panel{ background:#fff !important; border-color:#bbb !important; break-inside:avoid; page-break-inside:avoid; }
+    .card.collapsed .card-body{ display:block !important; }
+    .scroll{ max-height:none !important; overflow:visible !important; border-color:#ddd; }
+    .card-title,.kv b,.data,.verdict,.stat,.section-label{ color:#000 !important; }
+    .card-badge,.muted,.kv span,th,.ct,.foot-note{ color:#444 !important; }
+    th,td{ border-color:#ddd !important; }
+    .pill{ border:1px solid #999; color:#000 !important; background:#fff !important; }
+    .bar{ display:none; }
+    .stack .seg.s1{background:#000}.stack .seg.s2{background:#888}.stack .seg.s3{background:#ccc}
+  }
   @media(max-width:680px){main{padding:20px 16px 60px}header{padding:18px 16px 0}.pair{grid-template-columns:1fr}}
 </style>
 </head>
@@ -228,7 +252,7 @@
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
       <input type="file" id="fileC" class="hide" accept=".zip,.smw,.umc,.chd,.smft,.dip">
     </div>
-    <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
+    <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><button class="btn ghost" id="auditPrint" disabled>Print / Save PDF</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
     <p class="filename hide" id="censusName"><span class="dot"></span><span class="mono"></span></p>
     <div id="censusBody"></div>
   </section>
@@ -753,13 +777,14 @@ function drill(type,val){
     for(const x of m.syms){ if(x.outs.some(h=>hs.has(h)))drivers.push(x); if(x.ins.some(h=>hs.has(h)))loads.push(x); }
     const row=x=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(trim(x.Nm||'?',38))}</td><td class="data muted" title="${esc(folderPath(m,x.H))}">${esc(trim(folderPath(m,x.H).replace(/^[^›]+›\s*/,""),34))}</td></tr>`;
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
-      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p><div class="lbl">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Location"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Location"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
+      `<p class="card-intro">Where this signal is driven from, and where it&rsquo;s read.</p>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl([{t:"Module"},{t:"Location"}], drivers.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl([{t:"Module"},{t:"Location"}], loads.map(row).join("")||`<tr><td class="muted" colspan="2">&mdash; nothing reads this signal &mdash;</td></tr>`));
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
     openModal(`Feedback ring &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
   }
 }
 $("#auditCopy").addEventListener("click",()=>{ navigator.clipboard.writeText(auditToText()).then(()=>{ const b=$("#auditCopy"),o=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=o,1500); }); });
+$("#auditPrint").addEventListener("click",()=>{ $$("#tab-census .card.collapsed").forEach(c=>c.classList.remove("collapsed")); $$("#tab-census .panel.lc").forEach(p=>p.classList.remove("lc")); window.print(); });
 function auditToText(){
   const a=state.audit; if(!a) return "";
   const L=["DEVICES","NETWORK\tID\tMODEL\tNAME\tIP"];
@@ -770,6 +795,23 @@ function auditToText(){
 }
 function card(title,badge,body,open){ return `<div class="card${open?'':' collapsed'}"><div class="card-head"><span class="card-title">${title}</span>${badge!=null?`<span class="card-badge">${badge}</span>`:''}<span class="chev">&#9662;</span></div><div class="card-body">${body}</div></div>`; }
 function stackBar(parts){ const tot=parts.reduce((a,p)=>a+p.val,0)||1; return `<div class="stack">${parts.map(p=>p.val?`<span class="seg ${p.cls}" style="width:${(p.val/tot*100).toFixed(2)}%" title="${esc(p.label)}: ${p.val.toLocaleString()}"></span>`:'').join("")}</div><div class="stack-key">${parts.map(p=>`<span><i class="kdot ${p.cls}"></i>${esc(p.label)} <b>${p.val.toLocaleString()}</b></span>`).join("")}</div>`; }
+function miniGraph(center, drivers, loads){
+  const L=drivers.slice(0,9), R=loads.slice(0,9);
+  const colW=190, boxH=22, w=720, pad=16;
+  const rows=Math.max(L.length,R.length,1);
+  const h=Math.max(rows*32+pad*2, 96), cx=w/2, cy=h/2;
+  const yFor=(i,n)=> n>1 ? pad+boxH/2 + i*((h-pad*2-boxH)/(n-1)) : cy;
+  const esc2=esc, node=(x,y,txt,cls)=>`<rect x="${x}" y="${(y-boxH/2).toFixed(1)}" width="${colW}" height="${boxH}" rx="4" class="gnode ${cls}"/><text x="${x+9}" y="${(y+4).toFixed(1)}" class="gtext">${esc2(trim(txt,24))}</text>`;
+  let svg=`<svg viewBox="0 0 ${w} ${h}" class="wiremap" preserveAspectRatio="xMidYMid meet">`;
+  L.forEach((d,i)=>{ const y=yFor(i,L.length); svg+=`<path d="M${20+colW} ${y.toFixed(1)} C${cx-90} ${y.toFixed(1)} ${cx-90} ${cy} ${cx-70} ${cy}" class="gedge"/>`; });
+  R.forEach((d,i)=>{ const y=yFor(i,R.length); svg+=`<path d="M${cx+70} ${cy} C${cx+90} ${cy} ${cx+90} ${y.toFixed(1)} ${w-20-colW} ${y.toFixed(1)}" class="gedge"/>`; });
+  L.forEach((d,i)=>{ svg+=node(20, yFor(i,L.length), d.Nm||"?", "src"); });
+  R.forEach((d,i)=>{ svg+=node(w-20-colW, yFor(i,R.length), d.Nm||"?", "dst"); });
+  svg+=`<rect x="${cx-70}" y="${cy-16}" width="140" height="32" rx="6" class="gnode sig"/><text x="${cx}" y="${cy+4}" text-anchor="middle" class="gtext sig">${esc(trim(center,18))}</text>`;
+  svg+=`</svg>`;
+  const more=(drivers.length>9?`<span class="muted">+${drivers.length-9} more sources</span> `:"")+(loads.length>9?`<span class="muted">+${loads.length-9} more loads</span>`:"");
+  return `<div class="gwrap">${svg}</div>${more?`<p class="foot-note">${more}</p>`:""}`;
+}
 function signalRows(q){
   const all=state.signals||[]; q=(q||"").trim().toLowerCase();
   const list = q ? all.filter(s=>s.nm.toLowerCase().indexOf(q)>=0) : all.slice().sort((a,b)=>(b.d+b.l)-(a.d+a.l)||(a.nm<b.nm?-1:1));
@@ -794,7 +836,7 @@ function runAudit(){
   const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
   const thirdParty=[...seen.values()].filter(x=>!dipIPs.has(x.ip)).sort((a,b)=>a.ip.localeCompare(b.ip,undefined,{numeric:true}));
   state.audit={devRows,dipList,thirdParty,hits,rings:[]};
-  $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length);
+  $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length); $("#auditPrint").disabled=!(m||devRows.length);
   const c=m?censusStats(m):null, ax=m?auditExtras(m):null, sa=m?structAnalysis(m):null;
   if(sa) state.audit.rings=sa.rings;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
