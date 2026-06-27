@@ -31,6 +31,8 @@ const smw=[
   `[\nObjTp=Dv\nH=941\nNm=CEN-IO-RY-204\nAd=06\nPrH=940\n]`,
   `[\nObjTp=Dv\nH=600\nNm=Relays\nAd=03\nSmH=11\nPrH=941\n]`,
   `[\nObjTp=Dv\nH=950\nNm=Ethernet Intersystem Communications:OtherProg.rsd\nAd=F1\nPrH=940\n]`,
+  `[\nObjTp=Dv\nH=960\nNm=Matrix\nAd=05\nSmH=970\nPrH=940\n]`,
+  `[\nObjTp=Sm\nH=970\nNm=MatrixCtrl\nI1=1\nO1=2\n]`,
   `[\nObjTp=VTP\nDvH=700\nTSAddr=1c\nVTPFile=C:\\proj\\UI\\Main.vtp\n]`,
   `[\nObjTp=Db\nH=1\nDvH=700\nMnf=Crestron\nMdl=TSW-1070\nTpe=7 inch Touch Screen\n]`,
   `[\nObjTp=Db\nH=2\nDvH=701\nMnf=Crestron\nMdl=DM-MD8X8\nTpe=HDMI Matrix\n]`,
@@ -113,7 +115,7 @@ w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.s
 const titles=[...w.document.querySelectorAll('#censusBody .card-title')].map(t=>t.textContent.replace(/[\s\d\/,]+$/,'').trim());
 ["Program info","Network devices","Cresnet devices","IR devices","Touchpanels & UIs","Device summary (bill of materials)","Relay / IR / I-O ports","Serial ports","Third-party IPs","Module inventory","Signals"].forEach(t=>has("audit card: "+t, titles.includes(t)));
 has("no standalone IP-ID table card (merged)", !titles.includes("IP-ID table"));
-has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to review"));
+has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Worth a quick look"));
 { const irCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('IR devices'));
   const hdr=irCard?[...irCard.querySelectorAll('thead th')].map(t=>t.textContent):[];
   has("IR card has IR port + Driver file + Location columns", hdr.includes("IR port")&&hdr.includes("Driver file")&&hdr.includes("Location"));
@@ -137,6 +139,11 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
   has("Network card flags the EISC", /EISC/.test(netCard.textContent)); }
 has("audit shows action bar (needs-attention summary up top)", w.document.querySelector("#censusBody .actionbar")!=null);
 has("Checks card is accented (.card.attn)", w.document.querySelector("#censusBody .card.attn")!=null);
+{ const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
+  const dc=netCard.querySelector('[data-drill=devsignals]');
+  has("device row drillable to its wired signals", dc!=null);
+  if(dc){ dc.dispatchEvent(new w.MouseEvent('click',{bubbles:true})); has("device-signals drill lists the wired signals", w.document.querySelectorAll('#modalBody [data-drill=signal]').length>=1); } }
+has("per-tab help present on each tab", w.document.querySelectorAll('.tabhelp').length>=3);
 has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
 has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
 { const bx=[...w.document.querySelectorAll('#censusBody .cardsel')].slice(0,2); bx.forEach(b=>b.checked=true); w.eval("updateExportSel();"); has("combined export enables on selection", !w.document.getElementById('auditExport').disabled); }

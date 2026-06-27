@@ -185,6 +185,15 @@
   .stack-key .kdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
   .kdot.s1{background:#f4f4f5}.kdot.s2{background:#8a8a92}.kdot.s3{background:#4a4a52}
   .stack-key b{color:var(--ink);font-weight:600}
+  .tabhelp{margin-bottom:16px;border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden}
+  .tabhelp summary{cursor:pointer;padding:11px 15px;font-size:12.5px;font-weight:600;color:var(--mut);list-style:none;user-select:none;display:flex;align-items:center;gap:8px}
+  .tabhelp summary::-webkit-details-marker{display:none}
+  .tabhelp summary::before{content:"?";display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid var(--dim);font-size:11px;color:var(--mut);flex:none}
+  .tabhelp[open] summary{color:var(--ink);border-bottom:1px solid var(--line)}
+  .tabhelp summary:hover{color:var(--ink)}
+  .tabhelp>div{padding:13px 16px;font-size:13px;line-height:1.55;color:var(--mut)}
+  .tabhelp>div b{color:var(--ink);font-weight:600}
+  @media print{ .tabhelp{display:none!important} }
   .actionbar{display:flex;align-items:center;gap:11px;margin-top:12px;padding:12px 16px;border:1px solid var(--warn);border-left-width:3px;border-radius:9px;background:rgba(245,177,76,.09);cursor:pointer;font-size:13px;color:var(--ink)}
   .actionbar:hover{background:rgba(245,177,76,.16)}
   .actionbar .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 0 3px rgba(245,177,76,.25)}
@@ -236,6 +245,7 @@
 <main>
   <!-- DIFF (hero) -->
   <section id="tab-diff">
+    <details class="tabhelp"><summary>How Version Diff works</summary><div>Load two builds of the same program &mdash; <b>A</b> is the older/baseline, <b>B</b> is the newer. You get exactly what changed: signals added, removed, or renamed; signal <b>type</b> changes (D↔A↔S); module instance counts; and <b>parameter changes</b> (a symbol whose wiring is unchanged but a setting was edited &mdash; the silent &ldquo;programming may be lost&rdquo; case). The one thing Git can&rsquo;t do for an <code>.smw</code>. Everything runs in your browser; nothing is uploaded.</div></details>
     <div class="pair">
       <div class="slot">
         <h4>A — Baseline <span class="tag">(older build)</span></h4>
@@ -267,6 +277,7 @@
 
   <!-- CENSUS -->
   <section id="tab-census" class="hide">
+    <details class="tabhelp"><summary>How the Audit works</summary><div>Drop one program (a <code>.zip</code>, or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) and it builds a full as-built: every device with its IP-ID, IP and the port it physically lands on; serial / IR / relay config; touchpanels; the full signal list; and your custom modules. <b>Click anything</b> &mdash; a device, a signal, a module, a port &mdash; to drill into exactly what it connects to. The amber bar up top flags anything worth a second look. Nothing is uploaded.</div></details>
     <div class="drop slim" id="dropC" tabindex="0" role="button" aria-label="Load a program">
       <p>Drop the program <code>.zip</code> &mdash; or a <code>.smw</code> / <code>.umc</code> / <code>.smft</code> / <code>.dip</code></p>
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
@@ -279,6 +290,7 @@
 
   <!-- LOG -->
   <section id="tab-log" class="hide">
+    <details class="tabhelp"><summary>How the Log Analyzer works</summary><div>Drop a processor error log or an Info-Tool / PLOG <code>.zip</code>. It triages recurring errors by rate, device socket drops (and whether they&rsquo;re on a regular cadence), logic-solve timeouts, processor load, and failed-login surges. <b>Tip:</b> load a program in the Audit tab too &mdash; the log then cross-references it, naming the dropping devices and tying &ldquo;could not be solved&rdquo; timeouts to the program&rsquo;s feedback rings.</div></details>
     <div class="drop slim" id="dropL" tabindex="0" role="button" aria-label="Load a log file or zip">
       <p>Drop a processor error log or Info-Tool dump</p>
       <p class="muted" style="font-size:12px">.err / .log / .txt / .zip · or click to browse</p>
@@ -810,6 +822,7 @@ $("#censusBody").addEventListener("input",e=>{
   [...tb.rows].forEach(r=>{ r.style.display = r.textContent.toLowerCase().indexOf(q)>=0?"":"none"; });
 });
 $("#modalBody").addEventListener("click",e=>{ const d=e.target.closest("[data-drill]"); if(d){ e.stopPropagation(); drill(d.dataset.drill,d.dataset.val); } });
+$("#modalBody").addEventListener("input",e=>{ if(!e.target.classList||!e.target.classList.contains("mfilter"))return; const q=e.target.value.toLowerCase(); const sc=e.target.nextElementSibling; const tb=sc&&sc.querySelector("tbody"); if(!tb)return; [...tb.rows].forEach(r=>{ r.style.display=r.textContent.toLowerCase().indexOf(q)>=0?"":"none"; }); });
 $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
@@ -828,6 +841,19 @@ function drill(type,val){
     const ins=sm.ins.map((h,i)=>({p:i+1,n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const rows=(outs.length?outs:ins).map(o=>li(o.p,o.n)).join("")||`<tr><td colspan="2" class="muted">&mdash; no individually-wired ports &mdash;</td></tr>`;
     openModal(`${esc(sm.Nm||"Ports")} &mdash; ${esc(folderPath(m,sm.H)||"")}`,`<p class="card-intro">Each individual port on this bank and the exact signal it drives. Click a signal to trace it.</p>`+tbl([{t:"Port",num:1},{t:"Controls (signal)"}],rows));
+  } else if(type==="devsignals" && m){
+    const parts=String(val).split(":"); const bus=parts.length>1?parts[0]:""; const ad=(parts.length>1?parts[1]:parts[0]).toUpperCase();
+    const byH=state.prog._dvByH||(state.prog._dvByH=dvIndex(state.prog.smw));
+    const symByH=state.prog._symByH||(state.prog._symByH=new Map(m.syms.map(x=>[String(x.H),x])));
+    let dname=""; const inS=new Set(), outS=new Set();
+    byH.forEach(d=>{ if((d.Ad||"").toUpperCase()!==ad||!d.SmH)return; if(bus&&dvBus(byH,d.H)!==bus)return; const sy=symByH.get(String(d.SmH)); if(!sy)return;
+      if(!dname&&d.Nm&&!/Devices|Card|Ports|Slot|^Not_Used/i.test(d.Nm))dname=d.Nm;
+      sy.ins.forEach(h=>{const n=m.sigName.get(h); if(n&&n[0]!=="/")inS.add(n);});
+      sy.outs.forEach(h=>{const n=m.sigName.get(h); if(n&&n[0]!=="/")outS.add(n);}); });
+    const inA=[...inS].sort(), outA=[...outS].sort();
+    const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
+    const cap=2500, sect=(t,arr)=>`<div class="lbl" style="margin-top:12px">${t} (${arr.length.toLocaleString()})</div>`+(arr.length?`<input class="mfilter" placeholder="filter\u2026" aria-label="filter"><div class="scroll">`+tbl([{t:"Signal"}],arr.slice(0,cap).map(li).join(""))+`</div>`+(arr.length>cap?`<p class="foot-note">Showing first ${cap.toLocaleString()} &mdash; filter to narrow.</p>`:""):`<p class="muted">&mdash; none &mdash;</p>`);
+    openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal wired to and from this device &mdash; feedback the program sends it, and presses/status it sends back. Click any signal to trace it.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
   } else if(type==="syminst" && m){
     const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
     const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
@@ -835,11 +861,14 @@ function drill(type,val){
     const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
     const er=`<tr><td class="muted">&mdash; none &mdash;</td></tr>`;
     if(!sigNameSet){ sigNameSet=new Set(); m.sigName.forEach(v=>{ if(v)sigNameSet.add(v); }); }
+    const resIn=x.ins.length-ins.length, resOut=x.outs.length-outs.length;
+    const erIn=resIn>0?`<tr><td class="muted">${resIn} reserved / internal input${resIn===1?'':'s'} (no named signal)</td></tr>`:er;
+    const erOut=resOut>0?`<tr><td class="muted">${resOut} reserved / internal output${resOut===1?'':'s'} (no named signal)</td></tr>`:er;
     const prm=(x.params||[]).filter(p=>p.v!=="");
     const pcell=v=>sigNameSet.has(v)?`<td class="data drill" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
     const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div>`+tbl([{t:"#",num:1},{t:"Value"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td>${pcell(p.v)}</tr>`).join("")):"";
     openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,
-      `<p class="card-intro">Inputs, outputs and parameters for this one instance &mdash; the full configuration. Click any signal to trace it.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||er)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||er)+pTable);
+      `<p class="card-intro">Inputs, outputs and parameters for this one instance &mdash; the full configuration. Click any signal to trace it.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||erIn)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||erOut)+pTable);
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
@@ -941,6 +970,12 @@ function runAudit(){
     byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
   const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
   const eiscCount=[...netRoles.values()].filter(r=>r.role).length;
+  let sigAds=new Set();
+  if(m){ const symByH=new Map(m.syms.map(x=>[String(x.H),x])); state.prog._symByH=symByH;
+    const byH=dvIndex(pr.smw); state.prog._dvByH=byH;
+    byH.forEach(d=>{ if(!d.SmH)return; const sy=symByH.get(String(d.SmH)); if(!sy)return; const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return;
+      if([...sy.ins,...sy.outs].some(h=>{const n=m.sigName.get(h);return n&&n[0]!=="/";})){ const bus=dvBus(byH,d.H); if(bus)sigAds.add(bus+":"+ad); } }); }
+  const devCell=(id,txt,bus)=>sigAds.has(bus+":"+String(id).toUpperCase())?`<td class="data drill" data-drill="devsignals" data-val="${bus}:${esc(id)}" title="click to see every signal wired to this device">${esc(txt)}</td>`:`<td class="data">${esc(txt)}</td>`;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
   let html="";
   let ov=`<div class="row">`;
@@ -954,7 +989,8 @@ function runAudit(){
   if(hasData) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   if(hasData) html+=card("Overview",null,ov,true);
-  if(actionN) html+=`<div class="actionbar" role="button" tabindex="0"><span class="ab-dot"></span><span><b>${actionN}</b> thing${actionN===1?'':'s'} to review &mdash; duplicate IP-IDs, value contention, unconnected signals, feedback rings</span><span class="ab-go">review ↓</span></div>`;
+  if(actionN){ const cats=[]; if(dupConf.length)cats.push("duplicate IP-IDs"); if(contention.length)cats.push("signals driven by more than one source"); if(orphan.length)cats.push("signals wired to nothing"); if(sa&&sa.oscCandidates)cats.push("feedback rings");
+    html+=`<div class="actionbar" role="button" tabindex="0"><span class="ab-dot"></span><span><b>${actionN}</b> thing${actionN===1?'':'s'} worth a look &mdash; ${cats.join(", ")}</span><span class="ab-go">see details ↓</span></div>`; }
   if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
   const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
@@ -967,11 +1003,11 @@ function runAudit(){
       let role=nr.role||""; if(!role&&et.name&&/intersystem|to\/from/i.test(et.name))role="EISC / intersystem link";
       const roleD=(role?role+(detail?" → "+detail:""):"")||c.type||"";
       const model=d.model||nr.name||et.name||"";
-      return `<tr><td class="data">${esc(id)}</td><td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${roleD?'':' muted'}" title="${esc(roleD)}">${esc(roleD||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+      return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${roleD?'':' muted'}" title="${esc(roleD)}">${esc(roleD||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
     html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
-    const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr>${devCell(d.id,d.id,"C")}<td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
     html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID — including which gateway each one sits behind (e.g. a thermostat behind a DIN-CENCN-2) vs. straight on the processor bus.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"},{t:"On bus / behind"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   const rfDev=devRows.filter(d=>d.net!=="Ethernet"&&d.net!=="Cresnet"&&d.net!=="Processor");
@@ -982,7 +1018,7 @@ function runAudit(){
   { const irDev=pr.smw?parseIrDevices(pr.smw):[];
     if(irDev.length){
       const loc=x=>{ if(m&&x.smH!=null){ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||p||""; } return ""; };
-      const rows=irDev.map(x=>{ const hip=x.hostIpid?(dip.get(x.hostIpid)||""):""; return `<tr><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data" title="${esc(x.host||'')}">${esc(x.host||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data${hip==='127.0.0.1'?' muted':''}">${esc(hip||'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`; }).join("");
+      const rows=irDev.map(x=>{ const hip=x.hostIpid?(dip.get(x.hostIpid)||""):""; return `<tr${x.smH!=null?` class="drill" data-drill="syminst" data-val="${x.smH}"`:""}><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data" title="${esc(x.host||'')}">${esc(x.host||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data${hip==='127.0.0.1'?' muted':''}">${esc(hip||'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`; }).join("");
       html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port, and the <b>specific endpoint it lands on</b> &mdash; the exact device by name, its IP-ID, and resolved IP &mdash; so you can find the physical port, not just &ldquo;an NVX somewhere.&rdquo;</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"On endpoint"},{t:"Endpoint IP-ID"},{t:"Endpoint IP"},{t:"Driver file"},{t:"Location"}],rows,1),false);
     } else if(state.prog.ir&&state.prog.ir.length){
       const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
@@ -990,7 +1026,7 @@ function runAudit(){
     }
   }
   if(tps.length){
-    const rows=tps.map(t=>{ const ip=dip.get((t.addr||'').toUpperCase())||""; return `<tr><td class="data" title="${esc(t.model)}">${esc(t.model||'—')}</td><td class="data muted" title="${esc(t.type||'')}">${esc(t.type||'—')}</td><td class="data">${esc(t.addr||'—')}</td><td class="data${ip==='127.0.0.1'?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(t.project)}">${esc(t.project||'—')}</td></tr>`; }).join("");
+    const rows=tps.map(t=>{ const ip=dip.get((t.addr||'').toUpperCase())||""; return `<tr><td class="data" title="${esc(t.model)}">${esc(t.model||'—')}</td><td class="data muted" title="${esc(t.type||'')}">${esc(t.type||'—')}</td>${devCell(t.addr,t.addr||'—',"E")}<td class="data${ip==='127.0.0.1'?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(t.project)}">${esc(t.project||'—')}</td></tr>`; }).join("");
     html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, the IP it resolves to in the IP table, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"IP address"},{t:"Project file"}],rows,1),false);
   }
   if(devRows.length){
@@ -1050,7 +1086,7 @@ function runAudit(){
       if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
       if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
       if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback rings with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback rings card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
-      html+=`<div class="section-label">Checks</div>`+card("Things to review",actionN,b,true,"attn");
+      html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
   if(!html) html=`<div class="hero-empty"><div class="he-icon">▤</div><div class="he-title">Drop a program to build its as-built</div><div class="he-sub">A program <code>.zip</code> (or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) &mdash; devices, IP-IDs, serial &amp; IR ports, signals and modules, instantly. Nothing leaves your machine.</div></div>`;
@@ -1116,6 +1152,7 @@ function dvHostNode(byH,h){ let p=byH.get(String(h)); if(!p)return null; p=byH.g
   while(p&&g++<12){ const nm=(p.Nm||"").trim(); if(nm&&!DV_GENERIC.test(nm))return p; p=byH.get(String(p.PrH)); } return null; }
 function dvLandsOn(byH,h){ const n=dvHostNode(byH,h); return n?(n.Nm||""):""; }
 function dvHostIpid(byH,h){ const n=dvHostNode(byH,h); const ad=n&&(n.Ad||"").toUpperCase(); return (ad&&/^[0-9A-F]{1,2}$/.test(ad)&&ad!=="00")?ad:""; }
+function dvBus(byH,h){ let p=byH.get(String(h)),g=0; while(p&&g++<10){ const nm=p.Nm||""; if(/ethernet/i.test(nm))return "E"; if(/cresnet/i.test(nm))return "C"; if(/\bRF\b/.test(nm))return "R"; p=byH.get(String(p.PrH)); } return ""; }
 function dvNetRoles(smw){ const byH=dvIndex(smw); const out=new Map();
   byH.forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return; const nm=(d.Nm||"").trim();
     if(!nm||/^p4ethernet$|^not_used$|^ethernet devices$|^ethernetcard$|^cresnet/i.test(nm))return;
