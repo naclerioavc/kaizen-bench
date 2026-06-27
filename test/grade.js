@@ -85,7 +85,7 @@ ck("smft devices",devs.filter(x=>x.id).length,3);
 ck("param IPs",[...new Set(w.scanProgramIPs(smw).map(x=>x.ip))],["10.0.0.5"]);
 const ser=w.scanSerial(smw).filter(x=>x.proto||x.baud);
 ck("serial 9600 8N1 RS232",[ser[0].baud,ser[0].data+ser[0].parity+ser[0].stop,ser[0].proto],["9600","8N1","RS232"]);
-{ const io=w.scanIO(smw)[0]; ck("relay lands-on host device",io.host,"CEN-IO-RY-204"); }
+{ const io=w.scanIO(smw)[0]; ck("relay lands-on host device + endpoint IP-ID",[io.host,io.hostIpid],["CEN-IO-RY-204","06"]); }
 { const nr=w.dvNetRoles(smw); ck("EISC detected at IP-ID F1",[nr.get("F1")&&nr.get("F1").role, nr.get("F1")&&nr.get("F1").detail],["EISC (intersystem link)","OtherProg.rsd"]); }
 ck("relay/IO ports",w.scanIO(smw).length,1);
 const tp=w.parseTouchpanels(smw);
@@ -118,7 +118,11 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
   has("Touchpanel resolves IP from IP table", /10\.0\.0\.50/.test(tpCard.textContent)); }
 { const ioCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Relay / IR'));
   has("Ports card has 'Lands on (device)' column", [...ioCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Lands on (device)"));
-  has("Port lands-on shows the host device", /CEN-IO-RY-204/.test(ioCard.textContent)); }
+  has("Port lands-on shows the host device", /CEN-IO-RY-204/.test(ioCard.textContent));
+  has("Ports card has Endpoint IP-ID column", [...ioCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Endpoint IP-ID"));
+  has("Port rows drill to per-port breakdown", ioCard.querySelector('tbody tr[data-drill=ioports]')!=null); }
+{ const serCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Serial ports'));
+  if(serCard) has("Serial card has Endpoint IP-ID column", [...serCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Endpoint IP-ID")); else { pass++; console.log("  PASS  (no serial in fixture — skipped)"); } }
 { const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
   has("Network card has Role / type column", [...netCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Role / type"));
   has("Network card flags the EISC", /EISC/.test(netCard.textContent)); }

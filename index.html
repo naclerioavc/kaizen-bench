@@ -779,6 +779,13 @@ function drill(type,val){
     const ctx=x=>{ const ns=[...x.ins,...x.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); return ns[0]||""; };
     const rows=insts.map(x=>`<tr class="drill" data-drill="syminst" data-val="${x.H}"><td class="data" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td><td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),48))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
     openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Where each instance lives in the program tree. Click any instance to see its inputs and outputs.</p>`+tbl([{t:"Program location (folder path)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
+  } else if(type==="ioports" && m){
+    const sm=m.syms.find(s=>String(s.H)===String(val)); if(!sm){ openModal("Ports","<p class=\"empty\">No port detail available.</p>"); return; }
+    const li=(p,n)=>`<tr><td class="num data">${p}</td><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
+    const outs=sm.outs.map((h,i)=>({p:i+1,n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
+    const ins=sm.ins.map((h,i)=>({p:i+1,n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
+    const rows=(outs.length?outs:ins).map(o=>li(o.p,o.n)).join("")||`<tr><td colspan="2" class="muted">&mdash; no individually-wired ports &mdash;</td></tr>`;
+    openModal(`${esc(sm.Nm||"Ports")} &mdash; ${esc(folderPath(m,sm.H)||"")}`,`<p class="card-intro">Each individual port on this bank and the exact signal it drives. Click a signal to trace it.</p>`+tbl([{t:"Port",num:1},{t:"Controls (signal)"}],rows));
   } else if(type==="syminst" && m){
     const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
     const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
@@ -923,8 +930,8 @@ function runAudit(){
   }
   if(pr.smw && m){ const io=scanIO(pr.smw);
     if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
-      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.host||'processor (onboard)')}</td><td class="data">${esc(x.port)}${x.count>1?` (${x.count} ports)`:''}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
-      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports wired in the program: the device they physically land on (onboard processor card vs. an I/O expander like a CEN-IO or an AV-over-IP endpoint), the port, and what each controls.</p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Port"},{t:"Controls"}],rows,1),false);
+      const rows=io.map(x=>`<tr class="drill" data-drill="ioports" data-val="${x.smH}"><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.host||'processor (onboard)')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.port)}${x.count>1?` (${x.count} ports)`:''}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
+      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports: the device they physically land on (onboard processor card vs. an expander like a CEN-IO or an AV-over-IP endpoint), that device&rsquo;s IP-ID, the port, and what the bank controls. <b>Click a row to break out each individual port and the exact signal it drives.</b></p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Port"},{t:"Controls"}],rows,1),false);
     }
   }
   if(pr.smw){ const serial=scanSerial(pr.smw).filter(x=>x.proto||x.baud);
@@ -937,8 +944,8 @@ function runAudit(){
         if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
         return ""; };
       const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p.replace(/^[^›]+›\s*/,"")||x.device||"—"; };
-      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
-      html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"Lands on (device)"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
+      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
+      html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
     }
   }
   if(thirdParty.length){
@@ -1022,7 +1029,7 @@ function scanSerial(smw){
   }
   const clean=v=>(v||"").replace(/^\(|\)$/g,"").trim();
   return cms.map(c=>{ const d=dv.get(String(c.DvH))||{};
-    return { device:d.Nm||"(serial driver)", port:d.Ad||"", smH:d.SmH!=null?parseInt(d.SmH,10):null, host:d.H!=null?dvLandsOn(dv,d.H):"", proto:clean(c.Ptl)||"", baud:c.BRt||"", data:c.DBt||"", parity:c.Pty||"", stop:c.SBt||"", hHs:clean(c.hHs), sHs:clean(c.sHs) };
+    return { device:d.Nm||"(serial driver)", port:d.Ad||"", smH:d.SmH!=null?parseInt(d.SmH,10):null, host:d.H!=null?dvLandsOn(dv,d.H):"", hostIpid:d.H!=null?dvHostIpid(dv,d.H):"", proto:clean(c.Ptl)||"", baud:c.BRt||"", data:c.DBt||"", parity:c.Pty||"", stop:c.SBt||"", hHs:clean(c.hHs), sHs:clean(c.sHs) };
   });
 }
 function dvIndex(smw){ const lines=smw.split("\n"); let cur=null,typ=null; const byH=new Map();
@@ -1049,7 +1056,7 @@ function scanIO(smw){
   byH.forEach(cur=>{ if(cur.Nm&&cur.Ad!=null&&cur.SmH!=null){ const nm=cur.Nm;
     if(!/com|serial|card$/i.test(nm)){ let t=null;
       if(/relay/i.test(nm))t="Relay"; else if(/\bir\b|ir[_ ]?port/i.test(nm))t="IR"; else if(/versiport|dio|digital|\bio\b/i.test(nm))t="I/O";
-      if(t)ports.push({type:t, port:cur.Ad, smH:parseInt(cur.SmH,10), nm, host:dvLandsOn(byH,cur.H), count:parseInt(cur.mC,10)||0}); } } });
+      if(t)ports.push({type:t, port:cur.Ad, smH:parseInt(cur.SmH,10), nm, host:dvLandsOn(byH,cur.H), hostIpid:dvHostIpid(byH,cur.H), count:parseInt(cur.mC,10)||0}); } } });
   return ports;
 }
 function parseHeader(smw){

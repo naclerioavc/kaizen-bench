@@ -41,6 +41,13 @@ ship one useful thing well, verify it in a real DOM + the grader, then move on. 
 tables on a **consistent, selectable-ready pattern** (like the Signals table) so row-selection
 for export/monitor can be added later uniformly.
 
+**Resolve to the specific instance, never the class.** This is the core reference methodology,
+not a per-feature ask. If a thing lands on a device, name the *exact* device instance and its
+identity — "DM-NVX-36x Zone 41, IP-ID B2", not "an NVX." Walk the device tree (`Dv.PrH`) to the
+real host; pull its IP-ID/IP/port; give a drill-down to the individual port and the exact signal
+it drives. A tech should be able to read a row and walk to the rack. "Port 1 of some device" is a
+bug, not a row. Apply this to every card, every time.
+
 ## 4. Data the tool extracts & displays  (✅ done · ⬜ pending)
 
 Program (`.smw` / `.umc` / `.chd`):
@@ -67,10 +74,4 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
 - ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type
 - ✅ IR devices: device, model, manufacturer, IR port, **the specific endpoint it lands on**
   (exact device name + IP-ID + resolved IP — e.g. "DM-NVX-36x Zone 41, IP-ID B2", not "an NVX
-  somewhere"), driver file, and program location. Joined `Db.DrF`→`Dv`→host via the `Dv.PrH`
-  tree. Falls back to `.ir` filenames if only those are present.
-- ✅ Per-row `Db` enrichment (manufacturer/type by model) merged into every device row
-- ✅ Device summary (bill of materials): every model + manufacturer + type + **count**
-- ✅ Touchpanels & UIs: model, type, IP-ID, **resolved IP** (from the IP table), project file
-- ✅ Serial ports: COM #, what it controls, **the physical device it lands on** (processor card
-  vs. a DM/NVX endpoint or expander — from the `Dv.PrH` tree),
+  somewhere"), driver file, and program location. Joined 
