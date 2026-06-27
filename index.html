@@ -1460,19 +1460,19 @@ function analyzeLog(text){
   const drops=new Map(); let authFails=0; const dropIds=new Set(); const dropT=new Map();
   lines.forEach(l=>{
     if(/login attempt|authentication fail|failed login|incorrect (user|pass)|ssh[^a-z]{0,3}(fail|attempt|denied|brute|connection)/i.test(l))authFails++;
-    let key=null,hex=null;
-    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m){key="Dev "+m[1];hex=m[1];}
-    else { m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m){key="IP-ID "+m[1];hex=m[1];} }
-    if(key){ drops.set(key,(drops.get(key)||0)+1); dropIds.add(hex.toUpperCase());
-      const t=toS(ts(l)); if(t!=null){ if(!dropT.has(key))dropT.set(key,[]); dropT.get(key).push(t); } }
+    let hex=null;
+    let m=l.match(/not writeable for Device Id ([0-9A-Fa-f]+)/); if(m)hex=m[1];
+    else { m=l.match(/End of Query Acknowledge.*IP-ID-([0-9A-Fa-f]+)/); if(m)hex=m[1]; }
+    if(hex){ const id=hex.toUpperCase(); drops.set(id,(drops.get(id)||0)+1); dropIds.add(id);
+      const t=toS(ts(l)); if(t!=null){ if(!dropT.has(id))dropT.set(id,[]); dropT.get(id).push(t); } }
   });
-  const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,60);
+  const dropTop=[...drops.entries()].sort((a,b)=>b[1]-a[1]).slice(0,60).map(([id,n])=>["IP-ID "+id,n]);
   const periodic=[];
   dropT.forEach((times,key)=>{ if(times.length<4)return; times.sort((a,b)=>a-b);
     const iv=[]; for(let i=1;i<times.length;i++)iv.push(times[i]-times[i-1]);
     const med=iv.slice().sort((a,b)=>a-b)[Math.floor(iv.length/2)]; if(med<=0)return;
     const within=iv.filter(x=>x>=med*0.5&&x<=med*1.5).length;
-    if(within/iv.length>=0.7) periodic.push({dev:key,count:times.length,everyS:med}); });
+    if(within/iv.length>=0.7) periodic.push({dev:"IP-ID "+key,count:times.length,everyS:med}); });
   periodic.sort((a,b)=>b.count-a.count);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
