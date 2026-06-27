@@ -92,6 +92,9 @@ w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.s
 const titles=[...w.document.querySelectorAll('#censusBody .card-title')].map(t=>t.textContent.replace(/[\s\d\/,]+$/,'').trim());
 ["Program info","Ethernet devices","Cresnet devices","IR devices","Touchpanels & UIs","Device catalog","Relay / IR / I-O ports","Serial ports","IP-ID table","Third-party IPs","Module inventory","Signals"].forEach(t=>has("audit card: "+t, titles.includes(t)));
 has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to review"));
+has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
+has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
+{ const bx=[...w.document.querySelectorAll('#censusBody .cardsel')].slice(0,2); bx.forEach(b=>b.checked=true); w.eval("updateExportSel();"); has("combined export enables on selection", !w.document.getElementById('auditExport').disabled); }
 w.eval(`runLog('t.log', ${JSON.stringify(log)});`);
 const lb=w.document.getElementById('logBody').textContent;
 has("log: System panel", lb.includes("Model")||lb.includes("CP4-LAB"));

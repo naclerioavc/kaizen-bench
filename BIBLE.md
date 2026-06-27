@@ -74,7 +74,8 @@ Diff (two `.smw`/`.umc`): ✅ signals add/remove/rename, type changes, module de
   value contention (candidate), feedback rings (candidate). Honest; live box confirms.
 - ✅ **As-built / printable report** — Print / Save PDF expands all cards into a clean
   black-on-white document via a print stylesheet.
-- ⬜ Per-card CSV export; row-selection (checkboxes) for export/monitor.
+- ✅ Per-card CSV export (respects active filter/sort) + card-selection checkboxes →
+  combined multi-card CSV export (labeled blocks). Same checkbox pattern seeds monitor-select.
 - ⬜ **Multi-program / multi-processor systems** — load several programs together, link them
   across EISC bridges / shared IP-IDs, trace across the whole system.
 - ⬜ Companion app for live, on-device data (kept out of this repo).
@@ -82,5 +83,4 @@ Diff (two `.smw`/`.umc`): ✅ signals add/remove/rename, type changes, module de
 ## 6. Correctness — the grading harness
 
 `test/grade.js` (`npm test`) loads the shipped `index.html` in a DOM and (1) asserts **every**
-extraction function against synthetic fixtures with known ground truth — header, IP-ID table
-(incl. blank + duplicate-conf
+extraction func
