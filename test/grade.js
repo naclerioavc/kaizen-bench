@@ -27,7 +27,10 @@ const smw=[
   sm(519,"COM 2-Way Serial Driver","O1=3"),
   `[\nObjTp=Dv\nH=519\nNm=COM 2-Way Serial Driver\nAd=02\nSmH=519\n]`,
   `[\nObjTp=Cm\nH=1\nDvH=519\nPtl=(RS232)\nBRt=9600\nPty=N\nSBt=1\nDBt=8\nhHs=(None)\nsHs=(None)\n]`,
-  `[\nObjTp=Dv\nH=600\nNm=Relays\nAd=03\nSmH=11\n]`,
+  `[\nObjTp=Dv\nH=940\nNm=P4Ethernet\nAd=00\n]`,
+  `[\nObjTp=Dv\nH=941\nNm=CEN-IO-RY-204\nAd=06\nPrH=940\n]`,
+  `[\nObjTp=Dv\nH=600\nNm=Relays\nAd=03\nSmH=11\nPrH=941\n]`,
+  `[\nObjTp=Dv\nH=950\nNm=Ethernet Intersystem Communications:OtherProg.rsd\nAd=F1\nPrH=940\n]`,
   `[\nObjTp=VTP\nDvH=700\nTSAddr=1c\nVTPFile=C:\\proj\\UI\\Main.vtp\n]`,
   `[\nObjTp=Db\nH=1\nDvH=700\nMnf=Crestron\nMdl=TSW-1070\nTpe=7 inch Touch Screen\n]`,
   `[\nObjTp=Db\nH=2\nDvH=701\nMnf=Crestron\nMdl=DM-MD8X8\nTpe=HDMI Matrix\n]`,
@@ -35,7 +38,7 @@ const smw=[
   `[\nObjTp=Db\nH=50\nDvH=900\nMnf=Sony\nMdl=Bravia X90\nDrF=Sony Bravia X90.ir\n]`,
 ].join("\n");
 const smft=`<Device Model="CP4"><Network Type="Ethernet" Id="02"><Device Model="DM-MD8X8" DeviceId="05" Name="Matrix"/><Device Model="TSW-1070" DeviceId="1C" Name="Panel"/><Network Type="Cresnet" Id="01"><Device Model="GLS-ODT" DeviceId="03" Name="Occ"/></Network></Network></Device>`;
-const dip=`[IPTable]\nid0=05\naddr0=192.168.1.10\nid1=06\naddr1=\nid2=05\naddr2=192.168.1.99\nid3=1C\naddr3=10.0.0.50\n`; // id 05 twice w/ DIFFERENT addr -> conflict; id 06 blank
+const dip=`[IPTable]\nid0=05\naddr0=192.168.1.10\nid1=06\naddr1=\nid2=05\naddr2=192.168.1.99\nid3=1C\naddr3=10.0.0.50\nid4=F1\naddr4=10.0.0.77\n`; // id 05 twice w/ DIFFERENT addr -> conflict; id 06 blank
 
 // ---- log fixture ----
 const log=[
@@ -74,12 +77,14 @@ const h=w.parseHeader(smw);
 ck("header program/dealer/client",[h.program,h.dealer,h.client],["TestProg","TestDealer","TestClient"]);
 ck("header versions",[h.compiler,h.dbVer],["4.00","1.2.3"]);
 const d=w.parseDip(dip);
-ck("IP-ID distinct",d.size,3); ck("IP-ID 06 blank",d.get("06"),"");
+ck("IP-ID distinct",d.size,4); ck("IP-ID 06 blank",d.get("06"),"");
 const devs=w.parseSmft(smft);
 ck("smft devices",devs.filter(x=>x.id).length,3);
 ck("param IPs",[...new Set(w.scanProgramIPs(smw).map(x=>x.ip))],["10.0.0.5"]);
 const ser=w.scanSerial(smw).filter(x=>x.proto||x.baud);
 ck("serial 9600 8N1 RS232",[ser[0].baud,ser[0].data+ser[0].parity+ser[0].stop,ser[0].proto],["9600","8N1","RS232"]);
+{ const io=w.scanIO(smw)[0]; ck("relay lands-on host device",io.host,"CEN-IO-RY-204"); }
+{ const nr=w.dvNetRoles(smw); ck("EISC detected at IP-ID F1",[nr.get("F1")&&nr.get("F1").role, nr.get("F1")&&nr.get("F1").detail],["EISC (intersystem link)","OtherProg.rsd"]); }
 ck("relay/IO ports",w.scanIO(smw).length,1);
 const tp=w.parseTouchpanels(smw);
 ck("touchpanel model/addr/project",[tp[0].model,tp[0].addr,tp[0].project],["TSW-1070","1C","Main.vtp"]);
@@ -106,6 +111,12 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
 { const tpCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Touchpanels'));
   has("Touchpanel card has IP address column", [...tpCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("IP address"));
   has("Touchpanel resolves IP from IP table", /10\.0\.0\.50/.test(tpCard.textContent)); }
+{ const ioCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Relay / IR'));
+  has("Ports card has 'Lands on (device)' column", [...ioCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Lands on (device)"));
+  has("Port lands-on shows the host device", /CEN-IO-RY-204/.test(ioCard.textContent)); }
+{ const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
+  has("Network card has Role / type column", [...netCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Role / type"));
+  has("Network card flags the EISC", /EISC/.test(netCard.textContent)); }
 has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
 has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
 { const bx=[...w.document.querySelectorAll('#censusBody .cardsel')].slice(0,2); bx.forEach(b=>b.checked=true); w.eval("updateExportSel();"); has("combined export enables on selection", !w.document.getElementById('auditExport').disabled); }

@@ -60,18 +60,17 @@ Program (`.smw` / `.umc` / `.chd`):
 
 Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
 - ✅ **Network devices** — one merged list: union of the device tree and the processor IP
-  table (`.dip`) keyed by IP-ID, columns IP-ID / IP / model / name / manufacturer / type.
-  (Replaces the old separate "Ethernet devices" + "IP-ID table" — they were two IP-ID lists.)
+  table (`.dip`) keyed by IP-ID, columns IP-ID / IP / model-device / name / **role-type** /
+  manufacturer. Role flags what a device actually is — e.g. an **EISC** intersystem link to
+  another program (from `Dv.Nm`), which a bare IP/model never tells you. (Replaces the old
+  separate "Ethernet devices" + "IP-ID table" — they were two redundant IP-ID lists.)
 - ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type
 - ✅ IR devices: device, model, manufacturer, **IR port**, driver file, and location — joined
   from `Db.DrF`→`Dv` (not just `.ir` filenames). Falls back to filenames if only `.ir` present.
 - ✅ Per-row `Db` enrichment (manufacturer/type by model) merged into every device row
 - ✅ Device summary (bill of materials): every model + manufacturer + type + **count**
 - ✅ Touchpanels & UIs: model, type, IP-ID, **resolved IP** (from the IP table), project file
-- ✅ Serial ports: COM #, what it controls, the card it's on, protocol, baud, data/parity/stop, handshaking
-- ✅ Relay / IR / I-O ports that are wired, with what each controls
-- ✅ Third-party IPs hidden in module params (with purpose + address, creds stripped)
-- ⬜ "Controlled from" (folder) for network/Cresnet devices via `Dv.Ad`→`SmH` join (have it for serial/relay/IR)
-- ⬜ Ethernet config records (`Et`: IP/mask) surfaced where useful
-
-Log Analyzer (`.err` / Info-Tool dump / PLOG `.
+- ✅ Serial ports: COM #, what it controls, **the physical device it lands on** (processor card
+  vs. a DM/NVX endpoint or expander — from the `Dv.PrH` tree), protocol, baud, data/parity/stop, handshaking
+- ✅ Relay / IR / I-O ports: type, **lands-on device** (onboard processor card vs. a CEN-IO
+  expander vs. an

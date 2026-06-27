@@ -863,6 +863,7 @@ function runAudit(){
   const catArr=pr.smw?parseDeviceCatalog(pr.smw):[]; const catByModel=new Map();
   catArr.forEach(d=>{ [d.model, (d.model||"").split(",")[0].trim()].forEach(k=>{ if(k&&!catByModel.has(k))catByModel.set(k,d); }); });
   const enrich=mdl=>catByModel.get(mdl)||catByModel.get((mdl||"").split(",")[0].trim())||{mfr:"",type:""};
+  const netRoles=pr.smw?dvNetRoles(pr.smw):new Map();
   const hits=pr.smw?scanProgramIPs(pr.smw):[];
   const dipIPs=new Set([...dip.values()]);
   const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
@@ -885,9 +886,10 @@ function runAudit(){
   const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
   if(netIds.length){
-    const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const loop=ip==="127.0.0.1";
-      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||'')}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
-    html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),true);
+    const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const nr=netRoles.get(id)||{}; const loop=ip==="127.0.0.1";
+      const name=d.name||nr.name||""; const role=nr.role||c.type||""; const detail=nr.detail||"";
+      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||nr.name||'')}">${esc(d.model||nr.name||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${role?'':' muted'}" title="${esc(detail||role)}">${esc(role||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+    html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
     const rows=cres.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
@@ -921,8 +923,8 @@ function runAudit(){
   }
   if(pr.smw && m){ const io=scanIO(pr.smw);
     if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
-      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.port)}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
-      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports wired in the program, and what each one controls.</p>`+tbl([{t:"Type"},{t:"Port"},{t:"Controls"}],rows,1),false);
+      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.host||'processor (onboard)')}</td><td class="data">${esc(x.port)}${x.count>1?` (${x.count} ports)`:''}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
+      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports wired in the program: the device they physically land on (onboard processor card vs. an I/O expander like a CEN-IO or an AV-over-IP endpoint), the port, and what each controls.</p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Port"},{t:"Controls"}],rows,1),false);
     }
   }
   if(pr.smw){ const serial=scanSerial(pr.smw).filter(x=>x.proto||x.baud);
@@ -935,8 +937,8 @@ function runAudit(){
         if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
         return ""; };
       const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p.replace(/^[^›]+›\s*/,"")||x.device||"—"; };
-      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data muted">${esc(onCol(x)||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
-      html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"On (card)"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
+      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data">${esc(x.host||onCol(x)||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
+      html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"Lands on (device)"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
     }
   }
   if(thirdParty.length){
@@ -1020,20 +1022,32 @@ function scanSerial(smw){
   }
   const clean=v=>(v||"").replace(/^\(|\)$/g,"").trim();
   return cms.map(c=>{ const d=dv.get(String(c.DvH))||{};
-    return { device:d.Nm||"(serial driver)", port:d.Ad||"", smH:d.SmH!=null?parseInt(d.SmH,10):null, proto:clean(c.Ptl)||"", baud:c.BRt||"", data:c.DBt||"", parity:c.Pty||"", stop:c.SBt||"", hHs:clean(c.hHs), sHs:clean(c.sHs) };
+    return { device:d.Nm||"(serial driver)", port:d.Ad||"", smH:d.SmH!=null?parseInt(d.SmH,10):null, host:d.H!=null?dvLandsOn(dv,d.H):"", proto:clean(c.Ptl)||"", baud:c.BRt||"", data:c.DBt||"", parity:c.Pty||"", stop:c.SBt||"", hHs:clean(c.hHs), sHs:clean(c.sHs) };
   });
 }
-function scanIO(smw){
-  const lines=smw.split("\n"); let cur=null,typ=null; const ports=[];
+function dvIndex(smw){ const lines=smw.split("\n"); let cur=null,typ=null; const byH=new Map();
   for(const raw of lines){ const line=raw.replace(/\r$/,"");
     if(line==="["){cur={};typ=null;continue;}
-    if(line==="]"){ if(typ==="Dv"&&cur.Nm&&cur.Ad!=null&&cur.SmH!=null){ const nm=cur.Nm;
-      if(!/com|serial|card$/i.test(nm)){ let t=null;
-        if(/relay/i.test(nm))t="Relay"; else if(/\bir\b|ir[_ ]?port/i.test(nm))t="IR"; else if(/versiport|dio|digital|\bio\b/i.test(nm))t="I/O";
-        if(t)ports.push({type:t, port:cur.Ad, smH:parseInt(cur.SmH,10), nm}); } }
-      cur=null; continue; }
-    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue;
-    const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+    if(line==="]"){ if(typ==="Dv"&&cur.H!=null)byH.set(String(cur.H),cur); cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue; const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return byH; }
+const DV_GENERIC=/slot$|card$|ports?$|^com$|versiport|^relays?$|^ir$|ethernet devices$|cresnet devices$|p4ethernet$|^rf$|^fixed|^not_used$/i;
+function dvLandsOn(byH,h){ let p=byH.get(String(h)); if(!p)return ""; p=byH.get(String(p.PrH)); let g=0;
+  while(p&&g++<12){ const nm=(p.Nm||"").trim(); if(nm&&!DV_GENERIC.test(nm))return nm; p=byH.get(String(p.PrH)); } return ""; }
+function dvNetRoles(smw){ const byH=dvIndex(smw); const out=new Map();
+  byH.forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return; const nm=(d.Nm||"").trim();
+    if(!nm||/^p4ethernet$|^not_used$|^ethernet devices$|^ethernetcard$|^cresnet/i.test(nm))return;
+    let p=byH.get(String(d.PrH)),g=0,eth=false; while(p&&g++<8){ if(/ethernet/i.test(p.Nm||"")){eth=true;break;} p=byH.get(String(p.PrH)); }
+    if(!eth)return; let role=""; if(/intersystem/i.test(nm))role="EISC (intersystem link)";
+    const name=nm.split(":")[0].trim(), detail=nm.includes(":")?nm.split(":").slice(1).join(":").trim():"";
+    if(!out.has(ad)||/intersystem/i.test(nm))out.set(ad,{name,detail,role}); });
+  return out; }
+function scanIO(smw){
+  const byH=dvIndex(smw); const ports=[];
+  byH.forEach(cur=>{ if(cur.Nm&&cur.Ad!=null&&cur.SmH!=null){ const nm=cur.Nm;
+    if(!/com|serial|card$/i.test(nm)){ let t=null;
+      if(/relay/i.test(nm))t="Relay"; else if(/\bir\b|ir[_ ]?port/i.test(nm))t="IR"; else if(/versiport|dio|digital|\bio\b/i.test(nm))t="I/O";
+      if(t)ports.push({type:t, port:cur.Ad, smH:parseInt(cur.SmH,10), nm, host:dvLandsOn(byH,cur.H), count:parseInt(cur.mC,10)||0}); } } });
   return ports;
 }
 function parseHeader(smw){
@@ -1380,7 +1394,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvNetRoles,diffToText}; }
 </script>
 </body>
 </html>
