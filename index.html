@@ -116,6 +116,7 @@
   .lockup .eyebrow{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:4px}
   .scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:2px}
   .scroll table{border:0}
+  .scroll td, .scroll th{white-space:nowrap}
   .scroll thead th, .modal-body thead th{cursor:pointer;user-select:none}
   thead th[data-dir=asc]::after{content:" ▲";color:var(--mut);font-size:9px}
   thead th[data-dir=desc]::after{content:" ▼";color:var(--mut);font-size:9px}
@@ -448,7 +449,7 @@ function parseSmw(text){
         const h=cur.H;
         if(typ==="Sg"&&h!=null){sigName.set(h,cur.Nm||"");sigType.set(h,cur.SgTp||"");}
         else if(typ==="Sm"&&h!=null){
-          H2nm.set(h,cur.Nm||"");H2pr.set(h,cur.PrH||"");
+          {const lbl=(cur.Nm==="SUBSYSTEM"&&cur.Cmn1)?String(cur.Cmn1).replace(/[\\\/]+\s*$/,"").trim():(cur.Nm||"");H2nm.set(h,lbl);}H2pr.set(h,cur.PrH||"");
           if(cur.ch)cur.ch.forEach(c=>parentOf.set(c,h));
           if(cur.ins.length||cur.outs.length||cur.Nm)
             syms.push({H:h,Nm:cur.Nm||"",SmC:cur.SmC||"",PrH:cur.PrH||"",ins:cur.ins,outs:cur.outs});
@@ -766,6 +767,7 @@ $("#censusBody").addEventListener("input",e=>{
   const q=e.target.value.toLowerCase(); const sc=e.target.nextElementSibling; const tb=sc&&sc.querySelector("tbody"); if(!tb)return;
   [...tb.rows].forEach(r=>{ r.style.display = r.textContent.toLowerCase().indexOf(q)>=0?"":"none"; });
 });
+$("#modalBody").addEventListener("click",e=>{ const d=e.target.closest("[data-drill]"); if(d){ e.stopPropagation(); drill(d.dataset.drill,d.dataset.val); } });
 $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
@@ -774,8 +776,16 @@ function drill(type,val){
   if(type==="module" && m){
     const insts=m.syms.filter(x=>x.Nm===val);
     const ctx=x=>{ const ns=[...x.ins,...x.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); return ns[0]||""; };
-    const rows=insts.map(x=>`<tr><td class="data" title="${esc(folderPath(m,x.H))}">${esc(trim(folderPath(m,x.H)||'—',46))}</td><td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),40))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
-    openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Where each instance lives in the program tree, and the signal it&rsquo;s wired to.</p>`+tbl([{t:"Program location (folder path)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
+    const rows=insts.map(x=>`<tr class="drill" data-drill="syminst" data-val="${x.H}"><td class="data" title="${esc(folderPath(m,x.H))}">${esc(folderPath(m,x.H)||'—')}</td><td class="data" title="${esc(ctx(x))}">${esc(trim(ctx(x),48))}</td><td class="num data muted">${x.ins.length}/${x.outs.length}</td></tr>`).join("");
+    openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Where each instance lives in the program tree. Click any instance to see its inputs and outputs.</p>`+tbl([{t:"Program location (folder path)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
+  } else if(type==="syminst" && m){
+    const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
+    const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
+    const ins=x.ins.map(nm).filter(Boolean), outs=x.outs.map(nm).filter(Boolean);
+    const li=n=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
+    const er=`<tr><td class="muted">&mdash; none &mdash;</td></tr>`;
+    openModal(`${esc(x.Nm||'instance')} &mdash; ${esc(folderPath(m,x.H)||'instance')}`,
+      `<p class="card-intro">Inputs (signals coming in) and outputs (signals going out) for this one instance. Click any signal to trace where it comes from and goes.</p><div class="lbl">Inputs (${ins.length})</div>`+tbl([{t:"Signal in"}],ins.map(li).join("")||er)+`<div class="lbl" style="margin-top:12px">Outputs (${outs.length})</div>`+tbl([{t:"Signal out"}],outs.map(li).join("")||er));
   } else if(type==="mdriver" && m){
     const handles=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)handles.add(h); });
     const drv=[]; m.syms.forEach(x=>{ if(x.outs.some(h=>handles.has(h))) drv.push(x); });
@@ -849,6 +859,9 @@ function runAudit(){
   const dipList=[...dip.entries()].sort((a,b)=>parseInt(a[0],16)-parseInt(b[0],16));
   const devs=pr.smft?parseSmft(pr.smft):[];
   const devRows=devs.map(d=>({...d, ip:d.net==="Ethernet"?(dip.get(d.id)||""):""}));
+  const catArr=pr.smw?parseDeviceCatalog(pr.smw):[]; const catByModel=new Map();
+  catArr.forEach(d=>{ [d.model, (d.model||"").split(",")[0].trim()].forEach(k=>{ if(k&&!catByModel.has(k))catByModel.set(k,d); }); });
+  const enrich=mdl=>catByModel.get(mdl)||catByModel.get((mdl||"").split(",")[0].trim())||{mfr:"",type:""};
   const hits=pr.smw?scanProgramIPs(pr.smw):[];
   const dipIPs=new Set([...dip.values()]);
   const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
@@ -868,35 +881,40 @@ function runAudit(){
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   html+=card("Overview",null,ov,true);
   if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
-  if(eth.length){
-    const rows=eth.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,34))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',30))}</td><td class="data">${esc(d.ip||'')}</td></tr>`).join("");
-    html+=card("Ethernet devices",eth.length,`<p class="card-intro">IP-controlled Crestron devices: IP-ID and the address from the IP table. <code>127.0.0.1</code> = an internal/loopback slot (XPanel, mobile app).</p>`+tbl([{t:"IP-ID"},{t:"Model"},{t:"Name"},{t:"IP / hostname"}],rows,1),true);
+  const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
+  const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
+  if(netIds.length){
+    const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const loop=ip==="127.0.0.1";
+      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||'')}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),true);
   }
   if(cres.length){
-    const rows=cres.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,40))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',34))}</td></tr>`).join("");
-    html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"}],rows,1),false);
+    const rows=cres.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   const rfDev=devRows.filter(d=>d.net!=="Ethernet"&&d.net!=="Cresnet"&&d.net!=="Processor");
   if(rfDev.length){
-    const rows=rfDev.map(d=>`<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,38))}</td><td class="data" title="${esc(d.name||'')}">${esc(trim(d.name||'',30))}</td></tr>`).join("");
-    html+=card("RF / other devices",rfDev.length,tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"}],rows,1),false);
+    const rows=rfDev.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    html+=card("RF / other devices",rfDev.length,tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   if(state.prog.ir&&state.prog.ir.length){
     const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
     html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">Devices controlled by infrared, from the <code>.ir</code> driver files in the program.</p>`+tbl([{t:"IR device / driver"}],rows,1),false);
   }
   if(tps.length){
-    const rows=tps.map(t=>`<tr><td class="data" title="${esc(t.model)}">${esc(trim(t.model,28))}</td><td class="data muted" title="${esc(t.type||'')}">${esc(trim(t.type||'',24))}</td><td class="data">${esc(t.addr||'—')}</td><td class="data" title="${esc(t.project)}">${esc(trim(t.project,32))}</td></tr>`).join("");
+    const rows=tps.map(t=>`<tr><td class="data" title="${esc(t.model)}">${esc(t.model||'—')}</td><td class="data muted" title="${esc(t.type||'')}">${esc(t.type||'—')}</td><td class="data">${esc(t.addr||'—')}</td><td class="data" title="${esc(t.project)}">${esc(t.project||'—')}</td></tr>`).join("");
     html+=card("Touchpanels & UIs",tps.length,`<p class="card-intro">Every touch panel and mobile UI: model, IP-ID, and the loaded project file.</p>`+tbl([{t:"Model"},{t:"Type"},{t:"IP-ID"},{t:"Project file"}],rows,1),false);
   }
-  if(pr.smw){ const cat=parseDeviceCatalog(pr.smw);
-    if(cat.length){ const rows=cat.map(d=>`<tr><td class="data">${esc(d.mfr||'—')}</td><td class="data" title="${esc(d.model)}">${esc(trim(d.model,40))}</td><td class="data muted" title="${esc(d.type||'')}">${esc(trim(d.type||'',40))}</td></tr>`).join("");
-      html+=card("Device catalog",cat.length,`<p class="card-intro">Every device type the program knows about &mdash; manufacturer, model and category. A quick bill-of-materials.</p>`+tbl([{t:"Manufacturer"},{t:"Model"},{t:"Type"}],rows,1),false);
+  if(devRows.length){
+    const bom=new Map(); devRows.forEach(d=>{ if(!d.model)return; const c=enrich(d.model); if(!bom.has(d.model))bom.set(d.model,{model:d.model,mfr:c.mfr,type:c.type,n:0}); bom.get(d.model).n++; });
+    const items=[...bom.values()].sort((a,b)=>b.n-a.n||a.model.localeCompare(b.model));
+    if(items.length){ const rows=items.map(d=>`<tr><td class="data" title="${esc(d.model)}">${esc(d.model)}</td><td class="data muted">${esc(d.mfr||'—')}</td><td class="data muted" title="${esc(d.type||'')}">${esc(d.type||'—')}</td><td class="num data">${d.n}</td></tr>`).join("");
+      html+=card("Device summary (bill of materials)",items.length,`<p class="card-intro">Every device model in the system and how many of each &mdash; a quick bill of materials.</p>`+tbl([{t:"Model"},{t:"Manufacturer"},{t:"Type"},{t:"Count",num:1}],rows,1),false);
     }
   }
   if(pr.smw && m){ const io=scanIO(pr.smw);
     if(io.length){ const onIO=x=>{ const p=folderPath(m,x.smH); return p.replace(/^[^›]+›\s*/,"")||x.nm; };
-      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.port)}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(trim(onIO(x),46))}</td></tr>`).join("");
+      const rows=io.map(x=>`<tr><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.port)}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
       html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports wired in the program, and what each one controls.</p>`+tbl([{t:"Type"},{t:"Port"},{t:"Controls"}],rows,1),false);
     }
   }
@@ -910,13 +928,9 @@ function runAudit(){
         if(sy){ const ns=[...sy.ins,...sy.outs].map(h=>m.sigName.get(h)).filter(n=>n&&n[0]!=="/"); ns.sort((a,b)=>b.length-a.length); if(ns[0]) return ns[0].replace(/[_\s]*(TX|RX|Tx|Rx)\$?$/,""); }
         return ""; };
       const onCol=x=>{ const p=(m&&x.smH!=null)?folderPath(m,x.smH):(x.device||""); return p.replace(/^[^›]+›\s*/,"")||x.device||"—"; };
-      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(trim(controls(x)||'—',32))}</td><td class="data muted">${esc(trim(onCol(x),26))}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
+      const rows=serial.map(x=>`<tr><td class="data">COM${parseInt(x.port,10)||esc(x.port||'?')}</td><td class="data" title="${esc(x.device||'')}">${esc(controls(x)||'—')}</td><td class="data muted">${esc(onCol(x)||'—')}</td><td class="data">${esc(x.proto||'—')}</td><td class="num data">${esc(x.baud||'—')}</td><td class="data">${esc((x.data&&x.parity&&x.stop)?x.data+x.parity+x.stop:'—')}</td><td class="data muted">${esc(hs(x))}</td></tr>`).join("");
       html+=card("Serial ports",serial.length,`<p class="card-intro">Each serial port: what it controls, the card/device it&rsquo;s on, and its settings &mdash; baud, data/parity/stop, protocol, handshaking (e.g. <code>9600 8N1</code>).</p>`+tbl([{t:"Port"},{t:"Controls"},{t:"On (card)"},{t:"Protocol"},{t:"Baud",num:1},{t:"Format"},{t:"Handshake"}],rows,1),false);
     }
-  }
-  if(dipList.length){
-    const rows=dipList.map(([id,ip])=>`<tr><td class="data">${esc(id)}</td><td class="data">${esc(ip)}</td></tr>`).join("");
-    html+=card("IP-ID table",dipList.length,`<p class="card-intro">The processor&rsquo;s IP table: each IP-ID and the address it points to.</p>`+tbl([{t:"IP-ID"},{t:"IP address"}],rows,1)+`<p class="foot-note">The processor&rsquo;s full IP table (<code>.dip</code>).</p>`,false);
   }
   if(thirdParty.length){
     const rows=thirdParty.map(x=>`<tr><td class="data drill" data-drill="ip" data-val="${esc(x.ip)}">${esc(x.ip)}${x.port?':'+esc(x.port):''}</td><td class="data" title="${esc(x.context||'')}">${esc(trim(x.context||'—',34))}</td><td class="data muted" title="${esc(x.value||'')}">${esc(trim(x.value||'—',42))}</td></tr>`).join("");
@@ -948,15 +962,17 @@ function runAudit(){
   }
   if(m){
     const contention=(state.signals||[]).filter(g=>g.t!=="D"&&g.d>=2).sort((a,b)=>b.d-a.d);
+    const orphan=(state.signals||[]).filter(g=>g.d===0&&g.l===0);
     const dupConf=[];
     if(pr.dip){ const reId=/^id(\d+)[ \t]*=[ \t]*([0-9A-Fa-f]+)/gm, reA=/^addr(\d+)[ \t]*=[ \t]*([^\r\n]*)/gm; const ids={},ad={}; let mm;
       while(mm=reId.exec(pr.dip))ids[mm[1]]=mm[2].toUpperCase(); while(mm=reA.exec(pr.dip))ad[mm[1]]=mm[2].trim();
       const byId=new Map(); for(const n in ids){ const id=ids[n],a=ad[n]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
       byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
-    const n=dupConf.length+(contention.length?1:0)+((sa&&sa.oscCandidates)?1:0);
+    const n=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
     if(n){ let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
       if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
       if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
+      if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
       if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Feedback rings with no wave-breaker &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback rings card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
       html+=`<div class="section-label">Checks</div>`+card("Things to review",n,b,true);
     }

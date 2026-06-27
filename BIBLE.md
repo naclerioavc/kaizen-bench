@@ -42,20 +42,29 @@ Program (`.smw` / `.umc` / `.chd`):
   database versions
 - ✅ Signal counts + Digital/Analog/Serial split (`SgTp`: digital=absent/1, analog=2, serial=4)
 - ✅ Custom / SIMPL+ module inventory (`.usp/.ush/.umc/.clz`)
-- ✅ Module inventory → drill to instances + folder path + wiring
+- ✅ Module inventory → drill to instances → **click an instance to see its inputs/outputs**
+  (each signal clickable to its tracer). Navigate the program without opening SIMPL.
+- ✅ Real folder paths: SIMPL stores folders as generic `SUBSYSTEM` symbols; the programmer's
+  label is in `Cmn1` — folderPath now resolves it (was printing "SUBSYSTEM" N levels deep).
 - ✅ Signals table: every signal, # sources, # loads — searchable over the full set, sortable,
   click to trace drivers (from) and loads (to)
 - ✅ Feedback rings (cycles with no wave-breaker; crosspoints/buffers excluded)
+- ✅ Checks: duplicate IP-IDs, value contention, **unconnected signals** (named, not wired
+  either end), feedback rings — all candidate-framed
 
 Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
-- ✅ Ethernet (IP-ID, model, name, IP/hostname), Cresnet (Cresnet ID), RF/other, IR (`.ir` files)
+- ✅ **Network devices** — one merged list: union of the device tree and the processor IP
+  table (`.dip`) keyed by IP-ID, columns IP-ID / IP / model / name / manufacturer / type.
+  (Replaces the old separate "Ethernet devices" + "IP-ID table" — they were two IP-ID lists.)
+- ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type. IR (`.ir` files)
+- ✅ Per-row `Db` enrichment (manufacturer/type by model) merged into every device row
+- ✅ Device summary (bill of materials): every model + manufacturer + type + **count**
 - ✅ Touchpanels & UIs (model, type, IP-ID, project file) from `VTP`+`Db`
 - ✅ Serial ports: COM #, what it controls, the card it's on, protocol, baud, data/parity/stop, handshaking
 - ✅ Relay / IR / I-O ports that are wired, with what each controls
-- ✅ Full IP-ID table (`.dip`); third-party IPs hidden in module params (with purpose + address, creds stripped)
-- ✅ Device catalog (`Db`): manufacturer / model / type bill-of-materials card
-- ⬜ Per-row `Db` enrichment merged inline into each device row
-- ⬜ Ethernet config records (`Et`: IP/mask) merged where useful
+- ✅ Third-party IPs hidden in module params (with purpose + address, creds stripped)
+- ⬜ "Controlled from" (folder) for network/Cresnet devices via `Dv.Ad`→`SmH` join (have it for serial/relay/IR)
+- ⬜ Ethernet config records (`Et`: IP/mask) surfaced where useful
 
 Log Analyzer (`.err` / Info-Tool dump / PLOG `.zip`):
 - ✅ System (model, firmware, serial, hostname), Network (ip/subnet/gateway/dhcp/link),
@@ -70,17 +79,4 @@ Diff (two `.smw`/`.umc`): ✅ signals add/remove/rename, type changes, module de
 ## 5. Roadmap (⬜ not started unless noted)
 
 - ✅ **Wiring map** — per-signal node-link graph (drivers → signal → loads) in the tracer modal.
-- ✅ **Debug / issue-finder** — Checks card: duplicate IP-IDs (real conflict), analog/serial
-  value contention (candidate), feedback rings (candidate). Honest; live box confirms.
-- ✅ **As-built / printable report** — Print / Save PDF expands all cards into a clean
-  black-on-white document via a print stylesheet.
-- ✅ Per-card CSV export (respects active filter/sort) + card-selection checkboxes →
-  combined multi-card CSV export (labeled blocks). Same checkbox pattern seeds monitor-select.
-- ⬜ **Multi-program / multi-processor systems** — load several programs together, link them
-  across EISC bridges / shared IP-IDs, trace across the whole system.
-- ⬜ Companion app for live, on-device data (kept out of this repo).
-
-## 6. Correctness — the grading harness
-
-`test/grade.js` (`npm test`) loads the shipped `index.html` in a DOM and (1) asserts **every**
-extraction func
+- ✅ **Debug / issue-finder** — Checks card: 

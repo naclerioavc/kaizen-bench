@@ -22,6 +22,8 @@ const smw=[
   sm(11,"AudioMod.usp","I1=1\nO1=4"),
   sm(12,"DrvB","O1=4"),                              // 2nd driver of analog sig 4 -> value contention
   sm(13,"TCP Client","P1=10.0.0.5\nI1=2"),
+  `[\nObjTp=Sm\nH=20\nNm=SUBSYSTEM\nCmn1=AudioRoom\\\\\nmC=1\nC1=21\n]`,
+  sm(21,"Test.usp","I1=1"),
   sm(519,"COM 2-Way Serial Driver","O1=3"),
   `[\nObjTp=Dv\nH=519\nNm=COM 2-Way Serial Driver\nAd=02\nSmH=519\n]`,
   `[\nObjTp=Cm\nH=1\nDvH=519\nPtl=(RS232)\nBRt=9600\nPty=N\nSBt=1\nDBt=8\nhHs=(None)\nsHs=(None)\n]`,
@@ -84,13 +86,15 @@ ck("discovered nodes",w.parseDiscovered(log).map(x=>[x.ip,x.ipid,x.host]),[["10.
 has("netstat LISTEN+ESTABLISHED >=2", w.parseNetstat(log).filter(x=>x.state==="LISTEN"||x.state==="ESTABLISHED").length>=2);
 const m=w.parseSmw(smw); let D=0,A=0,S=0; m.sigType.forEach(t=>{const c=({"":"D","1":"D","2":"A","4":"S"})[t]||"D";c==="D"?D++:c==="A"?A++:S++;});
 ck("D/A/S split",[D,A,S],[1,2,1]);
+ck("folder path uses Cmn1 label not SUBSYSTEM",[w.folderPath(m,21), /SUBSYSTEM/.test(w.folderPath(m,21))],["AudioRoom",false]);
 const si=w.systemInfo(log);
 ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway],["CP4","10.0.0.1"]);
 
 // ===== render checks: the tool actually displays it =====
 w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.smft=${JSON.stringify(smft)}; state.prog.dip=${JSON.stringify(dip)}; state.prog.ir=['SomeTV']; state.prog.model=null; runAudit();`);
 const titles=[...w.document.querySelectorAll('#censusBody .card-title')].map(t=>t.textContent.replace(/[\s\d\/,]+$/,'').trim());
-["Program info","Ethernet devices","Cresnet devices","IR devices","Touchpanels & UIs","Device catalog","Relay / IR / I-O ports","Serial ports","IP-ID table","Third-party IPs","Module inventory","Signals"].forEach(t=>has("audit card: "+t, titles.includes(t)));
+["Program info","Network devices","Cresnet devices","IR devices","Touchpanels & UIs","Device summary (bill of materials)","Relay / IR / I-O ports","Serial ports","Third-party IPs","Module inventory","Signals"].forEach(t=>has("audit card: "+t, titles.includes(t)));
+has("no standalone IP-ID table card (merged)", !titles.includes("IP-ID table"));
 has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to review"));
 has("per-card CSV buttons present", w.document.querySelectorAll('#censusBody .csvbtn').length>0);
 has("export-select checkboxes present", w.document.querySelectorAll('#censusBody .cardsel').length>0);
