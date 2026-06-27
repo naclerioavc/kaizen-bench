@@ -1548,6 +1548,17 @@ $("#logBody").addEventListener("click",e=>{ const h=e.target.closest("h3"); if(h
 function runLog(name,text){
   const nm=$("#logName"); nm.classList.remove("hide"); nm.querySelector(".mono").textContent=name;
   const a=analyzeLog(text);
+  // resolvers from a loaded program: IP-ID/Device-Id -> device name, and S-number -> module
+  let devName=null, enrichMsg=t=>t;
+  try{ const pr=state.prog;
+    if(pr&&pr.smw){ if(!pr.model){try{pr.model=parseSmw(pr.smw);}catch(e){}}
+      const smft=pr.smft?parseSmft(pr.smft):[], roles=dvNetRoles(pr.smw), et=parseEt(pr.smw), dip=pr.dip?parseDip(pr.dip):new Map();
+      const byId=new Map(); smft.forEach(d=>{ if(d.id&&!byId.has(d.id))byId.set(d.id,d.name||d.model); });
+      devName=id=>{ id=String(id).toUpperCase(); const nm=byId.get(id)||(roles.get(id)||{}).name||(et.get(id)||{}).name||""; const ip=dip.get(id)||(et.get(id)||{}).ip||""; return nm||ip?`${nm||"(unknown)"}${ip?" "+ip:""}`:""; };
+      if(pr.model){ const sAddr=new Map(); pr.model.syms.forEach(x=>{ if(x.Nm){ const a2=symAddr(pr.model,x.H); if(a2&&!sAddr.has(a2))sAddr.set(a2,x.Nm); } });
+        enrichMsg=t=>String(t).replace(/\bS-[\d.]+/g,m2=>{ const nm=sAddr.get(m2); return nm?`${m2} (${nm})`:m2; }); }
+    }
+  }catch(e){}
   if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
 
   const worst=a.recurring[0];
@@ -1590,7 +1601,7 @@ function runLog(name,text){
       ${a.recurring.map(t=>`<tr>
         <td><span class="pill ${t.sev==='Error'||t.sev==='Fatal'?'bad':t.sev==='Warning'?'warn':''}">${t.sev}</span></td>
         <td class="data muted">${esc(t.who||'—')}</td>
-        <td class="data wrap">${esc(t.example||t.msg)}</td>
+        <td class="data wrap">${esc(enrichMsg(t.example||t.msg))}</td>
         <td class="num data">${t.n.toLocaleString()}</td>
         <td><span class="pill ${t.rate.kind==='burst'?'warn':t.rate.kind==='rate'?'':'ok'}">${t.rate.txt}</span></td>
       </tr>`).join("")}
@@ -1635,8 +1646,8 @@ function runLog(name,text){
   if(a.dropTop.length){
     html+=`<div class="panel" style="margin-top:14px"><h3>Device socket drops <span class="ct">${a.dropTop.length.toLocaleString()}</span></h3>
     ${a.periodic.length?`<div class="banner" style="border-left-color:var(--warn)">Regular-interval drops detected &mdash; ${a.periodic.slice(0,4).map(p=>`<b>${esc(p.dev)}</b> ~every ${p.everyS<90?Math.round(p.everyS)+"s":(p.everyS<5400?Math.round(p.everyS/60)+" min":(p.everyS/3600).toFixed(1)+" hr")}`).join("; ")}. A steady cadence (vs. random) usually means a flaky link/PoE, a device rebooting on a timer, or a duplicate IP fighting on the network.</div>`:""}
-    <table><thead><tr><th>Device</th><th class="num">Drops</th></tr></thead><tbody>
-    ${a.dropTop.map(([dv,n])=>`<tr><td class="data">${esc(dv)}</td><td class="num data">${n}</td></tr>`).join("")}
+    <table><thead><tr><th>Device (Id / IP-ID)</th><th>Identified from the program</th><th class="num">Drops</th></tr></thead><tbody>
+    ${a.dropTop.map(([dv,n])=>{ const id=dv.replace(/^(IP-ID|Dev)\s+/,""); const nm=devName?devName(id):""; return `<tr><td class="data">${esc(dv)}</td><td class="data${nm?"":" muted"}">${esc(nm||"— load the program in Audit to name it —")}</td><td class="num data">${n}</td></tr>`; }).join("")}
     </tbody></table><p class="foot-note">A few drops over a long log usually mean upload/power events; many on one device points at a flaky link or PoE.</p></div>`;
   }
 
