@@ -71,7 +71,7 @@ Devices / network (`.smft` + `.dip` + `.smw` + `.ir`):
   manufacturer. Role flags what a device actually is — e.g. an **EISC** intersystem link to
   another program (from `Dv.Nm`), which a bare IP/model never tells you. (Replaces the old
   separate "Ethernet devices" + "IP-ID table" — they were two redundant IP-ID lists.)
-- ✅ Cresnet (Cresnet ID), RF/other — both enriched with manufacturer/type
-- ✅ IR devices: device, model, manufacturer, IR port, **the specific endpoint it lands on**
-  (exact device name + IP-ID + resolved IP — e.g. "DM-NVX-36x Zone 41, IP-ID B2", not "an NVX
-  somewhere"), driver file, and program location. Joined 
+- ✅ Cresnet / RF / other — manufacturer/type, plus **which gateway each sits behind** (a
+  thermostat behind a DIN-CENCN-2, a wireless dimmer behind a CEN-GWEXER) vs. straight on the
+  processor bus, from the `.smft` nesting
+- ✅ `Et` (Ethernet config) records joined by IP-ID: surface each device's **static IP/mask and

@@ -871,6 +871,7 @@ function runAudit(){
   catArr.forEach(d=>{ [d.model, (d.model||"").split(",")[0].trim()].forEach(k=>{ if(k&&!catByModel.has(k))catByModel.set(k,d); }); });
   const enrich=mdl=>catByModel.get(mdl)||catByModel.get((mdl||"").split(",")[0].trim())||{mfr:"",type:""};
   const netRoles=pr.smw?dvNetRoles(pr.smw):new Map();
+  const etMap=pr.smw?parseEt(pr.smw):new Map();
   const hits=pr.smw?scanProgramIPs(pr.smw):[];
   const dipIPs=new Set([...dip.values()]);
   const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
@@ -894,18 +895,24 @@ function runAudit(){
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
   if(netIds.length){
     const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const nr=netRoles.get(id)||{}; const loop=ip==="127.0.0.1";
-      const name=d.name||nr.name||""; const detail=nr.detail||""; const role=(nr.role?nr.role+(detail?" → "+detail:""):"")||c.type||"";
-      return `<tr><td class="data">${esc(id)}</td><td class="data${loop?' muted':''}">${esc(ip||'—')}</td><td class="data" title="${esc(d.model||nr.name||'')}">${esc(d.model||nr.name||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${role?'':' muted'}" title="${esc(role)}">${esc(role||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+      const et=etMap.get(id)||{};
+      const ipR=(ip&&ip!=="127.0.0.1")?ip:((et.ip&&et.ip!=="127.0.0.1")?et.ip:(ip||et.ip||""));
+      const looR=ipR==="127.0.0.1"||!ipR;
+      const name=d.name||nr.name||et.name||""; const detail=nr.detail||"";
+      let role=nr.role||""; if(!role&&et.name&&/intersystem|to\/from/i.test(et.name))role="EISC / intersystem link";
+      const roleD=(role?role+(detail?" → "+detail:""):"")||c.type||"";
+      const model=d.model||nr.name||et.name||"";
+      return `<tr><td class="data">${esc(id)}</td><td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${roleD?'':' muted'}" title="${esc(roleD)}">${esc(roleD||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
     html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
-    const rows=cres.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
-    html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
+    const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    html+=card("Cresnet devices",cres.length,`<p class="card-intro">Devices on the Cresnet bus, by Cresnet ID — including which gateway each one sits behind (e.g. a thermostat behind a DIN-CENCN-2) vs. straight on the processor bus.</p>`+tbl([{t:"Cresnet ID"},{t:"Model"},{t:"Name"},{t:"On bus / behind"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   const rfDev=devRows.filter(d=>d.net!=="Ethernet"&&d.net!=="Cresnet"&&d.net!=="Processor");
   if(rfDev.length){
-    const rows=rfDev.map(d=>{ const c=enrich(d.model); return `<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
-    html+=card("RF / other devices",rfDev.length,tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
+    const rows=rfDev.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"—"; return `<tr><td class="data">${esc(d.net)}</td><td class="data">${esc(d.id)}</td><td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
+    html+=card("RF / other devices",rfDev.length,`<p class="card-intro">RF / infiNET / other-bus devices, and the gateway each one is paired to (e.g. a wireless dimmer behind a CEN-GWEXER).</p>`+tbl([{t:"Bus"},{t:"ID"},{t:"Model"},{t:"Name"},{t:"Behind (gateway)"},{t:"Manufacturer"},{t:"Type"}],rows,1),false);
   }
   { const irDev=pr.smw?parseIrDevices(pr.smw):[];
     if(irDev.length){
@@ -1008,15 +1015,28 @@ function parseDip(text){
   return map;
 }
 function parseSmft(text){
-  const tags=text.match(/<[^>]+>/g)||[]; const net=[]; const devices=[];
+  const tags=text.match(/<[^>]+>/g)||[]; const net=[]; const devStack=[]; const devices=[];
   const attr=(t,a)=>{const m=new RegExp(a+'="([^"]*)"').exec(t);return m?m[1]:"";};
   for(const t of tags){
     const close=/^<\//.test(t), self=/\/>\s*$/.test(t);
     const tag=(t.match(/^<\/?\s*([A-Za-z]+)/)||[])[1];
     if(tag==="Network"){ if(close) net.pop(); else { net.push(attr(t,"Type")||"?"); if(self) net.pop(); } }
-    else if(tag==="Device" && !close){ devices.push({ model:attr(t,"Model"), name:attr(t,"Name"), id:(attr(t,"DeviceId")||"").toUpperCase(), net: net[net.length-1]||"Processor" }); }
+    else if(tag==="Device"){
+      if(close){ devStack.pop(); continue; }
+      const par=devStack[devStack.length-1]||null;
+      const dev={ model:attr(t,"Model"), name:attr(t,"Name"), id:(attr(t,"DeviceId")||"").toUpperCase(), net: net[net.length-1]||"Processor",
+        parent: par?{model:par.model,name:par.name,id:par.id}:null };
+      devices.push(dev); if(!self) devStack.push(dev);
+    }
   }
   return devices;
+}
+function parseEt(smw){ const byH=dvIndex(smw); const lines=smw.split("\n"); let cur=null,typ=null; const out=new Map();
+  for(const raw of lines){ const line=raw.replace(/\r$/,"");
+    if(line==="["){cur={};typ=null;continue;}
+    if(line==="]"){ if(typ==="Et"&&cur.DvH){ const d=byH.get(String(cur.DvH))||{}; const ad=(d.Ad||"").toUpperCase(); if(/^[0-9A-F]{1,2}$/.test(ad)&&!out.has(ad)) out.set(ad,{ip:cur.IPA||"",mask:cur.IPM||"",name:d.Nm||""}); } cur=null; continue; }
+    if(!cur)continue; const eq=line.indexOf("="); if(eq<0)continue; const k=line.slice(0,eq),v=line.slice(eq+1); if(k==="ObjTp")typ=v; else cur[k]=v; }
+  return out;
 }
 function scanSerial(smw){
   const lines=smw.split("\n"); let cur=null,typ=null; const cms=[]; const dv=new Map();
@@ -1047,9 +1067,9 @@ function dvNetRoles(smw){ const byH=dvIndex(smw); const out=new Map();
   byH.forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return; const nm=(d.Nm||"").trim();
     if(!nm||/^p4ethernet$|^not_used$|^ethernet devices$|^ethernetcard$|^cresnet/i.test(nm))return;
     let p=byH.get(String(d.PrH)),g=0,eth=false; while(p&&g++<8){ if(/ethernet/i.test(p.Nm||"")){eth=true;break;} p=byH.get(String(p.PrH)); }
-    if(!eth)return; let role=""; if(/intersystem/i.test(nm))role="EISC (intersystem link)";
+    if(!eth)return; let role=""; if(/intersystem|to\/from|^eisc/i.test(nm))role="EISC / intersystem link";
     const name=nm.split(":")[0].trim(), detail=nm.includes(":")?nm.split(":").slice(1).join(":").trim():"";
-    if(!out.has(ad)||/intersystem/i.test(nm))out.set(ad,{name,detail,role}); });
+    if(!out.has(ad)||role)out.set(ad,{name,detail,role}); });
   return out; }
 function scanIO(smw){
   const byH=dvIndex(smw); const ports=[];
@@ -1403,7 +1423,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
 </script>
 </body>
 </html>

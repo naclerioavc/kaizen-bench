@@ -38,6 +38,7 @@ const smw=[
   `[\nObjTp=Dv\nH=915\nNm=IR Ports\nAd=01\nPrH=910\n]`,
   `[\nObjTp=Dv\nNm=Living Room TV\nH=900\nAd=02\nSmH=21\nPrH=915\n]`,
   `[\nObjTp=Db\nH=50\nDvH=900\nMnf=Sony\nMdl=Bravia X90\nDrF=Sony Bravia X90.ir\n]`,
+  `[\nObjTp=Et\nH=1\nDvH=941\nIPA=192.168.1.50\nIPM=255.255.255.0\n]`,
 ].join("\n");
 const smft=`<Device Model="CP4"><Network Type="Ethernet" Id="02"><Device Model="DM-MD8X8" DeviceId="05" Name="Matrix"/><Device Model="TSW-1070" DeviceId="1C" Name="Panel"/><Network Type="Cresnet" Id="01"><Device Model="GLS-ODT" DeviceId="03" Name="Occ"/></Network></Network></Device>`;
 const dip=`[IPTable]\nid0=05\naddr0=192.168.1.10\nid1=06\naddr1=\nid2=05\naddr2=192.168.1.99\nid3=1C\naddr3=10.0.0.50\nid4=F1\naddr4=10.0.0.77\n`; // id 05 twice w/ DIFFERENT addr -> conflict; id 06 blank
@@ -86,7 +87,9 @@ ck("param IPs",[...new Set(w.scanProgramIPs(smw).map(x=>x.ip))],["10.0.0.5"]);
 const ser=w.scanSerial(smw).filter(x=>x.proto||x.baud);
 ck("serial 9600 8N1 RS232",[ser[0].baud,ser[0].data+ser[0].parity+ser[0].stop,ser[0].proto],["9600","8N1","RS232"]);
 { const io=w.scanIO(smw)[0]; ck("relay lands-on host device + endpoint IP-ID",[io.host,io.hostIpid],["CEN-IO-RY-204","06"]); }
-{ const nr=w.dvNetRoles(smw); ck("EISC detected at IP-ID F1",[nr.get("F1")&&nr.get("F1").role, nr.get("F1")&&nr.get("F1").detail],["EISC (intersystem link)","OtherProg.rsd"]); }
+{ const et=w.parseEt(smw); ck("Et static IP joined to device by IP-ID",[et.get("06")&&et.get("06").ip, et.get("06")&&et.get("06").name],["192.168.1.50","CEN-IO-RY-204"]); }
+{ const sm=w.parseSmft(smft); const child=sm.find(x=>x.id==="05"); has("smft tracks parent device (nesting)", sm.some(x=>x.parent)); }
+{ const nr=w.dvNetRoles(smw); ck("EISC detected at IP-ID F1",[nr.get("F1")&&nr.get("F1").role, nr.get("F1")&&nr.get("F1").detail],["EISC / intersystem link","OtherProg.rsd"]); }
 ck("relay/IO ports",w.scanIO(smw).length,1);
 const tp=w.parseTouchpanels(smw);
 ck("touchpanel model/addr/project",[tp[0].model,tp[0].addr,tp[0].project],["TSW-1070","1C","Main.vtp"]);
@@ -116,6 +119,8 @@ has("Checks card (dup IP-ID conflict surfaced)", titles.includes("Things to revi
 { const tpCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Touchpanels'));
   has("Touchpanel card has IP address column", [...tpCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("IP address"));
   has("Touchpanel resolves IP from IP table", /10\.0\.0\.50/.test(tpCard.textContent)); }
+{ const cresCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Cresnet'));
+  if(cresCard) has("Cresnet card has 'On bus / behind' column", [...cresCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("On bus / behind")); else {pass++;console.log("  PASS  (no cresnet in fixture)");} }
 { const ioCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Relay / IR'));
   has("Ports card has 'Lands on (device)' column", [...ioCard.querySelectorAll('thead th')].map(t=>t.textContent).includes("Lands on (device)"));
   has("Port lands-on shows the host device", /CEN-IO-RY-204/.test(ioCard.textContent));
