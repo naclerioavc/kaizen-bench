@@ -896,10 +896,13 @@ function sortTable(th){
   const idx=[...th.parentNode.children].indexOf(th);
   const dir=th.getAttribute("data-dir")==="asc"?"desc":"asc";
   [...th.parentNode.children].forEach(x=>x.removeAttribute("data-dir")); th.setAttribute("data-dir",dir);
-  const num=th.classList.contains("num");
   const isTail=r=>r.cells.length<=idx||r.querySelector("[colspan]");
   const rows=[...tb.rows].filter(r=>!isTail(r)), tail=[...tb.rows].filter(isTail);
-  rows.sort((a,b)=>{ let x=a.cells[idx].textContent.trim(), y=b.cells[idx].textContent.trim();
+  const cellTxt=r=>(r.cells[idx]?r.cells[idx].textContent.trim():"");
+  // numeric only if the column's actual values are all numbers (not the .num alignment class)
+  const nonEmpty=rows.map(cellTxt).filter(v=>v&&v!=="\u2014"&&v!=="-");
+  const num=nonEmpty.length>0&&nonEmpty.every(v=>/^[+\-]?[\d,]+(\.\d+)?%?$/.test(v));
+  rows.sort((a,b)=>{ let x=cellTxt(a), y=cellTxt(b);
     if(num){ x=parseFloat(x.replace(/[^\d.-]/g,""))||0; y=parseFloat(y.replace(/[^\d.-]/g,""))||0; return dir==="asc"?x-y:y-x; }
     return dir==="asc"?x.localeCompare(y,undefined,{numeric:true}):y.localeCompare(x,undefined,{numeric:true}); });
   rows.forEach(r=>tb.appendChild(r)); tail.forEach(r=>tb.appendChild(r));
