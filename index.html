@@ -182,6 +182,8 @@
   .data.sg-d{color:#6aa6ff}.data.sg-a{color:#f87171}.data.sg-s{color:#c7c7cc}
   .sgpill{display:inline-block;min-width:16px;text-align:center;font-weight:700;font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid var(--line);background:var(--panel2)}
   .sgpill.sg-d{color:#6aa6ff}.sgpill.sg-a{color:#f87171}.sgpill.sg-s{color:#c7c7cc}
+  .panel.acc-add h3::before{background:var(--ok);width:8px;height:8px;border-radius:2px}
+  .panel.acc-rem h3::before{background:var(--bad);width:8px;height:8px;border-radius:2px}
   tr.drill{cursor:pointer}
   tr.drill:hover{background:rgba(154,160,255,.06)}
   tr.drill td:last-child::after{content:" ›";color:var(--dim);font-weight:700}
@@ -558,6 +560,7 @@ function parseSmw(text){
 }
 const SGT={"":"D","0":"D","1":"D","2":"A","4":"S"};
 function typeClass(t){return SGT[t||""]||"D";}
+function scls(t){return t==="A"?"sg-a":t==="S"?"sg-s":"sg-d";}
 function sigCls(m,name){ if(!m||!name)return ""; if(!m._n2t){ m._n2t=new Map(); m.sigName.forEach((nm,h)=>{ if(nm&&!m._n2t.has(nm))m._n2t.set(nm,typeClass(m.sigType.get(h))); }); } const t=m._n2t.get(name); return t==="A"?"sg-a":t==="S"?"sg-s":t==="D"?"sg-d":""; }
 function symAddr(model,h){ if(!model.childPos)return ""; const out=[]; let cur=h,g=0; while(model.parentOf.has(cur)&&g++<40){ out.push(model.childPos.get(cur)||"?"); cur=model.parentOf.get(cur); } return out.length?"S-"+out.reverse().join("."):""; }
 function locCell(model,h){ const a=symAddr(model,h), f=folderPath(model,h); return `<td class="data" title="${esc(f||"")}">${esc(a||f||"—")}</td>`; }
@@ -710,7 +713,7 @@ function sign(n){return n>=0?"+"+n:""+n;}
 function sigTable(rows,kind,cap){
   const shown=rows.slice(0,cap), more=rows.length-shown.length;
   return `<table><thead><tr><th>Signal</th><th class="num">Type</th></tr></thead><tbody>
-    ${shown.map(r=>`<tr><td class="data" title="${esc(r.n)}">${esc(trim(r.n,64))}</td><td class="num"><span class="pill ${r.t==='A'?'warn':r.t==='S'?'':'ok'}">${r.t}</span></td></tr>`).join("")}
+    ${shown.map(r=>{const sc=scls(r.t);return `<tr><td class="data ${sc}" title="${esc(r.n)}">${esc(trim(r.n,64))}</td><td class="num"><span class="sgpill ${sc}">${r.t}</span></td></tr>`;}).join("")}
     ${more>0?`<tr><td class="muted" colspan="2">…and ${more.toLocaleString()} more ${kind}</td></tr>`:""}
     </tbody></table>`;
 }
@@ -734,9 +737,9 @@ function runDiff(){
       <div class="row">
         ${deltaStat(d.sigB,d.sigB-d.sigA,"Signals (B)")}
         ${deltaStat(d.symB,d.symB-d.symA,"Module instances (B)")}
-        ${stat(`<span class="data">${d.added.length.toLocaleString()}</span>`,"Added")}
-        ${stat(`<span class="data">${d.removed.length.toLocaleString()}</span>`,"Removed")}
-        ${stat(`<span class="data">${d.renames.length.toLocaleString()}</span>`,"Renamed*")}
+        ${stat(`<span class="data" style="color:var(--ok)">${d.added.length.toLocaleString()}</span>`,"Added")}
+        ${stat(`<span class="data" style="color:var(--bad)">${d.removed.length.toLocaleString()}</span>`,"Removed")}
+        ${stat(`<span class="data" style="color:var(--warn)">${d.renames.length.toLocaleString()}</span>`,"Renamed*")}
       </div>
       <div class="panel" style="margin-top:14px"><h3>Read</h3>
         <p class="verdict">${verdict}</p>
@@ -747,9 +750,9 @@ function runDiff(){
     if(total===0){ $("#diffBody").innerHTML=html; return; }
 
     html+=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
-      <div class="panel"><h3>Signals added <span class="ct">${d.added.length.toLocaleString()}</span></h3>
+      <div class="panel acc-add"><h3>Signals added <span class="ct">${d.added.length.toLocaleString()}</span></h3>
         ${d.added.length?sigTable(d.added,"added",CAP):'<p class="empty">None.</p>'}</div>
-      <div class="panel"><h3>Signals removed <span class="ct">${d.removed.length.toLocaleString()}</span></h3>
+      <div class="panel acc-rem"><h3>Signals removed <span class="ct">${d.removed.length.toLocaleString()}</span></h3>
         ${d.removed.length?sigTable(d.removed,"removed",CAP):'<p class="empty">None.</p>'}</div>
     </div>`;
 
@@ -757,7 +760,7 @@ function runDiff(){
     if(d.renames.length){
       const shown=d.renames.slice(0,CAP), more=d.renames.length-shown.length;
       html+=`<table><thead><tr><th>Was (A)</th><th>Now (B)</th><th class="num">Type</th></tr></thead><tbody>
-        ${shown.map(r=>`<tr><td class="data muted" title="${esc(r.from)}">${esc(trim(r.from,44))}</td><td class="data" title="${esc(r.to)}">${esc(trim(r.to,44))}</td><td class="num"><span class="pill ${r.t==='A'?'warn':r.t==='S'?'':'ok'}">${r.t}</span></td></tr>`).join("")}
+        ${shown.map(r=>{const sc=scls(r.t);return `<tr><td class="data muted" title="${esc(r.from)}">${esc(trim(r.from,44))}</td><td class="data ${sc}" title="${esc(r.to)}">${esc(trim(r.to,44))}</td><td class="num"><span class="sgpill ${sc}">${r.t}</span></td></tr>`;}).join("")}
         ${more>0?`<tr><td class="muted" colspan="3">…and ${more.toLocaleString()} more</td></tr>`:""}
         </tbody></table>
         <p class="foot-note">A removed and an added signal sharing one identical wiring fingerprint. Strong signal, not proof.</p>`;
@@ -768,7 +771,7 @@ function runDiff(){
     if(d.typeChanges.length){
       const shown=d.typeChanges.slice(0,CAP), more=d.typeChanges.length-shown.length;
       html+=`<table><thead><tr><th>Signal</th><th>Change</th></tr></thead><tbody>
-        ${shown.map(c=>`<tr><td class="data" title="${esc(c.n)}">${esc(trim(c.n,58))}</td><td><span class="pill ${c.from==='A'?'warn':c.from==='S'?'':'ok'}">${c.from}</span><span class="arrow">→</span><span class="pill ${c.to==='A'?'warn':c.to==='S'?'':'ok'}">${c.to}</span> <span class="muted" style="font-size:11px">${TYPE_LONG[c.from]} → ${TYPE_LONG[c.to]}</span></td></tr>`).join("")}
+        ${shown.map(c=>`<tr><td class="data ${scls(c.to)}" title="${esc(c.n)}">${esc(trim(c.n,58))}</td><td><span class="sgpill ${scls(c.from)}">${c.from}</span><span class="arrow">→</span><span class="sgpill ${scls(c.to)}">${c.to}</span> <span class="muted" style="font-size:11px">${TYPE_LONG[c.from]} → ${TYPE_LONG[c.to]}</span></td></tr>`).join("")}
         ${more>0?`<tr><td class="muted" colspan="2">…and ${more.toLocaleString()} more</td></tr>`:""}
         </tbody></table>
         <p class="foot-note">Exact, read from the file — a join that changed digital↔analog↔serial. Often deliberate, sometimes a wiring mistake.</p>`;
