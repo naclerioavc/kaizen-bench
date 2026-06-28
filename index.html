@@ -20,12 +20,13 @@
   ::selection{background:#fff;color:#000}
 
   header{border-bottom:1px solid var(--line);padding:22px 28px 0;position:relative}
-  .brand{display:flex;align-items:flex-end;gap:13px}
-  .mark{align-self:center;width:30px;height:30px;flex:none}
-  .lockup{line-height:.92;text-align:center}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .mark{width:38px;height:38px;flex:none}
+  .lockup{line-height:.9;text-align:center}
+  .vdiv{width:1px;height:30px;background:var(--line)}
   .lockup .logo{display:block;font-weight:800;letter-spacing:-.03em;font-size:24px;line-height:.94}
   .lockup .logo.light{font-weight:300}
-  .tagline{color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding-bottom:3px}
+  .tagline{color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
   .stripe{height:3px;background:var(--stripe);width:46px;margin:14px 0 0;position:relative;overflow:hidden}
   .stripe::after{content:"";position:absolute;inset:0;left:-46px;width:46px;background:var(--bg);
     animation:sweep 3.2s cubic-bezier(.7,0,.3,1) infinite}
@@ -128,6 +129,9 @@
     display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;letter-spacing:.03em;align-items:center}
   footer .cta{color:var(--mut)}
   footer .cta a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--stripe)}
+  .sigdots{display:inline-flex;gap:4px;margin-right:9px;vertical-align:middle}
+  .sigdots i{width:6px;height:6px;border-radius:2px;display:inline-block}
+  .sigdots i:nth-child(1){background:#4f8ef7}.sigdots i:nth-child(2){background:#ef4444}.sigdots i:nth-child(3){background:#cfcfd4}
   .working{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:13px;padding:30px 0}
   .working .stripe{margin:0;width:80px}
   .lockup .eyebrow{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:4px}
@@ -296,9 +300,9 @@
       <span class="logo">kaizen</span>
       <span class="logo light">Logic</span>
     </div>
+    <span class="vdiv"></span>
     <span class="tagline">SIMPL Bench <span class="beta">beta</span></span>
   </div>
-  <div class="stripe"></div>
   <nav id="nav">
     <button class="on hero" data-tab="diff">Version Diff</button>
     <button data-tab="census">Audit</button>
@@ -394,8 +398,8 @@
 </div>
 
 <footer>
-  <span>kaizen Logic · SIMPL Windows Diagnostics</span>
-  <span class="cta"><a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
+  <span><span class="sigdots"><i></i><i></i><i></i></span>kaizen Logic · SIMPL Windows diagnostics</span>
+  <span class="cta">100% in your browser · <a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
 </footer>
 
 <script>
