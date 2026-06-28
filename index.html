@@ -28,6 +28,21 @@
   .stripe::after{content:"";position:absolute;inset:0;left:-46px;width:46px;background:var(--bg);
     animation:sweep 3.2s cubic-bezier(.7,0,.3,1) infinite}
   @keyframes sweep{0%{left:-46px}55%,100%{left:46px}}
+  /* --- motion polish (Apple-ish micro-feel) --- */
+  @keyframes modalIn{from{opacity:0;transform:scale(.975) translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes overlayIn{from{opacity:0}to{opacity:1}}
+  .modal:not(.hide){animation:overlayIn .14s ease}
+  .modal-card{animation:modalIn .2s cubic-bezier(.2,.7,.3,1)}
+  .card{transition:border-color .16s ease}
+  .card-head{transition:background .16s ease}
+  .btn{transition:opacity .15s ease, transform .08s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost:hover{border-color:var(--dim);background:var(--panel2)}
+  .subchip,.csvbtn,.cardsel-w,.tabhelp summary,.actionbar{transition:.16s ease}
+  .drop{transition:border-color .18s ease, background .18s ease, transform .12s ease}
+  .drop:active{transform:scale(.995)}
+  .drill,td.drill,tr.drill,.chev,.pill{transition:background .13s ease, color .13s ease, border-color .13s ease}
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
   nav{display:flex;gap:2px;margin-top:16px;flex-wrap:wrap}
   nav button{background:none;border:0;color:var(--mut);font:inherit;font-size:13px;letter-spacing:.02em;
     padding:11px 16px;cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
