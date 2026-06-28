@@ -272,10 +272,8 @@
     .report-cover .rc-l{color:#666;width:42%} .report-cover .rc-v{color:#000;font-weight:600}
     .report-cover .rc-counts{margin-top:24px;font-size:13px;color:#333;font-weight:600}
     .report-cover .rc-foot{margin-top:34px;font-size:10.5px;color:#777;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.5}
-    nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro { display:none !important; }
+    nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro, header, #censusName, .actionbar, .modal-nav { display:none !important; }
     html,body{ background:#fff !important; color:#000 !important; }
-    header{ border-color:#000; padding:0 0 8px; }
-    .lockup .logo{ color:#000 !important; }
     main{ padding:0; max-width:none; }
     .section-label{ color:#000; border-color:#000; }
     .card,.panel{ background:#fff !important; border-color:#bbb !important; break-inside:avoid; page-break-inside:avoid; }
@@ -283,7 +281,15 @@
     .scroll{ max-height:none !important; overflow:visible !important; border-color:#ddd; }
     .card-title,.kv b,.data,.verdict,.stat,.section-label{ color:#000 !important; }
     .card-badge,.muted,.kv span,th,.ct,.foot-note{ color:#444 !important; }
-    th,td{ border-color:#ddd !important; }
+    th,td{ border-color:#ddd !important; white-space:normal !important; padding:4px 7px; }
+    td{ overflow-wrap:anywhere; word-break:break-word; }
+    th{ overflow-wrap:break-word; }
+    table{ width:100% !important; font-size:10px; table-layout:auto; }
+    thead th{ position:static !important; background:#f2f2f2 !important; color:#000 !important; box-shadow:none !important; border-bottom:1px solid #999 !important; cursor:default; }
+    thead th::after{ content:"" !important; }
+    .ct,.card-badge{ background:#eee !important; color:#444 !important; box-shadow:none !important; }
+    .sgpill,.rolechip{ border-color:#bbb !important; }
+    .card,.panel{ box-shadow:none !important; }
     .pill{ border:1px solid #999; color:#000 !important; background:#fff !important; }
     .bar{ display:none; }
     .stack .seg.s1{background:#000}.stack .seg.s2{background:#888}.stack .seg.s3{background:#ccc}
@@ -872,7 +878,7 @@ function structAnalysis(model){
 }
 wireDrop($("#dropC"),$("#fileC"),f=>{
   $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
-  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,auditDone:true,devDone:true}); updateDiffLoaded(); setTimeout(runAudit,20); })
+  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,auditDone:true,devDone:true,_dvByH:null,_symByH:null,_symToDev:null,_sigAds:null}); updateDiffLoaded(); setTimeout(runAudit,20); })
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 $("#censusBody").addEventListener("click",e=>{
@@ -1246,7 +1252,7 @@ function runAudit(){
       if(sa.oscCandidates) rb+=`<div class="lbl">Oscillation risk &mdash; loops carrying a digital signal <span class="ct">${sa.oscCandidates.toLocaleString()}</span></div>`+tbl(cols,digRows);
       if(sa.analogLoops) rb+=`<div class="lbl" style="margin-top:16px;color:var(--mut)">Self-limiting &mdash; analog / serial only <span class="muted" style="text-transform:none;letter-spacing:0">&middot; informational, not action items</span> <span class="ct">${sa.analogLoops.toLocaleString()}</span></div>`+tbl(cols,anaRows);
     }
-    html+=card("Feedback loops",`${sa.oscCandidates.toLocaleString()}`,rb,false);
+    html+=card("Feedback loops",`${sa.loopsNoBreaker.toLocaleString()}`,rb,false);
   }
   if(m && actionN){
     { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
