@@ -21,12 +21,13 @@
 
   header{border-bottom:1px solid var(--line);padding:22px 28px 0;position:relative}
   .brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
-  .mark{width:38px;height:38px;flex:none}
+  .mark{width:28px;height:28px;flex:none}
   .lockup{line-height:.9;text-align:center}
   .vdiv{width:1px;height:30px;background:var(--line)}
+  .product{display:inline-flex;align-items:center;gap:9px}
   .lockup .logo{display:block;font-weight:800;letter-spacing:-.03em;font-size:24px;line-height:.94}
   .lockup .logo.light{font-weight:300}
-  .tagline{color:var(--mut);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+  .tagline{color:var(--mut);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
   .stripe{height:3px;background:var(--stripe);width:46px;margin:14px 0 0;position:relative;overflow:hidden}
   .stripe::after{content:"";position:absolute;inset:0;left:-46px;width:46px;background:var(--bg);
     animation:sweep 3.2s cubic-bezier(.7,0,.3,1) infinite}
@@ -189,6 +190,14 @@
   .panel.acc-add h3::before{background:var(--ok);width:8px;height:8px;border-radius:2px}
   .panel.acc-rem h3::before{background:var(--bad);width:8px;height:8px;border-radius:2px}
   .rolechip{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:5px;margin-right:7px;color:#bcc0ff;background:rgba(154,160,255,.14);border:1px solid rgba(154,160,255,.32)}
+  thead th{cursor:pointer;user-select:none}
+  thead th:hover{color:var(--ink)}
+  thead th[data-dir=asc]::after{content:" \2191";font-size:10px;color:var(--mut)}
+  thead th[data-dir=desc]::after{content:" \2193";font-size:10px;color:var(--mut)}
+  .modal-nav{display:inline-flex;gap:5px;margin-right:10px}
+  .modal-nav button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);width:27px;height:27px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;transition:background .13s ease,border-color .13s ease}
+  .modal-nav button:hover:not(:disabled){border-color:var(--dim);background:var(--panel)}
+  .modal-nav button:disabled{opacity:.3;cursor:default}
   tr.drill{cursor:pointer}
   tr.drill:hover{background:rgba(154,160,255,.06)}
   tr.drill td:last-child::after{content:" ›";color:var(--dim);font-weight:700}
@@ -289,19 +298,21 @@
 <body>
 <header>
   <div class="brand">
-    <svg class="mark" viewBox="0 0 30 30" aria-label="SIMPL Bench">
-      <rect x="0" y="6"    width="17" height="3" rx="1.5" fill="#4f8ef7"/>
-      <circle cx="21" cy="7.5" r="3.4" fill="#4f8ef7"/>
-      <circle cx="21" cy="7.5" r="1.3" fill="#0a0a0b"/>
-      <rect x="0" y="13.5" width="13" height="3" rx="1.5" fill="#ef4444"/>
-      <rect x="0" y="21"   width="15" height="3" rx="1.5" fill="#e9e9ee"/>
-    </svg>
     <div class="lockup">
       <span class="logo">kaizen</span>
       <span class="logo light">Logic</span>
     </div>
     <span class="vdiv"></span>
-    <span class="tagline">SIMPL Bench <span class="beta">beta</span></span>
+    <span class="product">
+      <svg class="mark" viewBox="0 0 30 30" aria-label="SIMPL Bench">
+        <rect x="0" y="6"    width="17" height="3" rx="1.5" fill="#4f8ef7"/>
+        <circle cx="21" cy="7.5" r="3.4" fill="#4f8ef7"/>
+        <circle cx="21" cy="7.5" r="1.3" fill="#0a0a0b"/>
+        <rect x="0" y="13.5" width="13" height="3" rx="1.5" fill="#ef4444"/>
+        <rect x="0" y="21"   width="15" height="3" rx="1.5" fill="#e9e9ee"/>
+      </svg>
+      <span class="tagline">SIMPL Bench <span class="beta">beta</span></span>
+    </span>
   </div>
   <nav id="nav">
     <button class="on hero" data-tab="diff">Version Diff</button>
@@ -392,7 +403,7 @@
 
 <div id="modal" class="modal hide">
   <div class="modal-card">
-    <div class="modal-head"><span id="modalTitle"></span><button id="modalClose" aria-label="Close">&#10005;</button></div>
+    <div class="modal-head"><span class="modal-nav"><button id="modalBack" aria-label="Back" title="Back">&#8592;</button><button id="modalFwd" aria-label="Forward" title="Forward">&#8594;</button></span><span id="modalTitle"></span><button id="modalClose" aria-label="Close">&#10005;</button></div>
     <div id="modalBody" class="modal-body"></div>
   </div>
 </div>
@@ -886,15 +897,18 @@ function sortTable(th){
   const dir=th.getAttribute("data-dir")==="asc"?"desc":"asc";
   [...th.parentNode.children].forEach(x=>x.removeAttribute("data-dir")); th.setAttribute("data-dir",dir);
   const num=th.classList.contains("num");
-  const rows=[...tb.rows].filter(r=>r.cells.length>idx);
+  const isTail=r=>r.cells.length<=idx||r.querySelector("[colspan]");
+  const rows=[...tb.rows].filter(r=>!isTail(r)), tail=[...tb.rows].filter(isTail);
   rows.sort((a,b)=>{ let x=a.cells[idx].textContent.trim(), y=b.cells[idx].textContent.trim();
     if(num){ x=parseFloat(x.replace(/[^\d.-]/g,""))||0; y=parseFloat(y.replace(/[^\d.-]/g,""))||0; return dir==="asc"?x-y:y-x; }
     return dir==="asc"?x.localeCompare(y,undefined,{numeric:true}):y.localeCompare(x,undefined,{numeric:true}); });
-  rows.forEach(r=>tb.appendChild(r));
+  rows.forEach(r=>tb.appendChild(r)); tail.forEach(r=>tb.appendChild(r));
 }
 document.addEventListener("click",e=>{ const th=e.target.closest("thead th"); if(th && th.closest("table")) sortTable(th); });
-function openModal(title,body){ $("#modalTitle").innerHTML=title; $("#modalBody").innerHTML=body; $("#modal").classList.remove("hide"); }
-function closeModal(){ $("#modal").classList.add("hide"); }
+let mHist=[],mPos=-1;
+function openModal(title,body){ $("#modalTitle").innerHTML=title; $("#modalBody").innerHTML=body; $("#modal").classList.remove("hide"); updateModalNav(); }
+function closeModal(){ $("#modal").classList.add("hide"); mHist=[]; mPos=-1; }
+function updateModalNav(){ const bk=document.getElementById("modalBack"),fw=document.getElementById("modalFwd"),nv=document.querySelector(".modal-nav"); if(!bk)return; const show=mHist.length>1; if(nv)nv.style.display=show?"":"none"; bk.disabled=mPos<=0; fw.disabled=mPos>=mHist.length-1; }
 $("#censusBody").addEventListener("input",e=>{
   if(e.target.classList&&e.target.classList.contains("sigfilter")){ const tb=document.getElementById("sigBody"); if(tb)tb.innerHTML=signalRows(e.target.value); return; }
   if(!e.target.classList||!e.target.classList.contains("filter"))return;
@@ -904,6 +918,8 @@ $("#censusBody").addEventListener("input",e=>{
 $("#modalBody").addEventListener("click",e=>{ const d=e.target.closest("[data-drill]"); if(d){ e.stopPropagation(); drill(d.dataset.drill,d.dataset.val); } });
 $("#modalBody").addEventListener("input",e=>{ if(!e.target.classList||!e.target.classList.contains("mfilter"))return; const q=e.target.value.toLowerCase(); const sc=e.target.nextElementSibling; const tb=sc&&sc.querySelector("tbody"); if(!tb)return; [...tb.rows].forEach(r=>{ r.style.display=r.textContent.toLowerCase().indexOf(q)>=0?"":"none"; }); });
 $("#modalClose").addEventListener("click",closeModal);
+$("#modalBack").addEventListener("click",()=>{ if(mPos>0){mPos--;const e=mHist[mPos];drill(e.type,e.val,true);} });
+$("#modalFwd").addEventListener("click",()=>{ if(mPos<mHist.length-1){mPos++;const e=mHist[mPos];drill(e.type,e.val,true);} });
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
 let sigNameSet=null;
@@ -930,7 +946,7 @@ function traceRows(m, startName, dir){
   walk(startName, 0);
   return out;
 }
-function drill(type,val){
+function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push({type,val}); mPos=mHist.length-1; }
   const m=state.prog&&state.prog.model;
   if(type==="module" && m){
     const insts=m.syms.filter(x=>x.Nm===val);
@@ -1100,7 +1116,7 @@ function runAudit(){
     const byId=new Map(); for(const nn in ids){ const id=ids[nn],a=ad[nn]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
     byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
   const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
-  const eiscCount=[...netRoles.values()].filter(r=>r.role).length;
+  const eiscIds=new Set(); netRoles.forEach((r,ad)=>{ if(r.role)eiscIds.add(ad); }); etMap.forEach((e,ad)=>{ if(e&&e.name&&/intersystem|to\/from|^eisc/i.test(e.name))eiscIds.add(ad); }); const eiscCount=eiscIds.size;
   let sigAds=new Set();
   if(m){ const symByH=new Map(m.syms.map(x=>[String(x.H),x])); state.prog._symByH=symByH;
     const byH=dvIndex(pr.smw); state.prog._dvByH=byH;
@@ -1219,10 +1235,18 @@ function runAudit(){
   }
   if(sa){
     const ltype=r=>{ const p=[]; if(r.D)p.push("digital"); if(r.A)p.push("analog"); if(r.S)p.push("serial"); return p.join(" + ")||"?"; };
-    const lpill=r=>r.D?'<span class="pill warn">'+esc(ltype(r))+'</span>':r.A?'<span class="pill">'+esc(ltype(r))+'</span>':'<span class="pill ok">'+esc(ltype(r))+'</span>';
-    let rb=`<div class="banner" style="border-left-color:var(--warn)">Cycles in the wiring with no wave-breaker. <b>Digital</b> loops are the oscillation risk (rapid toggling / wave storms). <b>Analog / serial</b> loops usually <b>self-limit</b> &mdash; a value only propagates when it changes, so a stable value stops the loop &mdash; but they can still cause analog-specific symptoms: a <b>jumpy slider</b>, a slider that <b>won&rsquo;t move</b>, or two sources fighting over a value. Topology is exact; whether one actually misbehaves is confirmed on the live box.</div>`;
-    rb+= sa.rings.length?tbl([{t:"Size",num:1},{t:"Type"},{t:"Signals in loop"},{t:"Through"}], sa.rings.map((r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td>${lpill(r)}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),54))}</td><td class="data muted">${esc(trim(r.mods.join(", "),26))}</td></tr>`).join(""))+`<p class="foot-note">${sa.oscCandidates.toLocaleString()} carry a digital signal (oscillation candidates); ${sa.analogLoops.toLocaleString()} are analog/serial-only (self-limiting, but watch for slider weirdness).</p>`:'<p class="empty">No unbroken feedback loops.</p>';
-    html+=card("Feedback loops",`${sa.loopsNoBreaker.toLocaleString()}`,rb,false);
+    const lpill=r=>r.hasDigital?'<span class="pill warn">'+esc(ltype(r))+'</span>':'<span class="pill">'+esc(ltype(r))+'</span>';
+    const cols=[{t:"Size",num:1},{t:"Type"},{t:"Signals in loop"},{t:"Through"}];
+    const ringRow=(r,i)=>`<tr class="drill" data-drill="ring" data-val="${i}"><td class="num data">${r.len}</td><td>${lpill(r)}</td><td class="data" title="${esc(r.sigs.join(' → '))}">${esc(trim(r.sigs.slice(0,4).join(" → "),54))}</td><td class="data muted">${esc(trim(r.mods.join(", "),26))}</td></tr>`;
+    const digRows=sa.rings.map((r,i)=>r.hasDigital?ringRow(r,i):"").join("");
+    const anaRows=sa.rings.map((r,i)=>!r.hasDigital?ringRow(r,i):"").join("");
+    let rb;
+    if(!sa.loopsNoBreaker){ rb='<p class="empty">No unbroken feedback loops.</p>'; }
+    else { rb=`<div class="banner" style="border-left-color:${sa.oscCandidates?'var(--warn)':'var(--line)'}">Cycles in the wiring with no wave-breaker. Only <b>digital</b> loops are an oscillation risk (rapid toggling / wave storms). <b>Analog / serial</b> loops <b>self-limit</b> &mdash; a value only propagates when it changes, so a stable value stops the loop &mdash; so they are <b>not action items</b>. They are listed below for completeness because they can still cause analog-specific symptoms (a jumpy slider, a slider that won&rsquo;t move, two sources fighting a value). Topology is exact; misbehavior is confirmed on the live box.</div>`;
+      if(sa.oscCandidates) rb+=`<div class="lbl">Oscillation risk &mdash; loops carrying a digital signal <span class="ct">${sa.oscCandidates.toLocaleString()}</span></div>`+tbl(cols,digRows);
+      if(sa.analogLoops) rb+=`<div class="lbl" style="margin-top:16px;color:var(--mut)">Self-limiting &mdash; analog / serial only <span class="muted" style="text-transform:none;letter-spacing:0">&middot; informational, not action items</span> <span class="ct">${sa.analogLoops.toLocaleString()}</span></div>`+tbl(cols,anaRows);
+    }
+    html+=card("Feedback loops",`${sa.oscCandidates.toLocaleString()}`,rb,false);
   }
   if(m && actionN){
     { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
@@ -1331,7 +1355,8 @@ function dvNetRoles(smw){ const byH=dvIndex(smw); const out=new Map();
   byH.forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(!/^[0-9A-F]{1,2}$/.test(ad))return; const nm=(d.Nm||"").trim();
     if(!nm||/^p4ethernet$|^not_used$|^ethernet devices$|^ethernetcard$|^cresnet/i.test(nm))return;
     let p=byH.get(String(d.PrH)),g=0,eth=false; while(p&&g++<8){ if(/ethernet/i.test(p.Nm||"")){eth=true;break;} p=byH.get(String(p.PrH)); }
-    if(!eth)return; let role=""; if(/intersystem|to\/from|^eisc/i.test(nm))role="EISC / intersystem link";
+    const isEisc=/intersystem|to\/from|^eisc/i.test(nm);
+    if(!eth&&!isEisc)return; let role=isEisc?"EISC / intersystem link":"";
     const name=nm.split(":")[0].trim(), detail=nm.includes(":")?nm.split(":").slice(1).join(":").trim():"";
     if(!out.has(ad)||role)out.set(ad,{name,detail,role}); });
   return out; }
