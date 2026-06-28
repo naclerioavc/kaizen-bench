@@ -1267,6 +1267,9 @@ function runAudit(){
       html+=`<div class="section-label">From the error log</div>`+card("Issues seen in the log",total,lb,true,"attn");
     }
   }
+  if(m && !state.logXref && state.logMatch && state.logMatch.status==="mismatch"){ const lm=state.logMatch;
+    html+=`<div class="section-label">From the error log</div>`+card("A log is loaded \u2014 but it looks like a different system",null,`<p class="card-intro">The error log you loaded appears to be from a different processor or project than this program${(lm.progModel||lm.logModel)?` (program <b>${esc(lm.progModel||"?")}</b> vs log <b>${esc(lm.logModel||"?")}</b>)`:""}. Cross-references are suppressed so you don&rsquo;t get false matches \u2014 load the log from this same system to tie issues back to it.</p>`,true,"attn");
+  }
   if(!html){
     if(pr.name && (pr.smw||pr.smft||pr.dip)){
       html=`<div class="hero-empty"><div class="he-icon">⚠</div><div class="he-title">Loaded, but no readable SIMPL data</div><div class="he-sub"><b>${esc(pr.name)}</b> opened but didn&rsquo;t contain signals or devices we could parse. If it&rsquo;s a compiled <code>.zip</code>, make sure it includes the uncompiled <code>.smw</code> (and ideally <code>.smft</code> / <code>.dip</code>) &mdash; a compiled-only archive (just <code>.bin</code>/<code>.lpz</code>) has no readable source. Files are read-only and nothing leaves your machine.</div></div>`;
@@ -1650,13 +1653,36 @@ $("#logBody").addEventListener("click",e=>{
   if(xj){ e.stopPropagation(); const id=xj.dataset.xjump; const tb=document.querySelector('#nav button[data-tab="census"]'); if(tb)tb.click();
     setTimeout(()=>{ if(id==="__audit__"){ /* tab already switched */ } else if(id==="__loops__"){ const c=[...document.querySelectorAll("#censusBody .card")].find(k=>/Feedback loops/.test(k.querySelector(".card-title").textContent)); if(c){c.classList.remove("collapsed");c.scrollIntoView({behavior:"smooth",block:"start"});} } else { drill("devsignals","E:"+id); } },60); return; }
   const h=e.target.closest("h3"); if(h&&h.parentElement.classList.contains("panel"))h.parentElement.classList.toggle("lc"); });
+function normModel(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
+function modelsDiffer(a,b){ a=normModel(a); b=normModel(b); if(!a||!b)return false; return !(a===b||a.indexOf(b)>=0||b.indexOf(a)>=0); }
+function systemMatch(prog,a,text){
+  if(!prog||!prog.smw) return {status:'none'};
+  const progModel=(/Model="([^"]+)"/.exec(prog.smft||"")||[])[1]||"";
+  let progName=""; try{ progName=(parseHeader(prog.smw)||{}).program||""; }catch(e){}
+  const dip=prog.dip?parseDip(prog.dip):new Map();
+  const progIds=new Set([...dip.keys()].map(x=>String(x).toUpperCase()));
+  try{ dvIndex(prog.smw).forEach(d=>{ const ad=(d.Ad||"").toUpperCase(); if(/^[0-9A-F]{1,2}$/.test(ad))progIds.add(ad); }); }catch(e){}
+  const si=text?systemInfo(text):null;
+  const logModel=(a&&a.bootModel)||(si&&si.identity&&si.identity.model)||"";
+  const logHost=(si&&si.identity&&si.identity.hostname)||"";
+  const logIds=new Set();
+  (a&&a.dropTop||[]).forEach(d=>{ const id=String(d[0]).replace(/^(IP-ID|Dev)\s+/i,"").toUpperCase(); if(/^[0-9A-F]{1,2}$/.test(id))logIds.add(id); });
+  try{ parseDiscovered(text||"").forEach(d=>{ if(d.ipid&&/^[0-9A-F]{1,2}$/i.test(d.ipid))logIds.add(String(d.ipid).toUpperCase()); }); }catch(e){}
+  const overlap=[...logIds].filter(x=>progIds.has(x)).length;
+  const base={progModel,logModel,progName,logHost,progN:progIds.size,logN:logIds.size,overlap};
+  if(progModel&&logModel&&modelsDiffer(progModel,logModel)) return {...base,status:'mismatch',reason:'model'};
+  if(progIds.size>=4&&logIds.size>=2&&overlap===0) return {...base,status:'mismatch',reason:'ipid'};
+  if(overlap>0||(progModel&&logModel&&!modelsDiffer(progModel,logModel))) return {...base,status:'match',reason:overlap>0?'ipid':'model'};
+  return {...base,status:'unknown'};
+}
 function runLog(name,text){
   const nm=$("#logName"); nm.classList.remove("hide"); nm.querySelector(".mono").textContent=name;
   const a=analyzeLog(text);
   // resolvers from a loaded program: IP-ID/Device-Id -> device name, and S-number -> module
   let devName=null, enrichMsg=t=>t;
+  const sysMatch=systemMatch(state.prog,a,text); state.logMatch=sysMatch;
   try{ const pr=state.prog;
-    if(pr&&pr.smw){ if(!pr.model){try{pr.model=parseSmw(pr.smw);}catch(e){}}
+    if(pr&&pr.smw && sysMatch.status!=="mismatch"){ if(!pr.model){try{pr.model=parseSmw(pr.smw);}catch(e){}}
       const smft=pr.smft?parseSmft(pr.smft):[], roles=dvNetRoles(pr.smw), et=parseEt(pr.smw), dip=pr.dip?parseDip(pr.dip):new Map();
       const byId=new Map(); smft.forEach(d=>{ if(d.id&&!byId.has(d.id))byId.set(d.id,d.name||d.model); });
       devName=id=>{ id=String(id).toUpperCase(); const nm=byId.get(id)||(roles.get(id)||{}).name||(et.get(id)||{}).name||""; const ip=dip.get(id)||(et.get(id)||{}).ip||""; return nm||ip?`${nm||"(unknown)"}${ip?" "+ip:""}`:""; };
@@ -1676,6 +1702,11 @@ function runLog(name,text){
     + (worst?` Worst recurring issue: <span class="data">${esc(trim(worst.example||worst.msg,54))}</span> — ${worst.n}× (${worst.rate.txt}) from ${esc(trim(worst.who,22))}.`:" No recurring issues stood out.");
 
   let html="";
+  if(state.prog&&state.prog.smw&&sysMatch.status==="mismatch"){
+    html+=`<div class="banner" style="border-left-color:var(--bad)"><b>\u26A0 This log and the loaded program look like different systems.</b> Program ${sysMatch.progName?`<b>${esc(sysMatch.progName)}</b> `:""}${sysMatch.progModel?`(targets ${esc(sysMatch.progModel)})`:""} vs log ${sysMatch.logModel?`from <b>${esc(sysMatch.logModel)}</b>`:"(model unknown)"}${sysMatch.logHost?` &middot; host ${esc(sysMatch.logHost)}`:""}${sysMatch.reason==="ipid"?" &mdash; they share no IP-IDs":""}. Cross-referencing to the program is <b>turned off</b> so you don't get false matches; the log analysis below stands on its own. Load the log and program from the same processor to correlate.</div>`;
+  } else if(state.prog&&state.prog.smw&&sysMatch.status==="unknown"){
+    html+=`<div class="banner" style="border-left-color:var(--warn)">Couldn&rsquo;t confirm this log is from the same processor as the loaded program${(sysMatch.progModel||sysMatch.logModel)?` (program ${esc(sysMatch.progModel||"?")} vs log ${esc(sysMatch.logModel||"?")})`:""} &mdash; cross-references are best-effort. A shared IP-ID would confirm it.</div>`;
+  }
   const sys=systemInfo(text); if(sys) html+=renderSystem(sys);
   const disc=parseDiscovered(text);
   if(disc.length){ const rows=disc.map(d=>`<tr><td class="data">${esc(d.ip)}</td><td class="data">${esc(d.ipid||'—')}</td><td class="data">${esc(d.host||"—")}</td><td class="data muted">${esc(d.fw||"—")}</td></tr>`).join("");
@@ -1784,7 +1815,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch}; }
 </script>
 </body>
 </html>

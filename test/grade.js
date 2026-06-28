@@ -109,6 +109,12 @@ ck("D/A/S split",[D,A,S],[1,2,1]);
 ck("folder path uses Cmn1 label not SUBSYSTEM",[w.folderPath(m,21), /SUBSYSTEM/.test(w.folderPath(m,21))],["AudioRoom",false]);
 const si=w.systemInfo(log);
 ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway],["CP4","10.0.0.1"]);
+{ const prog={smw,smft,dip};
+  has("systemMatch: same processor -> not flagged mismatch", w.systemMatch(prog,w.analyzeLog(log),log).status!=="mismatch");
+  const mWrong=w.systemMatch(prog,{bootModel:"RMC4",dropTop:[["IP-ID 1F",5]]},"");
+  ck("systemMatch: wrong processor model -> mismatch",[mWrong.status,mWrong.reason],["mismatch","model"]);
+  const mProj=w.systemMatch(prog,{bootModel:"CP4",dropTop:[["IP-ID 62",9],["IP-ID 7A",3]]},"");
+  ck("systemMatch: same model, no shared IP-IDs -> mismatch",[mProj.status,mProj.reason],["mismatch","ipid"]); }
 
 // ===== render checks: the tool actually displays it =====
 w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.smft=${JSON.stringify(smft)}; state.prog.dip=${JSON.stringify(dip)}; state.prog.ir=['SomeTV']; state.prog.model=null; runAudit();`);
