@@ -168,3 +168,20 @@ storms). So `structAnalysis` classifies each unbroken loop by signal type: `oscC
 loops with a digital signal; `analogLoops` = analog/serial-only (self-limiting). Analog loops aren't
 harmless though — they can cause analog-specific symptoms (jumpy slider, a slider that won't move,
 two sources fighting a value), so we surface them, just not as oscillation candidates.
+
+## Log ↔ program system-match guard (don't cross-reference unrelated files)
+The log analyzer correlates the loaded program (names dropping devices, ties wave-solve
+timeouts to the program's feedback loops, surfaces "issues from the log" on the Audit). If the
+log and program are from **different processors / projects / file sets**, those correlations are
+confidently wrong — a land mine. `systemMatch(prog,a,text)` gates it:
+- **Evidence:** processor model (program `.smft` root `Model="…"` vs log boot model /
+  Info-Tool Discovered `ModelName`), and IP-ID overlap (program `.dip` + device-tree `Ad` vs the
+  log's dropped/discovered IP-IDs).
+- **mismatch** if models differ (normalized; one containing the other counts as same family), OR
+  both sides have IP-IDs (prog ≥4, log ≥2) and they share **none**. On mismatch: cross-referencing
+  is turned **off** (`logXref=null`, no device-name/S-number enrichment), a red banner names both
+  sides, and the Audit shows a "different system" note instead of false correlations.
+- **match** if models agree or any IP-ID overlaps. **unknown** otherwise → correlations shown but
+  caveated (best-effort). Conservative thresholds avoid false alarms on small/partial logs.
+- Graded: same-system not flagged; wrong model → mismatch(model); same model + zero IP-ID overlap
+  → mismatch(ipid).
