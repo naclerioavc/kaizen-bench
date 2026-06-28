@@ -168,7 +168,7 @@
   .trrow{padding:2.5px 0;font-size:12.5px;white-space:nowrap;border-left:1px solid var(--line);margin-left:2px}
   .trrow .tw{display:inline-block;width:24px;color:var(--dim);font-size:11px;text-align:center}
   .trrow.sig{color:var(--ink);font-weight:500}
-  .trrow.sig .drill{color:var(--ink)} .trrow.sig .drill:hover{color:var(--trace)}
+  .trrow.sig .drill:hover{color:var(--trace)}
   .trrow.mod{color:var(--mut);font-size:11.5px}
   .trrow.mod .tw{color:var(--dim);font-style:italic}
   .trmod{color:var(--mut)} .trrow.mod .trmod{color:#c9c9cf;font-weight:600}
@@ -179,6 +179,9 @@
   td.drill:hover,.data.drill:hover{color:var(--trace);border-bottom-color:var(--trace);background:rgba(154,160,255,.08)}
   td.drill,tr.drill td:first-child{border-bottom:1px solid var(--line)}
   .drill:hover{color:#fff;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+  .data.sg-d{color:#6aa6ff}.data.sg-a{color:#f87171}.data.sg-s{color:#c7c7cc}
+  .sgpill{display:inline-block;min-width:16px;text-align:center;font-weight:700;font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid var(--line);background:var(--panel2)}
+  .sgpill.sg-d{color:#6aa6ff}.sgpill.sg-a{color:#f87171}.sgpill.sg-s{color:#c7c7cc}
   tr.drill{cursor:pointer}
   tr.drill:hover{background:rgba(154,160,255,.06)}
   tr.drill td:last-child::after{content:" ›";color:var(--dim);font-weight:700}
@@ -555,6 +558,7 @@ function parseSmw(text){
 }
 const SGT={"":"D","0":"D","1":"D","2":"A","4":"S"};
 function typeClass(t){return SGT[t||""]||"D";}
+function sigCls(m,name){ if(!m||!name)return ""; if(!m._n2t){ m._n2t=new Map(); m.sigName.forEach((nm,h)=>{ if(nm&&!m._n2t.has(nm))m._n2t.set(nm,typeClass(m.sigType.get(h))); }); } const t=m._n2t.get(name); return t==="A"?"sg-a":t==="S"?"sg-s":t==="D"?"sg-d":""; }
 function symAddr(model,h){ if(!model.childPos)return ""; const out=[]; let cur=h,g=0; while(model.parentOf.has(cur)&&g++<40){ out.push(model.childPos.get(cur)||"?"); cur=model.parentOf.get(cur); } return out.length?"S-"+out.reverse().join("."):""; }
 function locCell(model,h){ const a=symAddr(model,h), f=folderPath(model,h); return `<td class="data" title="${esc(f||"")}">${esc(a||f||"—")}</td>`; }
 function folderPath(model,h){ const out=[]; let p=model.parentOf?model.parentOf.get(h):null, g=0; while(p!=null&&g++<40){ const nm=model.H2nm.get(p); if(nm)out.push(nm); p=model.parentOf.get(p); } return out.reverse().join(" › "); }
@@ -927,7 +931,7 @@ function drill(type,val){
     openModal(`${esc(val)} &mdash; ${insts.length} instance${insts.length===1?'':'s'}`, `<p class="card-intro">Each instance&rsquo;s program address (the <b>S-number</b> you navigate to in SIMPL Windows; hover for the folder). Click an instance to see its inputs and outputs.</p>`+tbl([{t:"Program address (S-#)"},{t:"Connected to"},{t:"I/O",num:1}],rows));
   } else if(type==="ioports" && m){
     const sm=m.syms.find(s=>String(s.H)===String(val)); if(!sm){ openModal("Ports","<p class=\"empty\">No port detail available.</p>"); return; }
-    const li=(p,n)=>`<tr><td class="num data">${p}</td><td class="data drill" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
+    const li=(p,n)=>`<tr><td class="num data">${p}</td><td class="data drill ${sigCls(m,n)}" data-drill="signal" data-val="${esc(n)}" title="${esc(n)}">${esc(n)}</td></tr>`;
     const outs=sm.outs.map((h,i)=>({p:i+1,n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const ins=sm.ins.map((h,i)=>({p:i+1,n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const rows=(outs.length?outs:ins).map(o=>li(o.p,o.n)).join("")||`<tr><td colspan="2" class="muted">&mdash; no individually-wired ports &mdash;</td></tr>`;
@@ -942,7 +946,7 @@ function drill(type,val){
       sy.ins.forEach((h,i)=>{const n=m.sigName.get(h); if(n&&n[0]!=="/"&&!inM.has(n))inM.set(n,i+1);});
       sy.outs.forEach((h,i)=>{const n=m.sigName.get(h); if(n&&n[0]!=="/"&&!outM.has(n))outM.set(n,i+1);}); });
     const inA=[...inM.entries()].sort((a,b)=>a[1]-b[1]), outA=[...outM.entries()].sort((a,b)=>a[1]-b[1]);
-    const li=e=>`<tr><td class="num data muted">${e[1]}</td><td class="data drill" data-drill="signal" data-val="${esc(e[0])}" title="${esc(e[0])}">${esc(e[0])}</td></tr>`;
+    const li=e=>`<tr><td class="num data muted">${e[1]}</td><td class="data drill ${sigCls(m,e[0])}" data-drill="signal" data-val="${esc(e[0])}" title="${esc(e[0])}">${esc(e[0])}</td></tr>`;
     const cap=2500, sect=(t,arr)=>`<div class="lbl" style="margin-top:12px">${t} (${arr.length.toLocaleString()})</div>`+(arr.length?`<input class="mfilter" placeholder="filter\u2026" aria-label="filter"><div class="scroll">`+tbl([{t:"Join / pin",num:1},{t:"Signal"}],arr.slice(0,cap).map(li).join(""))+`</div>`+(arr.length>cap?`<p class="foot-note">Showing first ${cap.toLocaleString()} &mdash; filter to narrow.</p>`:""):`<p class="muted">&mdash; none &mdash;</p>`);
     openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal wired to and from this device, by its join/pin number &mdash; feedback the program sends it, and presses/status it sends back. Click any signal to trace it.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
   } else if(type==="syminst" && m){
@@ -951,14 +955,14 @@ function drill(type,val){
     if(!sigNameSet){ sigNameSet=new Set(); m.sigName.forEach(v=>{ if(v)sigNameSet.add(v); }); }
     const inRows=x.ins.map((h,i)=>({pin:"I"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const outRows=x.outs.map((h,i)=>({pin:"O"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
-    const li=o=>`<tr><td class="num data muted">${o.pin}</td><td class="data drill" data-drill="signal" data-val="${esc(o.n)}" title="${esc(o.n)}">${esc(o.n)}</td></tr>`;
+    const li=o=>`<tr><td class="num data muted">${o.pin}</td><td class="data drill ${sigCls(m,o.n)}" data-drill="signal" data-val="${esc(o.n)}" title="${esc(o.n)}">${esc(o.n)}</td></tr>`;
     const resIn=x.ins.length-inRows.length, resOut=x.outs.length-outRows.length;
     const erIn=`<tr><td class="muted" colspan="2">${resIn>0?resIn+" reserved / internal input"+(resIn===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
     const erOut=`<tr><td class="muted" colspan="2">${resOut>0?resOut+" reserved / internal output"+(resOut===1?"":"s")+" (no named signal)":"&mdash; none &mdash;"}</td></tr>`;
     const prm=(x.params||[]).filter(p=>p.v!=="");
     const pkind=v=>{ if(sigNameSet.has(v))return "signal"; if(/^[+-]?[\d.]+\s*[dhsf%]?$|^0x[0-9a-fA-F]+$/.test(v))return "value"; return "name"; };
     const kindLbl={signal:"signal (wired)",value:"value",name:"pin / function name"};
-    const pcell=v=>sigNameSet.has(v)?`<td class="data drill" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
+    const pcell=v=>sigNameSet.has(v)?`<td class="data drill ${sigCls(m,v)}" data-drill="signal" data-val="${esc(v)}" title="${esc(v)}">${esc(v)}</td>`:`<td class="data" title="${esc(v)}">${esc(v)}</td>`;
     const pTable=prm.length?`<div class="lbl" style="margin-top:12px">Parameters (${prm.length})</div><p class="foot-note">A parameter can be a config <b>value</b>, a <b>signal</b> wired through a parameter pin, or a <b>pin/function name</b> the module defines &mdash; the Kind column says which.</p>`+tbl([{t:"#",num:1},{t:"Kind"},{t:"Value / name"}], prm.map(p=>`<tr><td class="num data muted">P${p.i}</td><td class="data muted">${kindLbl[pkind(p.v)]}</td>${pcell(p.v)}</tr>`).join("")):"";
     const dd=(state.prog._symToDev||new Map()).get(String(x.H));
     const coordStr=dd?[dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "):"";
@@ -996,7 +1000,7 @@ function drill(type,val){
     const coordOf=x=>{ const dd=sd.get(String(x.H)); if(!dd)return ""; return [dd.host?dd.host+(dd.hostIpid?` (IP-ID ${dd.hostIpid})`:""):"", (dd.dev&&dd.dev!==dd.host)?dd.dev+(dd.ad?` ID ${dd.ad}`:""):""].filter(Boolean).join(" · "); };
     const maxd=Math.max(0,...rows.map(r=>r.depth));
     const body=rows.map(r=>{ const pad=8+Math.round(r.depth*16);
-      if(r.type==="sig"){ const lead=r.depth===0?"target":(dir==="back"?"↑":"↓"); return `<div class="trrow sig" style="padding-left:${pad}px"><span class="tw">${r.depth===0?"●":lead}</span><span class="data drill" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="trcyc">↻ shown above</span>':""}</div>`; }
+      if(r.type==="sig"){ const lead=r.depth===0?"target":(dir==="back"?"↑":"↓"); return `<div class="trrow sig" style="padding-left:${pad}px"><span class="tw">${r.depth===0?"●":lead}</span><span class="data drill ${sigCls(m,r.name)}" data-drill="${type}" data-val="${esc(r.name)}" title="re-trace from here">${esc(r.name)}</span>${r.dup?' <span class="trcyc">↻ shown above</span>':""}</div>`; }
       const ad=symAddr(m,r.x.H), co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">via</span><span class="trmod">${esc(r.x.Nm||"?")}</span>${co?` <span class="trco">${esc(co)}</span>`:""}${ad?` <span class="trad" title="${esc(folderPath(m,r.x.H)||"")}">${esc(ad)}</span>`:""}</div>`; }).join("");
     const roots=rows.filter(r=>r.type==="sig"&&!r.dup&&r.depth>0&&!rows.some(z=>z.type==="mod"&&Math.abs(z.depth-(r.depth+1))<0.1&&rows.indexOf(z)>rows.indexOf(r))).length;
     openModal(`${dir==="back"?"What triggers":"What&rsquo;s affected by"} ${esc(val)}`,
@@ -1045,7 +1049,7 @@ function signalRows(q){
   const all=state.signals||[]; q=(q||"").trim().toLowerCase();
   const list = q ? all.filter(s=>s.nm.toLowerCase().indexOf(q)>=0) : all.slice().sort((a,b)=>(b.d+b.l)-(a.d+a.l)||(a.nm<b.nm?-1:1));
   const shown=list.slice(0,1500);
-  return shown.map(s=>`<tr><td class="data drill" data-drill="signal" data-val="${esc(s.nm)}" title="${esc(s.nm)}">${esc(trim(s.nm,54))}</td><td class="num"><span class="pill ${s.t==='A'?'warn':s.t==='S'?'':'ok'}">${s.t}</span></td><td class="num data">${s.d}</td><td class="num data">${s.l}</td></tr>`).join("")
+  return shown.map(s=>{const sc=s.t==='A'?'sg-a':s.t==='S'?'sg-s':'sg-d';return `<tr><td class="data drill ${sc}" data-drill="signal" data-val="${esc(s.nm)}" title="${esc(s.nm)}">${esc(trim(s.nm,54))}</td><td class="num"><span class="sgpill ${sc}">${s.t}</span></td><td class="num data">${s.d}</td><td class="num data">${s.l}</td></tr>`;}).join("")
     + (list.length>shown.length?`<tr><td class="muted" colspan="4">\u2026${(list.length-shown.length).toLocaleString()} more \u2014 type above to find a specific signal</td></tr>`:"");
 }
 function tbl(head,rows,flt){ return `${flt?`<input class="filter" placeholder="filter\u2026" aria-label="filter">`:""}<div class="scroll"><table><thead><tr>${head.map(h=>`<th${h.num?' class="num"':''}>${h.t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`; }
