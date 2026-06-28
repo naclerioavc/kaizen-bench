@@ -184,6 +184,7 @@
   .sgpill.sg-d{color:#6aa6ff}.sgpill.sg-a{color:#f87171}.sgpill.sg-s{color:#c7c7cc}
   .panel.acc-add h3::before{background:var(--ok);width:8px;height:8px;border-radius:2px}
   .panel.acc-rem h3::before{background:var(--bad);width:8px;height:8px;border-radius:2px}
+  .rolechip{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:5px;margin-right:7px;color:#bcc0ff;background:rgba(154,160,255,.14);border:1px solid rgba(154,160,255,.32)}
   tr.drill{cursor:pointer}
   tr.drill:hover{background:rgba(154,160,255,.06)}
   tr.drill td:last-child::after{content:" ›";color:var(--dim);font-weight:700}
@@ -1135,7 +1136,9 @@ function runAudit(){
       let role=nr.role||""; if(!role&&et.name&&/intersystem|to\/from/i.test(et.name))role="EISC / intersystem link";
       const roleD=(role?role+(detail?" → "+detail:""):"")||c.type||"";
       const model=d.model||nr.name||et.name||"";
-      return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data${roleD?'':' muted'}" title="${esc(roleD)}">${esc(roleD||'—')}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+      const isEisc=/eisc|intersystem|to\/from/i.test(role||"");
+      const roleInner=isEisc?`<span class="rolechip eisc">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
+      return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
     html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
