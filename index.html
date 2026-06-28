@@ -141,6 +141,7 @@
   .scroll td, .scroll th{white-space:nowrap}
   .scroll td.wrap{white-space:normal;max-width:680px;min-width:300px}
   .scroll thead th, .modal-body thead th{cursor:pointer;user-select:none}
+  .scroll thead th:hover, .modal-body thead th:hover{color:var(--ink)}
   thead th[data-dir=asc]::after{content:" ▲";color:var(--mut);font-size:9px}
   thead th[data-dir=desc]::after{content:" ▼";color:var(--mut);font-size:9px}
   .scroll thead th{position:sticky;top:0;background:var(--panel);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
@@ -190,10 +191,6 @@
   .panel.acc-add h3::before{background:var(--ok);width:8px;height:8px;border-radius:2px}
   .panel.acc-rem h3::before{background:var(--bad);width:8px;height:8px;border-radius:2px}
   .rolechip{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:5px;margin-right:7px;color:#bcc0ff;background:rgba(154,160,255,.14);border:1px solid rgba(154,160,255,.32)}
-  thead th{cursor:pointer;user-select:none}
-  thead th:hover{color:var(--ink)}
-  thead th[data-dir=asc]::after{content:" \2191";font-size:10px;color:var(--mut)}
-  thead th[data-dir=desc]::after{content:" \2193";font-size:10px;color:var(--mut)}
   .modal-nav{display:inline-flex;gap:5px;margin-right:10px}
   .modal-nav button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);width:27px;height:27px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;transition:background .13s ease,border-color .13s ease}
   .modal-nav button:hover:not(:disabled){border-color:var(--dim);background:var(--panel)}
@@ -895,7 +892,7 @@ function sortTable(th){
   const table=th.closest("table"); if(!table||!table.tBodies[0])return; const tb=table.tBodies[0];
   const idx=[...th.parentNode.children].indexOf(th);
   const dir=th.getAttribute("data-dir")==="asc"?"desc":"asc";
-  [...th.parentNode.children].forEach(x=>x.removeAttribute("data-dir")); th.setAttribute("data-dir",dir);
+  [...th.parentNode.children].forEach(x=>{x.removeAttribute("data-dir");x.removeAttribute("aria-sort");}); th.setAttribute("data-dir",dir); th.setAttribute("aria-sort",dir==="asc"?"ascending":"descending");
   const isTail=r=>r.cells.length<=idx||r.querySelector("[colspan]");
   const rows=[...tb.rows].filter(r=>!isTail(r)), tail=[...tb.rows].filter(isTail);
   const cellTxt=r=>(r.cells[idx]?r.cells[idx].textContent.trim():"");
@@ -1160,7 +1157,7 @@ function runAudit(){
       const roleD=(role?role+(detail?" → "+detail:""):"")||c.type||"";
       const model=d.model||nr.name||et.name||"";
       const isEisc=/eisc|intersystem|to\/from/i.test(role||"");
-      const roleInner=isEisc?`<span class="rolechip eisc">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
+      const roleInner=isEisc?`<span class="rolechip">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
       return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
     html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
@@ -1745,7 +1742,7 @@ function runLog(name,text){
         <td class="data muted">${esc(t.who||'—')}</td>
         <td class="data wrap">${esc(enrichMsg(t.example||t.msg))}</td>
         <td class="num data">${t.n.toLocaleString()}</td>
-        <td><span class="pill ${t.rate.kind==='burst'?'warn':t.rate.kind==='rate'?'':'ok'}">${t.rate.txt}</span></td>
+        <td><span class="pill ${t.rate.kind==='rate'?'warn':''}">${t.rate.txt}</span></td>
       </tr>`).join("")}
       </tbody></table></div>
       <p class="foot-note"><b>burst</b> = all within a minute (usually one boot/upload event); a steady <b>/h</b> rate is an ongoing condition. ${a.infoTotal?`<b>${a.infoTotal.toLocaleString()}</b> informational messages (Ok/Info/Notice) set aside${a.infoTop&&a.infoTop[0]?` — top: &ldquo;${esc(trim(a.infoTop[0].example||a.infoTop[0].msg,40))}&rdquo; ×${a.infoTop[0].n.toLocaleString()}`:""}.`:"Numbers in messages are normalized so the same error counts once."}</p>`;
