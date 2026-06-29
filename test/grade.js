@@ -162,7 +162,11 @@ ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway]
   const added=[...mB.keys()].filter(k=>!mA.has(k)), removed=[...mA.keys()].filter(k=>!mB.has(k));
   ck("archive diff: changed / added / removed",[changed,added,removed],[["main.smw"],["added.txt"],["readme.txt"]]);
   let arcText=null; w.extractOne(zB, mB.get('main.smw').raw).then(t=>{arcText=t;});
-  // extractOne round-trip is verified in the dev harness; manifest+diff (the core) asserted above.
+  const fc=w.fileClass;
+  has("fileClass: .smw program is diffable work", fc("AV/x.smw").work && fc("AV/x.smw").diff==="smw");
+  has("fileClass: loadwiring is diffable lighting work", fc("D3/Documentation/loadwiring.htm").diff==="d3");
+  has("fileClass: dll/inf/autosave/SPlsWork classified as noise", !fc("a.dll").work && !fc("b.inf").work && !fc("P/AUTOSAVE/x.smw").work && !fc("AV/SPlsWork/y.cs").work);
+  has("fileClass: panel + config are work", fc("UI/p.vtz").work && fc("x.dip").work);
 }
 
 // ===== render checks: the tool actually displays it =====

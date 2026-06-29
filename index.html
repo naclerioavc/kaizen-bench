@@ -510,15 +510,21 @@ function zipManifest(buf){
   const dv=new DataView(buf), u8=new Uint8Array(buf);
   let eocd=-1; for(let i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
   if(eocd<0) throw new Error("archive isn't a readable zip");
-  let off=dv.getUint32(eocd+16,true); const man=new Map();
+  let off=dv.getUint32(eocd+16,true); const arr=[];
   while(off+46<=u8.length){
     if(dv.getUint32(off,true)!==0x02014b50) break;
     const crc=dv.getUint32(off+16,true), size=dv.getUint32(off+24,true);
     const nameLen=dv.getUint16(off+28,true), extraLen=dv.getUint16(off+30,true), commentLen=dv.getUint16(off+32,true);
     const raw=decodeText(u8.subarray(off+46,off+46+nameLen));
-    if(!raw.endsWith("/")){ const norm=raw.replace(/^[^/]+\//,""); man.set(norm,{crc,size,raw}); }
+    if(!raw.endsWith("/")) arr.push({raw,crc,size});
     off+=46+nameLen+extraLen+commentLen;
   }
+  // strip a single wrapper folder only if EVERY entry shares it (real backups wrap in a named/dated dir; a bare-zipped folder does not)
+  let root=null;
+  for(const e of arr){ const seg=(e.raw.match(/^[^/]+\//)||[null])[0]; if(seg===null){ root=""; break; } if(root===null)root=seg; else if(root!==seg){ root=""; break; } }
+  root=root||"";
+  const man=new Map();
+  for(const e of arr){ const norm=(root&&e.raw.startsWith(root))?e.raw.slice(root.length):e.raw; man.set(norm,{crc:e.crc,size:e.size,raw:e.raw}); }
   return man;
 }
 async function extractOne(buf, rawName){
@@ -742,34 +748,85 @@ function setArcSlot(which,name,nfiles){
 }
 const DIFFABLE=/\.(smw|umc|chd)$/i;
 const ARC_BACK='<button class="btn ghost arcback" style="margin-bottom:14px">\u2190 Back to file changes</button>';
+function fileClass(p){ p=p.toLowerCase();
+  if(/(^|\/)autosave(\/|$)|\/backup(\/|$)|_backup|\.bak$|~\$|\.tmp$/.test(p)) return {cat:"Autosave / backup",work:false,rank:9};
+  if(/\/splswork\//.test(p)) return {cat:"Compiled / generated",work:false,rank:8};
+  if(/\.(dll|inf|clz|lpz|csz|cpz|cz|bin|hash|cache|dat|sig|map|pdb|sgd|cse)$/.test(p)) return {cat:"Compiled / library",work:false,rank:8};
+  if(/\.(jpg|jpeg|png|gif|bmp|ico)$/.test(p)) return {cat:"Images",work:false,rank:7};
+  if(/documentation\/.*\.(htm|html|egr|rtf|csv|txt)$/.test(p) && !/loadwiring\./.test(p)) return {cat:"Generated docs",work:false,rank:6};
+  if(/\.(smw|umc|chd)$/.test(p)) return {cat:"Programs",work:true,rank:1,diff:"smw"};
+  if(/loadwiring\.html?$/.test(p)) return {cat:"Lighting (D3)",work:true,rank:2,diff:"d3"};
+  if(/\.(vtp|vtz|vt2|tp4|tpz|c3p|ch5z|vtc|tpd)$/.test(p)) return {cat:"Touchpanels",work:true,rank:3};
+  if(/\.(dip|smft)$/.test(p)) return {cat:"Config / IP",work:true,rank:4};
+  if(/\.(ir)$/.test(p)) return {cat:"IR drivers",work:true,rank:5};
+  if(/\.(cs|usp|ush)$/.test(p)) return {cat:"Module source",work:true,rank:5};
+  return {cat:"Other",work:false,rank:10};
+}
 function runArchiveDiff(){
   const A=state.arcA,B=state.arcB; if(!(A&&B))return;
-  const a=A.manifest,b=B.manifest; const added=[],removed=[],changed=[];
+  const a=A.manifest,b=B.manifest; let added=[],removed=[],changed=[];
   b.forEach((v,k)=>{ if(!a.has(k))added.push(k); else if(a.get(k).crc!==v.crc)changed.push(k); });
   a.forEach((v,k)=>{ if(!b.has(k))removed.push(k); });
+  // move detection: an added file whose exact content (CRC) matches a removed one
+  const remByCrc=new Map(); removed.forEach(k=>{ const c=a.get(k).crc; if(!remByCrc.has(c))remByCrc.set(c,[]); remByCrc.get(c).push(k); });
+  const moved=[]; added=added.filter(k=>{ const src=remByCrc.get(b.get(k).crc); if(src&&src.length){ moved.push({from:src.shift(),to:k}); return false; } return true; });
+  const movedFrom=new Set(moved.map(m=>m.from)); removed=removed.filter(k=>!movedFrom.has(k));
   added.sort(); removed.sort(); changed.sort();
-  state.arcResult={added,removed,changed,aName:A.name,bName:B.name};
+  state.arcResult={added,removed,changed,moved,aName:A.name,bName:B.name};
   renderArchiveDiff();
 }
+function arcItems(r){ const items=[];
+  r.changed.forEach(k=>items.push({k,st:"changed"})); r.added.forEach(k=>items.push({k,st:"added"})); r.removed.forEach(k=>items.push({k,st:"removed"})); (r.moved||[]).forEach(m=>items.push({k:m.to,from:m.from,st:"moved"}));
+  items.forEach(it=>it.cls=fileClass(it.k)); return items; }
 function renderArchiveDiff(){
   const r=state.arcResult; if(!r)return; state.arcActive=false;
-  const {added,removed,changed}=r;
-  const base=k=>k.replace(/^.*\//,""), dir=k=>k.replace(/\/[^/]*$/,"")||"/";
-  const fileRow=(k,clk)=>`<tr${clk?` class="drill" data-arcdiff="${esc(k)}"`:""}><td class="data" title="${esc(k)}">${esc(base(k))}</td><td class="data muted" title="${esc(k)}">${esc(trim(dir(k),52))}</td></tr>`;
-  const changedProgs=changed.filter(k=>DIFFABLE.test(k));
+  const base=k=>k.replace(/^.*\//,""), sub=k=>{ const m=k.match(/^([^/]+)\//); return m?m[1]:"(root)"; };
+  const items=arcItems(r); const work=items.filter(it=>it.cls.work), noise=items.filter(it=>!it.cls.work);
+  const cc=(arr,cat)=>arr.filter(it=>it.cls.cat===cat).length;
+  const progN=cc(work,"Programs"), panelN=cc(work,"Touchpanels"), lightN=cc(work,"Lighting (D3)"), cfgN=cc(work,"Config / IP");
+  const bits=[]; if(progN)bits.push(`<b>${progN}</b> program${progN>1?"s":""} changed`); if(panelN)bits.push(`<b>${panelN}</b> touchpanel file${panelN>1?"s":""}`); if(lightN)bits.push(`<b>${lightN}</b> lighting doc${lightN>1?"s":""}`); if(cfgN)bits.push(`<b>${cfgN}</b> config / IP file${cfgN>1?"s":""}`);
+  const verdict = work.length ? `${bits.length?bits.join(", "):work.length+" work files changed"}. The other <b>${noise.length.toLocaleString()}</b> differences are compiled output, module libraries, autosave snapshots and regenerated docs &mdash; hidden below.` : `No programmer work-files differ &mdash; the only changes are <b>${noise.length.toLocaleString()}</b> compiled / autosave / library / doc files.`;
   let html=`<div class="row">
-    ${stat(`<span class="data" style="color:var(--warn)">${changed.length.toLocaleString()}</span>`,"Changed")}
-    ${stat(`<span class="data" style="color:var(--ok)">${added.length.toLocaleString()}</span>`,"Added")}
-    ${stat(`<span class="data" style="color:var(--bad)">${removed.length.toLocaleString()}</span>`,"Removed")}
-    ${stat(`<span class="data">${changedProgs.length.toLocaleString()}</span>`,"Programs changed")}
+    ${stat(`<span class="data">${work.length.toLocaleString()}</span>`,"Work files changed")}
+    ${stat(`<span class="data" style="color:var(--warn)">${progN.toLocaleString()}</span>`,"Programs")}
+    ${stat(`<span class="data">${panelN.toLocaleString()}</span>`,"Touchpanels")}
+    ${stat(`<span class="data muted">${noise.length.toLocaleString()}</span>`,"Derived / hidden")}
   </div>
-  <div class="panel" style="margin-top:14px"><h3>Read</h3><p class="verdict">Comparing <span class="data">${esc(r.aName)}</span> &rarr; <span class="data">${esc(r.bName)}</span> by file (name + checksum, nothing decompressed). ${changedProgs.length?`<b>${changedProgs.length}</b> program file(s) changed &mdash; click one to diff exactly what changed inside.`:"No <code>.smw</code> / <code>.umc</code> / <code>.chd</code> program changed between these two."}</p></div>`;
-  if(changedProgs.length){
-    html+=`<div class="panel acc-rem" style="margin-top:14px"><h3>Changed programs <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; click to diff the program</span><span class="ct">${changedProgs.length}</span></h3>`+tbl([{t:"Program"},{t:"Folder"}],changedProgs.map(k=>fileRow(k,true)).join(""))+`</div>`;
-  }
-  const sec=(title,arr,cls)=> arr.length?`<div class="panel ${cls}" style="margin-top:14px"><h3>${title}<span class="ct">${arr.length.toLocaleString()}</span></h3>`+tbl([{t:"File"},{t:"Folder"}],arr.slice(0,3000).map(k=>fileRow(k,DIFFABLE.test(k))).join(""),1)+(arr.length>3000?`<p class="foot-note">Showing first 3,000 of ${arr.length.toLocaleString()}.</p>`:"")+`</div>`:"";
-  html+=sec("Changed files",changed,"")+sec("Added files",added,"acc-add")+sec("Removed files",removed,"acc-rem");
-  $("#diffBody").innerHTML=html;
+  <div class="panel" style="margin-top:14px"><h3>Read</h3><p class="verdict">Comparing <span class="data">${esc(r.aName)}</span> &rarr; <span class="data">${esc(r.bName)}</span> by checksum (nothing decompressed). ${verdict}</p></div>`;
+  const stpill=st=>`<span class="pill ${st==="added"?"add":st==="removed"?"rem":st==="moved"?"":"warn"}">${st}</span>`;
+  const da=it=>it.cls.diff==="smw"?` class="drill" data-arcdiff="${esc(it.k)}"`:it.cls.diff==="d3"?` class="drill" data-arcd3="${esc(it.k)}"`:"";
+  const row=it=>`<tr${da(it)}><td class="data" title="${esc(it.k)}">${esc(base(it.k))}${it.st==="moved"?` <span class="muted" style="font-size:11px">(from ${esc(base(it.from))})</span>`:""}</td><td>${stpill(it.st)}</td><td class="data muted">${esc(it.cls.cat)}</td><td class="data muted" title="${esc(it.k)}">${esc(trim(it.k.replace(/\/[^/]*$/,""),42))}</td></tr>`;
+  const bySub=new Map(); work.forEach(it=>{ const x=sub(it.k); if(!bySub.has(x))bySub.set(x,[]); bySub.get(x).push(it); });
+  [...bySub.entries()].sort((x,y)=>y[1].length-x[1].length).forEach(([x,arr])=>{ arr.sort((m,n)=>m.cls.rank-n.cls.rank);
+    html+=`<div class="panel" style="margin-top:14px"><h3>${esc(x)} <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; work files</span><span class="ct">${arr.length}</span></h3><p class="card-intro">Programmer work that changed in this subsystem.${arr.some(it=>it.cls.diff)?" Click a <b>program</b> or <b>lighting</b> row to diff its contents.":""}</p>`+tbl([{t:"File"},{t:"Change"},{t:"Type"},{t:"Folder"}],arr.map(row).join(""))+`</div>`; });
+  if(noise.length){ const byCat=new Map(); noise.forEach(it=>byCat.set(it.cls.cat,(byCat.get(it.cls.cat)||0)+1));
+    const cs=[...byCat.entries()].sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c} ${n}`).join(" \u00b7 ");
+    html+=`<div class="panel" id="arcNoise" style="margin-top:14px"><h3>Derived / autosave / library files <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; not your work</span><span class="ct">${noise.length.toLocaleString()}</span></h3><p class="card-intro">${esc(cs)}. Compiled output, module libraries, autosave snapshots, regenerated docs and images &mdash; usually safe to ignore. <button class="btn ghost arcnoise" style="margin-top:6px">Show all ${noise.length.toLocaleString()}</button></p></div>`; }
+  $("#diffBody").innerHTML=(state.arcActive?ARC_BACK:"")+html;
+}
+function expandArcNoise(){ const r=state.arcResult; if(!r)return; const base=k=>k.replace(/^.*\//,"");
+  const noise=arcItems(r).filter(it=>!it.cls.work).sort((a,b)=>a.cls.rank-b.cls.rank);
+  const stpill=st=>`<span class="pill ${st==="added"?"add":st==="removed"?"rem":st==="moved"?"":"warn"}">${st}</span>`;
+  const row=it=>`<tr><td class="data" title="${esc(it.k)}">${esc(base(it.k))}</td><td>${stpill(it.st)}</td><td class="data muted">${esc(it.cls.cat)}</td><td class="data muted" title="${esc(it.k)}">${esc(trim(it.k.replace(/\/[^/]*$/,""),42))}</td></tr>`;
+  const el=document.getElementById("arcNoise"); if(el) el.innerHTML=`<h3>Derived / autosave / library files<span class="ct">${noise.length.toLocaleString()}</span></h3>`+tbl([{t:"File"},{t:"Change"},{t:"Type"},{t:"Folder"}],noise.slice(0,4000).map(row).join(""),1)+(noise.length>4000?`<p class="foot-note">Showing first 4,000 of ${noise.length.toLocaleString()}.</p>`:"");
+}
+function arcD3Diff(path){ const A=state.arcA,B=state.arcB; if(!(A&&B))return; const aE=A.manifest.get(path),bE=B.manifest.get(path); if(!aE||!bE)return;
+  $("#diffBody").innerHTML=`<div class="working"><span class="stripe"></span>Diffing lighting loads\u2026</div>`;
+  Promise.all([extractOne(A.buf,aE.raw),extractOne(B.buf,bE.raw)]).then(([ta,tb])=>{
+    const da=parseD3Loadwiring(ta),db=parseD3Loadwiring(tb); if(!da||!db)throw new Error("couldn't read D3 loadwiring from one archive");
+    const key=l=>`${l.area}||${l.load}`; const ma=new Map(da.loads.map(l=>[key(l),l])),mb=new Map(db.loads.map(l=>[key(l),l]));
+    const addedL=[],removedL=[],rechan=[],wattC=[];
+    mb.forEach((l,k)=>{ if(!ma.has(k))addedL.push(l); else { const x=ma.get(k); if(x.modNum!==l.modNum||x.out!==l.out||x.feed!==l.feed)rechan.push({o:x,n:l}); else if(x.watt!==l.watt)wattC.push({o:x,n:l}); } });
+    ma.forEach((l,k)=>{ if(!mb.has(k))removedL.push(l); });
+    const lrow=l=>`<tr><td class="data">${esc(l.load)}</td><td class="data muted">${esc(l.area||"\u2014")}</td><td class="data">${esc("Mod "+l.modNum+" "+l.out)}</td><td class="num data">${esc(l.watt||"\u2014")}</td></tr>`;
+    let h=`<div class="row">${stat(`<span class="data" style="color:var(--ok)">${addedL.length}</span>`,"Loads added")}${stat(`<span class="data" style="color:var(--bad)">${removedL.length}</span>`,"Loads removed")}${stat(`<span class="data" style="color:var(--warn)">${rechan.length}</span>`,"Re-channeled")}${stat(`<span class="data">${wattC.length}</span>`,"Wattage changed")}</div>`;
+    if(addedL.length)h+=`<div class="panel acc-add" style="margin-top:14px"><h3>Loads added<span class="ct">${addedL.length}</span></h3>`+tbl([{t:"Load"},{t:"Area"},{t:"Channel"},{t:"W",num:1}],addedL.map(lrow).join(""),1)+`</div>`;
+    if(removedL.length)h+=`<div class="panel acc-rem" style="margin-top:14px"><h3>Loads removed<span class="ct">${removedL.length}</span></h3>`+tbl([{t:"Load"},{t:"Area"},{t:"Channel"},{t:"W",num:1}],removedL.map(lrow).join(""),1)+`</div>`;
+    if(rechan.length)h+=`<div class="panel" style="margin-top:14px"><h3>Re-channeled <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; same load, moved module/output</span><span class="ct">${rechan.length}</span></h3>`+tbl([{t:"Load"},{t:"Was"},{t:"Now"}],rechan.map(c=>`<tr><td class="data">${esc(c.n.load)}</td><td class="data muted">Mod ${esc(c.o.modNum)} ${esc(c.o.out)}</td><td class="data">Mod ${esc(c.n.modNum)} ${esc(c.n.out)}</td></tr>`).join(""))+`</div>`;
+    if(wattC.length)h+=`<div class="panel" style="margin-top:14px"><h3>Wattage changed<span class="ct">${wattC.length}</span></h3>`+tbl([{t:"Load"},{t:"Was"},{t:"Now"}],wattC.map(c=>`<tr><td class="data">${esc(c.n.load)}</td><td class="data muted">${esc(c.o.watt)}W</td><td class="data">${esc(c.n.watt)}W</td></tr>`).join(""))+`</div>`;
+    if(!addedL.length&&!removedL.length&&!rechan.length&&!wattC.length)h+=`<p class="empty">No load changes &mdash; the lighting wiring is identical.</p>`;
+    $("#diffBody").innerHTML=ARC_BACK+`<div class="panel"><h3>Lighting load diff <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; ${esc(path.replace(/^.*\//,""))}</span></h3></div>`+h;
+  }).catch(err=>{ $("#diffBody").innerHTML=`${ARC_BACK}<p class="err">${esc(err.message)}</p>`; });
 }
 function arcDeepDiff(path){
   const A=state.arcA,B=state.arcB; if(!(A&&B))return;
@@ -786,7 +843,7 @@ function arcDeepDiff(path){
 wireDrop($("#dropA"),$("#fileA"),f=>loadSlot("A",f));
 wireDrop($("#dropB"),$("#fileB"),f=>loadSlot("B",f));
 $("#diffRun").addEventListener("click",()=>{ if(state.arcA&&state.arcB) runArchiveDiff(); else runDiff(); });
-$("#diffBody").addEventListener("click",e=>{ if(e.target.closest(".arcback")){ renderArchiveDiff(); return; } const d=e.target.closest("[data-arcdiff]"); if(d) arcDeepDiff(d.dataset.arcdiff); });
+$("#diffBody").addEventListener("click",e=>{ if(e.target.closest(".arcback")){ renderArchiveDiff(); return; } if(e.target.closest(".arcnoise")){ expandArcNoise(); return; } const d3=e.target.closest("[data-arcd3]"); if(d3){ arcD3Diff(d3.dataset.arcd3); return; } const d=e.target.closest("[data-arcdiff]"); if(d) arcDeepDiff(d.dataset.arcdiff); });
 $("#diffSwap").addEventListener("click",()=>{
   if(!(state.diffA&&state.diffB))return;
   [state.diffA,state.diffB]=[state.diffB,state.diffA];
@@ -1970,7 +2027,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,zipManifest}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

@@ -234,3 +234,19 @@ burst. The classic cause is every zone recomputing feedback on one global event 
 table, **framed as correlation, not proof** (line it up with the user action that triggered it).
 Graded against a synthetic 25-overflow same-tick fixture (clusters to one storm, overflow-driven;
 a lone routine error is not a storm).
+
+### Archive diff intelligence (rebuilt from real-data audit)
+A raw manifest diff of two real 500 MB backups was **693 changed/added/removed files** — overwhelming
+and ~97% meaningless. The intelligent diff classifies every file (`fileClass`) into **work** vs
+**derived noise** and leads with the work:
+- **Work (surfaced):** programs (`.smw/.umc/.chd`, deep-diffable), lighting (`loadwiring.htm`,
+  deep-diffable into load add/remove/re-channel/wattage), touchpanels (`.vtp/.vtz/...`),
+  config/IP (`.dip/.smft`), IR drivers, SIMPL+ source (`.usp/.ush`).
+- **Noise (collapsed behind a toggle):** compiled/library (`.dll/.inf/.lpz/.bin/...`), generated
+  SIMPL+ output (anything under `SPlsWork/`), autosave/backup dirs, regenerated docs
+  (`Documentation/*.htm/.egr`), images. On the real pair: **693 → 18 work files, 675 collapsed.**
+- **Subsystem grouping:** by top folder (`01-CP4 - AV`, `02-CP4 - Security`, `D3`, `UI`).
+- **Wrapper-root normalization:** strip a single top folder ONLY if every entry shares it (real
+  backups wrap in a dated dir; a bare-zipped project does not) — so paths align either way.
+- **Move detection:** an added file whose CRC matches a removed one is shown as *moved*, not both.
+- Plain-language verdict up top; deep-diff (programs + lighting) on demand with a back button.
