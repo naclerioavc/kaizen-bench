@@ -12,6 +12,17 @@
     --ink:#f4f4f5; --mut:#8a8a92; --dim:#5a5a62;
     --stripe:#ffffff; --ok:#3ad29f; --bad:#ff5a5f; --warn:#f5b14c; --trace:#9aa0ff;
   }
+  [data-theme="synthwave"]{--bg:#190b2e;--panel:#241141;--panel2:#2d1850;--line:#3d2470;--ink:#f4e9ff;--mut:#a98fd0;--dim:#6b549a;--stripe:#ff5dcd;--trace:#36e0ff;--ok:#36e0ff;--warn:#ffd24a;--bad:#ff5d8f;}
+  [data-theme="matrix"]{--bg:#000600;--panel:#04170a;--panel2:#062610;--line:#0c3a18;--ink:#9dff9d;--mut:#3f8f4f;--dim:#256030;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff5a5f;}
+  [data-theme="blueprint"]{--bg:#06182e;--panel:#0a2240;--panel2:#0d2c52;--line:#16406e;--ink:#dcecff;--mut:#7aa4d6;--dim:#48648c;--stripe:#48b4ff;--trace:#48b4ff;--ok:#54d6c0;--warn:#ffcf6b;--bad:#ff7a8f;}
+  [data-theme="cookie"]{--bg:#2a1f17;--panel:#36281d;--panel2:#423223;--line:#574231;--ink:#fbeede;--mut:#c2a988;--dim:#8a7256;--stripe:#ff9ecb;--trace:#a98bff;--ok:#8be0b0;--warn:#ffd27a;--bad:#ff8a8a;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:none}
+  header,main,footer{position:relative;z-index:1}
+  [data-theme="synthwave"] body::before,[data-theme="blueprint"] body::before{background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px;opacity:.16}
+  [data-theme="matrix"] body::before{background:repeating-linear-gradient(0deg,rgba(57,255,20,.06) 0 1px,transparent 1px 3px);opacity:.6}
+  [data-theme="cookie"] body::before{background-image:radial-gradient(circle,#ff9ecb 1.6px,transparent 2px),radial-gradient(circle,#a98bff 1.6px,transparent 2px),radial-gradient(circle,#8be0b0 1.6px,transparent 2px),radial-gradient(circle,#ffd27a 1.6px,transparent 2px);background-size:62px 62px,84px 84px,72px 72px,96px 96px;background-position:0 0,22px 36px,46px 11px,12px 56px;opacity:.22}
+  .themepick{position:absolute;top:20px;right:24px;z-index:3;background:var(--panel2);color:var(--mut);border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12px;padding:5px 8px;cursor:pointer}
+  .themepick:hover{color:var(--ink);border-color:var(--dim)}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
     font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;}
@@ -300,6 +311,13 @@
 </head>
 <body>
 <header>
+  <select class="themepick" id="themeSel" aria-label="Theme" title="Theme — just for fun">
+    <option value="">Midnight</option>
+    <option value="synthwave">Synthwave</option>
+    <option value="blueprint">Blueprint</option>
+    <option value="matrix">Matrix</option>
+    <option value="cookie">Unicorn Cookie</option>
+  </select>
   <div class="brand">
     <div class="lockup">
       <span class="logo">kaizen</span>
@@ -1079,6 +1097,7 @@ $("#modalBack").addEventListener("click",()=>{ if(mPos>0){mPos--;const e=mHist[m
 $("#modalFwd").addEventListener("click",()=>{ if(mPos<mHist.length-1){mPos++;const e=mHist[mPos];drill(e.type,e.val,true);} });
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal")closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
+(function(){ const sel=document.getElementById("themeSel"); if(!sel)return; let saved=""; try{saved=localStorage.getItem("simplbench-theme")||"";}catch(e){} if(saved)document.documentElement.setAttribute("data-theme",saved); sel.value=saved; sel.addEventListener("change",()=>{ const v=sel.value; if(v)document.documentElement.setAttribute("data-theme",v); else document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("simplbench-theme",v);}catch(e){} }); })();
 let sigNameSet=null;
 function traceRows(m, startName, dir){
   const MAXD=5, MAXN=250;
