@@ -1533,6 +1533,25 @@ function renderD3(d3){
   }
   return html;
 }
+// Intersystem (EISC) links live as Sm symbols ("...Ethernet Intersystem Communications" / EISC),
+// whose linked Dv device carries the real target name + IP-ID. dvNetRoles/parseEt only scan Dv
+// records, so they MISS these -- validated against a real multi-processor job. This is the truthful
+// source: symbol -> device -> target name + (via .dip) target IP. 127.0.0.x = same-stack inter-program.
+function eiscLinks(smw, dip){
+  dip=dip||new Map(); let byH; try{ byH=dvIndex(smw); }catch(e){ byH=new Map(); }
+  const lines=String(smw).split("\n"); let cur=null,typ=null; const out=[];
+  const isE=nm=>/ethernet intersystem communications|(^|[^a-z])eisc([^a-z]|$)/i.test(nm||"");
+  for(const raw of lines){ const l=raw.replace(/\r$/,"");
+    if(l==="["){cur={};typ=null;continue;}
+    if(l==="]"){ if(typ==="Sm"&&cur&&isE(cur.Nm)){
+        const dv=byH.get(String(cur.DvH))||{}; const ad=(dv.Ad||"").toUpperCase();
+        const target=((dv.Nm||cur.Nm||"").split(":")[0]||"").trim();
+        out.push({ ipid:ad, target, ip:(dip.get?dip.get(ad):"")||"" });
+      } cur=null; continue; }
+    if(!cur)continue; const i=l.indexOf("="); if(i<0)continue; const k=l.slice(0,i),v=l.slice(i+1); if(k==="ObjTp")typ=v; else cur[k]=v;
+  }
+  return out;
+}
 function systemSummary(units){
   const progs=(units||[]).filter(u=>u.kind==="program" && u.smw);
   const procs=progs.map(u=>{
@@ -1540,8 +1559,7 @@ function systemSummary(units){
     const cs=m?censusStats(m):null;
     const dip=u.dip?parseDip(u.dip):new Map();
     const devs=u.smft?parseSmft(u.smft):[];
-    const roles=dvNetRoles(u.smw)||new Map();
-    const eisc=[]; roles.forEach((r,ad)=>{ if(/eisc|intersystem/i.test(r.role||"")) eisc.push({ipid:ad,name:r.name||"",target:r.detail||""}); });
+    const eisc=eiscLinks(u.smw, dip);
     let hdr=null; try{ hdr=parseHeader(u.smw); }catch(e){}
     return { name:u.name, program:(hdr&&hdr.program)||"", signals:cs?cs.sigTot:0, symbols:cs?cs.symActive:0, devices:devs.length, ipids:dip.size, eisc };
   });
@@ -1556,10 +1574,10 @@ function renderWholeSystem(){
   html+=card("System at a glance",`${t.processors} processor${t.processors===1?"":"s"}`,`<p class="card-intro">Every processor program in this job, parsed on its own — totals across the whole system. Pick a processor (in the bar above or the table below) to open its full as-built.</p><div class="row">${stat(t.processors,"Processors")}${stat(t.signals.toLocaleString(),"Signals")}${stat(t.symbols.toLocaleString(),"Symbols")}${stat(t.devices.toLocaleString(),"Devices")}${stat(t.ipids.toLocaleString(),"IP-IDs")}${stat(t.eisc.toLocaleString(),"Cross-links")}</div>`,true);
   const rows=ss.processors.map((p,k)=>`<tr class="drill" data-unit="${progIdx[k]}"><td class="data">${esc(p.name)}</td><td class="data muted">${esc(p.program||"—")}</td><td class="num data">${p.signals.toLocaleString()}</td><td class="num data">${p.symbols.toLocaleString()}</td><td class="num data">${p.devices.toLocaleString()}</td><td class="num data">${p.ipids.toLocaleString()}</td><td class="num data">${p.eisc.length||"—"}</td></tr>`).join("");
   html+=card("Processors",ss.processors.length,`<p class="card-intro">Each processor program at a glance — click a row to open its full audit.</p>`+tbl([{t:"Unit"},{t:"Program"},{t:"Signals",num:1},{t:"Symbols",num:1},{t:"Devices",num:1},{t:"IP-IDs",num:1},{t:"Cross-links",num:1}],rows,0),true);
-  const links=[]; ss.processors.forEach(p=>p.eisc.forEach(e=>links.push({from:p.name,ipid:e.ipid,target:e.target||e.name})));
+  const links=[]; ss.processors.forEach(p=>p.eisc.forEach(e=>links.push({from:p.name,ipid:e.ipid,target:e.target,ip:e.ip})));
   if(links.length){
-    const lrows=links.map(l=>`<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.ipid)}</td><td class="data">${esc(l.target||"—")}</td></tr>`).join("");
-    html+=card("Cross-processor links",links.length,`<p class="card-intro">Intersystem (EISC) bridges between the programs — how the processors in this job talk to each other. A whole-system view no single-program tool gives you.</p>`+tbl([{t:"From processor"},{t:"IP-ID"},{t:"Links to"}],lrows,0),true);
+    const lrows=links.map(l=>{ const loop=/^127\./.test(l.ip||""); return `<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.target||"—")}</td><td class="data">${esc(l.ipid||"—")}</td><td class="data${loop?" muted":""}">${esc(l.ip||"—")}${loop?' <span class="muted">(same-stack)</span>':""}</td></tr>`; }).join("");
+    html+=card("Intersystem links (EISC)",links.length,`<p class="card-intro">Every intersystem (EISC) bridge in the job — what each program talks to and at which IP, read straight from the programs. <code>127.0.0.x</code> = another program on the same processor stack; a real IP = a separate system. A whole-system view no single-program tool gives you.</p>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0),true);
   }
   $("#censusBody").innerHTML=html;
   const fn=$("#censusName"); if(fn){ fn.classList.remove("hide"); const mn=fn.querySelector(".mono"); if(mn)mn.textContent=(state.unitName||"")+" › whole system"; }
@@ -1621,7 +1639,7 @@ function runAudit(){
     const byId=new Map(); for(const nn in ids){ const id=ids[nn],a=ad[nn]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
     byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
   const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
-  const eiscIds=new Set(); netRoles.forEach((r,ad)=>{ if(r.role)eiscIds.add(ad); }); etMap.forEach((e,ad)=>{ if(e&&e.name&&/intersystem|to\/from|^eisc/i.test(e.name))eiscIds.add(ad); }); const eiscCount=eiscIds.size;
+  const eiscIds=new Set(); netRoles.forEach((r,ad)=>{ if(r.role)eiscIds.add(ad); }); etMap.forEach((e,ad)=>{ if(e&&e.name&&/intersystem|to\/from|^eisc/i.test(e.name))eiscIds.add(ad); }); if(pr.smw){ eiscLinks(pr.smw, dip).forEach(l=>{ if(l.ipid)eiscIds.add(l.ipid); }); } const eiscCount=eiscIds.size;
   let sigAds=new Set();
   if(m){ const symByH=new Map(m.syms.map(x=>[String(x.H),x])); state.prog._symByH=symByH;
     const byH=dvIndex(pr.smw); state.prog._dvByH=byH;
@@ -2382,7 +2400,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

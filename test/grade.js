@@ -387,18 +387,27 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
 }
 // ===== whole-system: System overview rollup + cross-processor EISC =====
 { const smwB=[`[\nObjTp=Hd\nPgmNm=SecProg\n]`, sg(1,"Sec.A",""), sg(2,"Sec.B","")].join("\n");
-  const units=[{kind:"program",name:"01-AV.smw",smw:smw},{kind:"program",name:"02-SEC.smw",smw:smwB}];
+  // real EISC lives as an Sm symbol whose linked Dv (H=950 in the fixture) names the target
+  const smwA=smw+"\n[\nObjTp=Sm\nH=980\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=950\n]";
+  const units=[{kind:"program",name:"01-AV.smw",smw:smwA},{kind:"program",name:"02-SEC.smw",smw:smwB}];
   const ss=w.systemSummary(units);
   ck("system summary: two processors", ss.totals.processors, 2);
   has("system summary: signal total sums both programs", ss.totals.signals === ss.processors[0].signals + ss.processors[1].signals && ss.totals.signals>0);
   has("system summary: detects an EISC/intersystem link in the AV program", ss.processors[0].eisc.length>=1);
   // render the System view
-  w.eval(`state.unitName='Job.zip'; state.units=[{kind:'system',name:'System overview'},{kind:'program',name:'01-AV.smw',smw:${JSON.stringify(smw)}},{kind:'program',name:'02-SEC.smw',smw:${JSON.stringify(smwB)}}]; setActiveUnit(0);`);
+  w.eval(`state.unitName='Job.zip'; state.units=[{kind:'system',name:'System overview'},{kind:'program',name:'01-AV.smw',smw:${JSON.stringify(smwA)}},{kind:'program',name:'02-SEC.smw',smw:${JSON.stringify(smwB)}}]; setActiveUnit(0);`);
   const cb=w.document.getElementById('censusBody').textContent;
-  has("System view renders rollup + processors + cross-links", /System at a glance/.test(cb) && /Processors/.test(cb) && /Cross-processor links/.test(cb));
+  has("System view renders rollup + processors + cross-links", /System at a glance/.test(cb) && /Processors/.test(cb) && /Intersystem links/.test(cb));
   // clicking a processor row opens that unit's full audit (data-unit switch)
   const prow=w.document.querySelector('#censusBody tr[data-unit]'); if(prow){ prow.dispatchEvent(new w.Event('click',{bubbles:true})); }
   has("clicking a processor row opens its full as-built", w.eval('state.unitIndex')>=1 && /PROGRAM|Overview|Network/i.test(w.document.getElementById('censusBody').textContent));
+}
+// ===== EISC detection finds Sm-based intersystem links (the real representation) =====
+{ const prog="[\nObjTp=Dv\nH=950\nNm=02_Security\nAd=E2\n]\n[\nObjTp=Sm\nH=980\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=950\n]";
+  const links=w.eiscLinks(prog, new Map([["E2","127.0.0.2"]]));
+  has("eiscLinks finds the Sm-based EISC (dvNetRoles misses it)", links.length===1);
+  ck("eiscLinks resolves target name from the linked Dv", links[0].target, "02_Security");
+  ck("eiscLinks resolves target IP via the .dip", links[0].ip, "127.0.0.2");
 }
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
