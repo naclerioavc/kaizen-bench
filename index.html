@@ -13,60 +13,20 @@
     --stripe:#ffffff; --ok:#3ad29f; --bad:#ff5a5f; --warn:#f5b14c; --trace:#9aa0ff;
   }
   [data-theme="synthwave"]{--bg:#190b2e;--panel:#241141;--panel2:#2d1850;--line:#3d2470;--ink:#f4e9ff;--mut:#a98fd0;--dim:#6b549a;--stripe:#ff5dcd;--trace:#36e0ff;--ok:#36e0ff;--warn:#ffd24a;--bad:#ff5d8f;}
-  [data-theme="matrix"]{--bg:#000600;--panel:#04170a;--panel2:#062610;--line:#0c3a18;--ink:#9dff9d;--mut:#3f8f4f;--dim:#256030;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff5a5f;}
+  [data-theme="matrix"]{--bg:#020a04;--panel:#06180c;--panel2:#0a2613;--line:#11401d;--ink:#b6ffb6;--mut:#4f9f5f;--dim:#2f7040;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff6a6f;}
   [data-theme="blueprint"]{--bg:#06182e;--panel:#0a2240;--panel2:#0d2c52;--line:#16406e;--ink:#dcecff;--mut:#7aa4d6;--dim:#48648c;--stripe:#48b4ff;--trace:#48b4ff;--ok:#54d6c0;--warn:#ffcf6b;--bad:#ff7a8f;}
-  /* Unicorn Cookie -- light sugar-cookie base, bright frosting accents (grain texture below) */
-  [data-theme="cookie"]{--bg:#f6e7c8;--panel:#fdf4e3;--panel2:#f6ead0;--line:#e6cfa3;--ink:#5a4124;--mut:#9c7c4e;--dim:#bda06f;--stripe:#ff3f97;--trace:#8a4fff;--ok:#0f9d68;--warn:#d97506;--bad:#e23b57;}
-  /* Gingerbread -- warm baked brown, holiday lean (grain texture below) */
-  [data-theme="ginger"]{--bg:#2a1c12;--panel:#37271a;--panel2:#443122;--line:#5a4330;--ink:#f7e8d2;--mut:#c6a47e;--dim:#8c6f50;--stripe:#e8514e;--trace:#3fae6b;--ok:#86d39a;--warn:#f0c869;--bad:#ff8a8a;}
-  /* Half-Shell -- sewer green + four bandana accents */
+  /* Unicorn Cookie -- light pastel sugar-cookie palette (color only) */
+  [data-theme="cookie"]{--bg:#f6e7c8;--panel:#fdf5e6;--panel2:#f4e8d0;--line:#e4cda0;--ink:#5a4124;--mut:#9c7c4e;--dim:#bda06f;--stripe:#ff3f97;--trace:#8a4fff;--ok:#0f9d68;--warn:#d97506;--bad:#e23b57;}
+  /* Half-Shell -- sewer green + bandana accents */
   [data-theme="halfshell"]{--bg:#0c1f0e;--panel:#13301a;--panel2:#1a4023;--line:#245a30;--ink:#e8ffe0;--mut:#86c98e;--dim:#4f8a59;--stripe:#7fe04a;--trace:#3aa0ff;--ok:#5fd35f;--warn:#ff8a2a;--bad:#ff4f4f;}
-  /* Hero's Quest -- forest + gold */
-  [data-theme="quest"]{--bg:#0d1c12;--panel:#13291b;--panel2:#1a3724;--line:#27543a;--ink:#eef7df;--mut:#9bbf86;--dim:#5f8a5f;--stripe:#e8c84a;--trace:#57c98a;--ok:#6fd38a;--warn:#e8c84a;--bad:#dc6a4a;}
-  /* Power-Up -- night sky + brick-red / pipe-green / coin-gold */
-  [data-theme="powerup"]{--bg:#0a1430;--panel:#11204a;--panel2:#16285c;--line:#21397f;--ink:#eef2ff;--mut:#8fa6e0;--dim:#5670b0;--stripe:#e8413a;--trace:#3aa0ff;--ok:#43b047;--warn:#ffcc33;--bad:#e8413a;}
   /* Mouse Ears -- classic red/black/white/yellow */
   [data-theme="mouse"]{--bg:#1a0e10;--panel:#261519;--panel2:#321b20;--line:#4a2730;--ink:#fff3e6;--mut:#d6a0a8;--dim:#9a6a72;--stripe:#e8413a;--trace:#ffcf33;--ok:#43c07a;--warn:#ffcf33;--bad:#e8413a;}
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:none}
-  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:none}
   main,footer{position:relative;z-index:1}
   header{position:relative;z-index:40}
-  [data-theme="synthwave"] body::before,[data-theme="blueprint"] body::before{background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px;opacity:.16}
-  [data-theme="matrix"] body::before{background:repeating-linear-gradient(0deg,rgba(57,255,20,.06) 0 1px,transparent 1px 3px);opacity:.6}
-  /* baked grain (sugar cookie / gingerbread) -- fractal-noise speckle for a tactile, claymation feel */
-  [data-theme="cookie"] body::before,[data-theme="ginger"] body::before{
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size:160px 160px}
-  [data-theme="cookie"] body::before{mix-blend-mode:multiply;opacity:.20}
-  [data-theme="ginger"] body::before{mix-blend-mode:screen;opacity:.16}
-  /* bright frosting sprinkles (cookie) on body::after -- normal blend so they pop */
-  [data-theme="cookie"] body::after{
-    background-image:
-      radial-gradient(circle,#ff2e8b 2.4px,transparent 3px),
-      radial-gradient(circle,#7b3cff 2.4px,transparent 3px),
-      radial-gradient(circle,#00b070 2.4px,transparent 3px),
-      radial-gradient(circle,#13a4e6 2.4px,transparent 3px),
-      radial-gradient(circle,#ff9500 2.4px,transparent 3px),
-      radial-gradient(circle,#ffd23d 2.4px,transparent 3px);
-    background-size:78px 78px,104px 104px,88px 88px,66px 66px,120px 120px,94px 94px;
-    background-position:0 0,22px 36px,46px 11px,33px 60px,12px 56px,60px 24px;
-    opacity:.9}
-  /* gingerbread icing flecks */
-  [data-theme="ginger"] body::after{background-image:radial-gradient(circle,#f7e8d2 1.6px,transparent 2.2px);background-size:120px 120px;opacity:.12}
-  /* light theme (cookie): keep branding legible (dark) -- still neutral, never an accent */
+  /* light theme (cookie): keep branding + signal-mark legible on the pale base */
   [data-theme="cookie"] .lockup .logo{color:#4a3414}
   [data-theme="cookie"] .lockup .logo.light{color:#9c7c4e}
   [data-theme="cookie"] .mark rect[fill="#e9e9ee"]{fill:#5a4124}
-  /* brick (half-shell sewer wall / power-up blocks) */
-  [data-theme="halfshell"] body::before,[data-theme="powerup"] body::before{
-    background-image:
-      linear-gradient(0deg, transparent 0 21px, var(--line) 21px 23px),
-      linear-gradient(90deg, transparent 0 45px, var(--line) 45px 47px);
-    background-size:47px 23px;opacity:.5}
-  /* gold diagonal weave (hero's quest) */
-  [data-theme="quest"] body::before{background-image:repeating-linear-gradient(45deg,var(--stripe) 0 1px,transparent 1px 13px),repeating-linear-gradient(-45deg,var(--stripe) 0 1px,transparent 1px 13px);opacity:.07}
-  /* polka dots (mouse ears classic toon) */
-  [data-theme="mouse"] body::before{background-image:radial-gradient(circle,#fff3e6 3px,transparent 3.5px);background-size:40px 40px;opacity:.06}
   /* lock Kaizen Logic branding -- theme-independent */
   .lockup .logo{color:#e9e9ee}
   .lockup .logo.light{color:#8a8a93}
@@ -95,6 +55,7 @@
   .brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
   .mark{width:28px;height:28px;flex:none}
   .lockup{line-height:.9;text-align:center}
+  a.lockup-link{display:block;text-decoration:none;cursor:pointer}
   .vdiv{width:1px;height:30px;background:var(--line)}
   .product{display:inline-flex;align-items:center;gap:9px}
   .lockup .logo{display:block;font-weight:800;letter-spacing:-.03em;font-size:24px;line-height:.94}
@@ -382,10 +343,10 @@
 <body>
 <header>
   <div class="brand">
-    <div class="lockup">
+    <a class="lockup lockup-link" href="https://kaizenlogic.com" target="_blank" rel="noopener" title="kaizenlogic.com">
       <span class="logo">kaizen</span>
       <span class="logo light">Logic</span>
-    </div>
+    </a>
     <span class="vdiv"></span>
     <span class="product">
       <svg class="mark" viewBox="0 0 30 30" aria-label="SIMPL Bench">
@@ -1174,10 +1135,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     {id:"blueprint",name:"Blueprint",sw:["#48b4ff","#54d6c0","#ffcf6b"]},
     {id:"matrix",name:"Matrix",sw:["#39ff14","#c8ff4a","#9dff9d"]},
     {id:"cookie",name:"Unicorn Cookie",sw:["#ff3f97","#8a4fff","#0f9d68"]},
-    {id:"ginger",name:"Gingerbread",sw:["#e8514e","#3fae6b","#f0c869"]},
     {id:"halfshell",name:"Half-Shell",sw:["#7fe04a","#3aa0ff","#ff8a2a"]},
-    {id:"quest",name:"Hero's Quest",sw:["#e8c84a","#57c98a","#dc6a4a"]},
-    {id:"powerup",name:"Power-Up",sw:["#e8413a","#43b047","#ffcc33"]},
     {id:"mouse",name:"Mouse Ears",sw:["#e8413a","#ffcf33","#fff3e6"]}
   ];
   var btn=document.getElementById("themeBtn"), menu=document.getElementById("themeMenu"),
@@ -1189,6 +1147,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     else document.documentElement.removeAttribute("data-theme");
     try{localStorage.setItem("simplbench-theme",id);}catch(e){}
     cur=id;
+    void document.documentElement.offsetWidth; /* force repaint on theme switch */
     var t=THEMES.filter(function(x){return x.id===id;})[0]||THEMES[0];
     nameEl.textContent=t.name; dot.style.background=t.sw[0];
     var bs=menu.querySelectorAll("button");
