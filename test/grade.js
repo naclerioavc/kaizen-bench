@@ -386,5 +386,23 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const after = !w.document.getElementById('tab-diff').classList.contains('hide');
   has("selecting a theme does not hide the active tab (nav-handler guard)", before===true && after===true);
 }
+// ===== whole-system: every processor program ingested as its own unit =====
+{ const B=n=>({length:n});
+  const fl=[
+    {name:"Job/01-CP4 AV/AV.smw", bytes:B(2000)},
+    {name:"Job/01-CP4 AV/AV.smft", bytes:B(10)},
+    {name:"Job/01-CP4 AV/AV.dip", bytes:B(10)},
+    {name:"Job/01-CP4 AV/SPlsWork/x.smw", bytes:B(99999)},
+    {name:"Job/02-CP4 Security/Sec.smw", bytes:B(1000)},
+    {name:"Job/02-CP4 Security/Sec.smft", bytes:B(10)},
+    {name:"Job/D3/ResidenceA/data/rooms.dat", bytes:B(10)}
+  ];
+  const a=w.chooseAllPrograms(fl);
+  ck("all-programs: two processor units", a.programs.length, 2);
+  ck("all-programs: largest first, junk SPlsWork excluded", a.programs[0].name, "AV.smw");
+  ck("all-programs: unit 0 keeps its own .smft", fl[a.programs[0].smft].name, "Job/01-CP4 AV/AV.smft");
+  ck("all-programs: unit 1 (Security) has no .dip of its own", a.programs[1].dip, -1);
+  ck("all-programs: one D3 project root", a.d3roots.length, 1);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

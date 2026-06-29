@@ -15,13 +15,13 @@
   [data-theme="synthwave"]{--bg:#190b2e;--panel:#241141;--panel2:#2d1850;--line:#3d2470;--ink:#f4e9ff;--mut:#a98fd0;--dim:#6b549a;--stripe:#ff5dcd;--trace:#36e0ff;--ok:#36e0ff;--warn:#ffd24a;--bad:#ff5d8f;}
   [data-theme="matrix"]{--bg:#020a04;--panel:#06180c;--panel2:#0a2613;--line:#11401d;--ink:#b6ffb6;--mut:#4f9f5f;--dim:#2f7040;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff6a6f;}
   /* Daylight -- the light theme (cream base, vivid accents) */
-  [data-theme="daylight"]{--bg:#f6e7c8;--panel:#fdf5e6;--panel2:#f4e8d0;--line:#e4cda0;--ink:#5a4124;--mut:#9c7c4e;--dim:#bda06f;--stripe:#ff3f97;--trace:#8a4fff;--ok:#0f9d68;--warn:#d97506;--bad:#e23b57;}
+  [data-theme="daylight"]{--bg:#f5f7fa;--panel:#ffffff;--panel2:#eef2f7;--line:#d9e0e8;--ink:#1b2733;--mut:#586675;--dim:#93a1b0;--stripe:#2f6df6;--trace:#2f6df6;--ok:#0f9d68;--warn:#b8690a;--bad:#d8384f;}
   main,footer{position:relative;z-index:1}
   header{position:relative;z-index:40}
   /* Daylight (light theme): keep branding + signal-mark legible on the pale base */
-  [data-theme="daylight"] .lockup .logo{color:#4a3414}
-  [data-theme="daylight"] .lockup .logo.light{color:#9c7c4e}
-  [data-theme="daylight"] .mark rect[fill="#e9e9ee"]{fill:#5a4124}
+  [data-theme="daylight"] .lockup .logo{color:#1b2733}
+  [data-theme="daylight"] .lockup .logo.light{color:#586675}
+  [data-theme="daylight"] .mark rect[fill="#e9e9ee"]{fill:#1b2733}
   /* lock Kaizen Logic branding -- theme-independent */
   .lockup .logo{color:#e9e9ee}
   .lockup .logo.light{color:#8a8a93}
@@ -1143,7 +1143,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
 (function(){
   var THEMES=[
     {id:"",name:"Midnight",sw:["#4f8ef7","#ef4444","#e9e9ee"]},
-    {id:"daylight",name:"Daylight",sw:["#ff3f97","#8a4fff","#0f9d68"]},
+    {id:"daylight",name:"Daylight",sw:["#2f6df6","#0f9d68","#1b2733"]},
     {id:"synthwave",name:"Synthwave",sw:["#ff5dcd","#36e0ff","#ffd24a"]},
     {id:"matrix",name:"Matrix",sw:["#39ff14","#c8ff4a","#9dff9d"]}
   ];
@@ -1894,6 +1894,25 @@ function chooseProgramSet(files){
   const d3root=d3projects.find(r=>!/autosave/i.test(r))||d3projects[0]||"";
   return {smw,smft,dip,ir,programs,d3projects,d3root};
 }
+// Like chooseProgramSet, but returns EVERY processor program as its own coherent unit (each .smw
+// with its sibling .smft/.dip/.ir from the same folder), plus the D3 project roots. The whole-system
+// audit parses each unit separately and never merges their namespaces.
+function chooseAllPrograms(files){
+  const norm=files.map(f=>f.name.replace(/\\/g,"/"));
+  const sz=i=>(files[i].bytes&&files[i].bytes.length)||0;
+  const isWork=i=>/\.smw$/i.test(norm[i]) && !/\/splswork\//i.test(norm[i]) && !/(^|\/)autosave[\/.]/i.test(norm[i]) && !/\/d3\//i.test(norm[i]);
+  let idx=[]; for(let i=0;i<files.length;i++) if(isWork(i)) idx.push(i);
+  if(!idx.length) for(let i=0;i<files.length;i++) if(/\.smw$/i.test(norm[i]) && !/\/splswork\//i.test(norm[i])) idx.push(i);
+  const dirOf=p=>p.replace(/[^/]*$/,"").toLowerCase();
+  const units=idx.map(i=>{ const dir=dirOf(norm[i]);
+    const sib=ext=>{ const re=new RegExp("\\."+ext+"$","i"); return norm.findIndex(p=>re.test(p)&&p.toLowerCase().startsWith(dir)); };
+    const ir=[]; norm.forEach((p,k)=>{ if(/\.ir$/i.test(p)&&p.toLowerCase().startsWith(dir)) ir.push(k); });
+    return { smw:i, smft:sib("smft"), dip:sib("dip"), ir, name:norm[i].replace(/.*\//,"") };
+  }).sort((a,b)=>sz(b.smw)-sz(a.smw));
+  const d3=new Set();
+  norm.forEach(p=>{ const m=p.match(/^(.*\/)data\/(?:areas|rooms|loads|scenes)\.dat$/i)||p.match(/^(.*\/)documentation\/loadwiring\.html?$/i); if(m&&!/\/autosave\//i.test(m[1])) d3.add(m[1]); });
+  return { programs:units, d3roots:[...d3] };
+}
 async function loadProgram(file){
   const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
   const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04)||/\.zip$/i.test(file.name);
@@ -2325,7 +2344,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,chooseAllPrograms,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
