@@ -267,3 +267,57 @@ The D3 `Documentation/` folder is scanned for all three generated reports (any c
   the standard parser, so those signals are searchable/traceable in the Audit, but a clean
   "button → scene → loads at levels" extraction would require reverse-engineering D3's signal/scene
   naming convention (a research project, not a parse) and is deliberately NOT guessed.
+
+## File-set anatomy — every file and how Bench uses it (do not rediscover)
+The single durable reference for a Crestron/SIMPL job. Verified against real multi-processor + D3
+jobs. Capability only — no customer data.
+
+### Per-processor program files (one coherent unit per processor folder)
+- **`.smw`** — the program. Record blocks `[ ... ]` keyed by `ObjTp`:
+  - `Sg` (signal): `Nm`, `SgTp` (digital = absent/0/1, analog = 2, serial = 4).
+  - `Sm` (symbol/module instance): pins `I#`/`O#` (in/out signal handles), `C#` (child handles),
+    `P#` (params), `Nm`, `DvH` (the device this symbol drives), `H` (handle).
+  - `Dv` (device): `Nm`, `Ad` (IP-ID / Cresnet ID), `PrH` (parent → bus/tree), `SmH`.
+  - `Db` (database/model): `Mnf`, `Mdl`, `Tpe`, `DvH`. `Cm` (serial comspec). `Et` (Ethernet:
+    `DvH`,`IPA`,`IPM` → static IP + mask). `VTP` (touchpanel project). `Hd` (header: `PgmNm`,
+    `DlrNm`,`CltNm`,`PrNm`,`CmVr`,`DbVr`,`DvcDbVr`). Folder labels live in `Cmn1`.
+  - **S-number** = a symbol's child position = its SIMPL Program-View address.
+  - **EISC / intersystem links** are **`Sm` symbols** named `…Ethernet Intersystem Communications`
+    (or `EISC`), **NOT `Dv` records**. Resolve: `Sm.DvH → Dv` gives the **target name** (`Dv.Nm`,
+    e.g. `02_Security`, `[RSD Lighting Loads].rsd`) and **IP-ID** (`Dv.Ad`); `Ad → .dip` gives the
+    **target IP**. `dvNetRoles`/`parseEt` only scan `Dv`/`Et`, so they MISS these — use `eiscLinks()`.
+  - **EISC target IP `127.0.0.N`** = the program in **slot N** on the **same processor** (CIP
+    loopback); a real IP = a separate system/processor. This is how the cross-processor map is built.
+- **`.smft`** — device/network hardware tree. Attributes are ONLY `Model`,`Name`,`DeviceId`,`Type`
+  (Network),`Id` (Network). Devices nest inside `<Network>`; gateways nest sub-devices. **No
+  per-device slot/rack attribute exists** (the "SlotNN" you see is the processor *program* slot =
+  the folder/program name, not a device locator).
+- **`.dip`** — IP table: `id#=<IP-ID hex>` / `addr#=<IP>` pairs. The IP for any `Ad`.
+- **`.ir`** — IR driver files (one per IR device).
+- **`.umc` / `.chd`** — also parse with the `.smw` parser.
+
+### D3 Pro lighting project (its own folder: `D3/<project>/`)
+D3 is SIMPL under the hood + generated docs. Parse the generated text, not the binary `.d3p`.
+- **`data/*.dat`** — tab-delimited, 4 header lines (File Version / Modified Date / Modified Time /
+  blank) then a column-header row then rows (CRLF). Schemas:
+  - `areas.dat`: `AreaID  AreaName`
+  - `rooms.dat`: `RoomID  AreaID  RoomName`
+  - `loads.dat`: `LoadID  LoadName  RoomID  DIM_setting  Ramp_time  Upper_limit  Lower_limit  TotalWattage`
+  - `scenes.dat`: `SceneID  RoomID  SceneName`
+- **`Documentation/`** — `loadwiring.htm` (load → control module/output/feed/enclosure),
+  `loadschedulept.htm` (wattage/circuit), `Engraving Report.htm` (per-station keypad button labels
+  + station images).
+- **`Programs/<project>.smw`** — the BIG (~8 MB) program with the scene logic (NOT the small
+  `AUTOSAVE_Config.smw`, which is config only): scene blocks `[_Global_Lighting_Scene][<SceneName>]`
+  expose `Load_NN_In_Scene` (which loads are in the scene; `NN` = `LoadID`), `Recall`, `at_scene_fb`.
+  Per-load preset **levels** are stored in `Double-Precision Analog Variable Preset` module instances.
+  Button → scene link: the engraving label usually equals the scene name.
+
+### Whole-job archive layout (a client backup zip)
+- Multiple **processor folders** (e.g. `01-CP4 - AV/`, `02-CP4 - Security/`), each with its own
+  `.smw`+`.smft`+`.dip` — parse each as a SEPARATE unit; never merge namespaces (IP-IDs/S-numbers
+  collide across processors). `chooseAllPrograms()` is the single intake source.
+- `**/SPlsWork/**` = compiled output / module libraries = noise (skip for program selection).
+- `**/AUTOSAVE/**` = editor snapshots (dedupe; don't count as separate projects).
+- Multiple D3 project folders may be dated versions of one residence — list distinct non-AUTOSAVE roots.
+- The **System overview** rolls these up: per-processor counts + the cross-processor EISC map.
