@@ -404,5 +404,17 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("all-programs: unit 1 (Security) has no .dip of its own", a.programs[1].dip, -1);
   ck("all-programs: one D3 project root", a.d3roots.length, 1);
 }
+// ===== whole-system: unit selector switches between processor programs (no mixing) =====
+{ const hd="[\nObjTp=Hd\nPgmNm=P\n]";
+  const smwA=[hd, sg(1,"AVonly.Signal","")].join("\n");
+  const smwB=[hd, sg(1,"SECURITYonly.Signal","")].join("\n");
+  w.eval(`state.unitName='Job.zip'; state.units=[{kind:'program',name:'01-AV.smw',smw:${JSON.stringify(smwA)}},{kind:'program',name:'02-SEC.smw',smw:${JSON.stringify(smwB)}}]; setActiveUnit(0);`);
+  const cb=w.document.getElementById('censusBody');
+  has("multi-program: unit selector renders with a pill per unit", cb.querySelectorAll('.unitpill').length===2 && /processor programs/.test(cb.textContent));
+  has("active unit 0 = AV program (not mixed with Security)", /AVonly\.Signal/.test(w.eval('state.prog.smw')) && !/SECURITYonly/.test(w.eval('state.prog.smw')));
+  w.eval('setActiveUnit(1)');
+  has("switching to unit 1 loads Security program cleanly", /SECURITYonly\.Signal/.test(w.eval('state.prog.smw')) && !/AVonly/.test(w.eval('state.prog.smw')));
+  has("active pill follows the selection", w.document.querySelectorAll('#censusBody .unitpill.on').length===1);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

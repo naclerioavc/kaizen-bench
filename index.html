@@ -181,6 +181,13 @@
   .gsbar input{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:14px;padding:11px 92px 11px 40px;border-radius:9px;background-repeat:no-repeat;background-position:14px center;background-size:16px 16px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a92' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.5' y2='16.5'/%3E%3C/svg%3E")}
   .gsbar input:focus{outline:none;border-color:var(--stripe)}
   .gscount{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--mut);pointer-events:none;letter-spacing:.02em}
+  .unitbar{margin:2px 0 16px;padding:13px 15px;border:1px solid var(--line);border-left:2px solid var(--trace);border-radius:9px;background:var(--panel)}
+  .unitbar-lbl{font-size:12.5px;color:var(--mut);margin-bottom:10px;line-height:1.5}
+  .unitsel{display:flex;gap:7px;flex-wrap:wrap}
+  .unitpill{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;transition:color .13s ease,border-color .13s ease,background .13s ease}
+  .unitpill:hover{color:var(--ink);border-color:var(--dim)}
+  .unitpill.on{background:var(--trace);border-color:var(--trace);color:#fff}
+  @media print{ .unitbar{display:none!important} }
   #censusBody.gsearch .card.gs-empty{display:none}
   #censusBody.gsearch tbody tr:not(.gs-hit){display:none!important}
   mark.gs-mark{background:var(--stripe);color:var(--bg);border-radius:2px;padding:0 1px;font-weight:600}
@@ -463,7 +470,7 @@
 "use strict";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const TABS=["diff","census","log","help"];
-const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, arcA:null, arcB:null, arcResult:null, arcActive:false, census:null, censusName:null, lastDiff:null, signals:null, logMulti:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false} };
+const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, arcA:null, arcB:null, arcResult:null, arcActive:false, census:null, censusName:null, lastDiff:null, signals:null, logMulti:null, units:null, unitIndex:0, unitName:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false} };
 
 /* ---------- tabs ---------- */
 function show(tab){
@@ -1089,10 +1096,12 @@ function structAnalysis(model){
 }
 wireDrop($("#dropC"),$("#fileC"),f=>{
   $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
-  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,d3:out.d3,multi:out.multi,auditDone:true,devDone:true,_dvByH:null,_symByH:null,_symToDev:null,_sigAds:null}); updateDiffLoaded(); setTimeout(runAudit,20); })
+  loadProgram(f).then(out=>{ state.unitName=out.name; state.units=(out.units&&out.units.length)?out.units:[{kind:"program",name:out.name,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,d3:out.d3}]; setActiveUnit(0); updateDiffLoaded(); })
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 $("#censusBody").addEventListener("click",e=>{
+  const up=e.target.closest("[data-unit]");
+  if(up){ setActiveUnit(+up.dataset.unit); return; }
   const d=e.target.closest("[data-drill]");
   if(d){ e.stopPropagation(); drill(d.dataset.drill, d.dataset.val); return; }
   const sc=e.target.closest(".subchip");
@@ -1521,6 +1530,21 @@ function renderD3(d3){
   }
   return html;
 }
+function setActiveUnit(i){
+  if(!state.units||!state.units[i])return;
+  state.unitIndex=i; const u=state.units[i];
+  const arch=state.unitName||"";
+  const nm=(state.units.length>1 && arch)? (arch+" › "+(u.name||("Unit "+(i+1)))) : (u.name||arch||"");
+  state.prog={ name:nm, model:null, smw:u.smw||null, smft:u.smft||null, dip:u.dip||null, ir:u.ir||null, d3:u.d3||null, multi:null, auditDone:true, devDone:true, _dvByH:null,_symByH:null,_symToDev:null,_sigAds:null };
+  runAudit();
+}
+function renderUnitSelector(){
+  const us=state.units, ai=state.unitIndex;
+  const pills=us.map((u,i)=>`<button class="unitpill${i===ai?' on':''}" data-unit="${i}">${u.kind==="d3"?"◐":"▣"} ${esc(u.name||("Unit "+(i+1)))}</button>`).join("");
+  const np=us.filter(u=>u.kind==="program").length, nd=us.filter(u=>u.kind==="d3").length;
+  const lbl=[np?`${np} processor program${np>1?"s":""}`:"", nd?`${nd} lighting project${nd>1?"s":""}`:""].filter(Boolean).join(" + ");
+  return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl} — each parsed on its own, nothing mixed. Pick one to view:</div><div class="unitsel">${pills}</div></div>`;
+}
 function runAudit(){
   const pr=state.prog;
   if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; } }
@@ -1584,15 +1608,7 @@ function runAudit(){
   if(devRows.length){ ov+=`<div style="margin-top:16px"><div class="lbl">Devices by network</div>${stackBar([{label:"Ethernet",val:eth.length,cls:"s1"},{label:"Cresnet",val:cres.length,cls:"s2"},{label:"Other",val:devRows.length-eth.length-cres.length,cls:"s3"}])}</div>`; }
   const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length)||(pr.d3&&((pr.d3.loads&&pr.d3.loads.length)||pr.d3.schedule||pr.d3.keypads)));
   const hasProg=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
-  if(state.prog.multi && ((state.prog.multi.programs&&state.prog.multi.programs.length>1)||(state.prog.multi.d3projects&&state.prog.multi.d3projects.length>1))){
-    const mp=state.prog.multi, bits=[];
-    if(mp.programs&&mp.programs.length>1) bits.push(`<b>${mp.programs.length}</b> processor programs`);
-    if(mp.d3projects&&mp.d3projects.length>1) bits.push(`<b>${mp.d3projects.length}</b> D3 projects`);
-    const others=(mp.programs||[]).filter(p=>p!==mp.chosenProg);
-    const otherD3=(mp.d3projects||[]).filter(p=>p!==mp.chosenD3);
-    const alsoBits=[]; if(others.length)alsoBits.push("programs "+others.map(esc).join(", ")); if(otherD3.length)alsoBits.push("D3 "+otherD3.map(esc).join(", "));
-    html+=`<div class="banner" style="border-left-color:var(--warn);margin-bottom:14px">This archive holds ${bits.join(" and ")}. Showing <b>${esc(mp.chosenProg||state.prog.name||"this program")}</b>${mp.chosenD3?` &middot; D3 <b>${esc(mp.chosenD3)}</b>`:""} — nothing else is mixed in.${alsoBits.length?` Also inside: ${alsoBits.join("; ")}.`:""} To audit another, drop that program&rsquo;s folder on its own, or use <b>Version Diff → compare archives</b> for the whole set.</div>`;
-  }
+  if(state.units && state.units.length>1){ html+=renderUnitSelector(); }
   if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   if(hasProg) html+=card("Overview",null,ov,true);
@@ -1913,33 +1929,38 @@ function chooseAllPrograms(files){
   norm.forEach(p=>{ const m=p.match(/^(.*\/)data\/(?:areas|rooms|loads|scenes)\.dat$/i)||p.match(/^(.*\/)documentation\/loadwiring\.html?$/i); if(m&&!/\/autosave\//i.test(m[1])) d3.add(m[1]); });
   return { programs:units, d3roots:[...d3] };
 }
+function buildD3(files, rootLower){
+  const inR=f=>!rootLower || f.name.replace(/\\/g,"/").toLowerCase().startsWith(rootLower);
+  const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inR(f));
+  const dsch=files.find(f=>/loadschedule\w*\.html?$/i.test(f.name)&&inR(f));
+  const deng=files.find(f=>/engraving[^/]*\.html?$/i.test(f.name)&&inR(f));
+  const datGet=key=>{ const re=new RegExp("(^|[\\\\/])"+key+"\\.dat$","i"); const e=files.find(f=>re.test(f.name)&&inR(f)); return e?decodeText(e.bytes):null; };
+  const datT={areas:datGet("areas"),rooms:datGet("rooms"),loads:datGet("loads"),scenes:datGet("scenes")};
+  let d3=null;
+  if(datT.areas||datT.rooms||datT.loads||datT.scenes){ d3=d3||{}; try{ d3.lighting=parseD3Data(datT); }catch(e){} }
+  if(dw||dsch||deng){ d3=d3||{};
+    if(dw){ try{ Object.assign(d3,parseD3Loadwiring(decodeText(dw.bytes))); }catch(e){} }
+    if(dsch){ try{ d3.schedule=parseD3LoadSchedule(decodeText(dsch.bytes)); }catch(e){} }
+    if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} } }); d3.keypads=eng; }catch(e){} }
+  }
+  return d3;
+}
 async function loadProgram(file){
   const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
   const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04)||/\.zip$/i.test(file.name);
   const out={smft:null,dip:null,smw:null,ir:[],d3:null,name:file.name};
   if(isZip){
     const files=await unzip(buf);
-    const pick=chooseProgramSet(files);
-    out.smw = pick.smw>=0?decodeText(files[pick.smw].bytes):null;
-    out.smft= pick.smft>=0?decodeText(files[pick.smft].bytes):null;
-    out.dip = pick.dip>=0?decodeText(files[pick.dip].bytes):null;
-    out.ir  = pick.ir.map(i=>files[i].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,""));
+    const all=chooseAllPrograms(files);
+    const dec=i=>i>=0?decodeText(files[i].bytes):null;
     const base=r=>(r||"").replace(/[\\/]$/,"").replace(/.*[\\/]/,"");
-    out.multi={ programs:pick.programs, chosenProg:(pick.smw>=0?files[pick.smw].name.replace(/.*[\\/]/,""):null), d3projects:pick.d3projects.map(base), chosenD3:base(pick.d3root) };
-    const root=(pick.d3root||"").replace(/\\/g,"/").toLowerCase();
-    const inD3=f=>!root || f.name.replace(/\\/g,"/").toLowerCase().startsWith(root);
-    const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inD3(f));
-    const dsch=files.find(f=>/loadschedule\w*\.html?$/i.test(f.name)&&inD3(f));
-    const deng=files.find(f=>/engraving[^/]*\.html?$/i.test(f.name)&&inD3(f));
-    const datGet=key=>{ const re=new RegExp("(^|[\\\\/])"+key+"\\.dat$","i"); const e=files.find(f=>re.test(f.name)&&inD3(f))||files.find(f=>re.test(f.name)&&!/autosave/i.test(f.name))||files.find(f=>re.test(f.name)); return e?decodeText(e.bytes):null; };
-    const datT={areas:datGet("areas"),rooms:datGet("rooms"),loads:datGet("loads"),scenes:datGet("scenes")};
-    if(datT.areas||datT.rooms||datT.loads||datT.scenes){ out.d3=out.d3||{}; try{ out.d3.lighting=parseD3Data(datT); }catch(e){} }
-    if(dw||dsch||deng){ out.d3=out.d3||{};
-      if(dw){ try{ Object.assign(out.d3,parseD3Loadwiring(decodeText(dw.bytes))); }catch(e){} }
-      if(dsch){ try{ out.d3.schedule=parseD3LoadSchedule(decodeText(dsch.bytes)); }catch(e){} }
-      if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} } }); out.d3.keypads=eng; }catch(e){} }
-    }
-    if(!out.smft&&!out.dip&&!out.smw&&!out.d3) throw new Error("no .smft / .dip / .smw / loadwiring.htm inside the zip");
+    const progUnits=all.programs.map(u=>({ kind:"program", name:u.name, smw:dec(u.smw), smft:dec(u.smft), dip:dec(u.dip), ir:u.ir.map(k=>files[k].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,"")) }));
+    let d3Units=all.d3roots.map(root=>{ const d3=buildD3(files, root.replace(/\\/g,"/").toLowerCase()); return d3?{ kind:"d3", name:base(root)||"D3 lighting", d3 }:null; }).filter(Boolean);
+    if(!d3Units.length){ const d3=buildD3(files, ""); if(d3) d3Units=[{ kind:"d3", name:"D3 lighting", d3 }]; }
+    out.units=progUnits.concat(d3Units);
+    const prim=progUnits[0]||d3Units[0]||null;
+    if(prim){ if(prim.kind==="program"){ out.smw=prim.smw; out.smft=prim.smft; out.dip=prim.dip; out.ir=prim.ir; } else { out.d3=prim.d3; } }
+    if(!out.units.length) throw new Error("no .smft / .dip / .smw / loadwiring.htm inside the zip");
   } else {
     const txt=decodeText(u8); const n=file.name.toLowerCase();
     if(n.endsWith(".smft"))out.smft=txt; else if(n.endsWith(".dip"))out.dip=txt; else if(n.endsWith(".smw")||n.endsWith(".umc")||n.endsWith(".chd"))out.smw=txt;
@@ -2344,7 +2365,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,chooseAllPrograms,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,chooseAllPrograms,buildD3,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
