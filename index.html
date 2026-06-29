@@ -16,17 +16,14 @@
   [data-theme="matrix"]{--bg:#020a04;--panel:#06180c;--panel2:#0a2613;--line:#11401d;--ink:#b6ffb6;--mut:#4f9f5f;--dim:#2f7040;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff6a6f;}
   /* Daylight -- the light theme (cream base, vivid accents) */
   [data-theme="daylight"]{--bg:#f5f7fa;--panel:#ffffff;--panel2:#eef2f7;--line:#d9e0e8;--ink:#1b2733;--mut:#586675;--dim:#93a1b0;--stripe:#2f6df6;--trace:#2f6df6;--ok:#0f9d68;--warn:#b8690a;--bad:#d8384f;}
-  /* Plumber -- NES overworld: sky-blue page, white cloud cards, brick/coin/pipe accents */
-  [data-theme="plumber"]{--bg:#5c94fc;--panel:#ffffff;--panel2:#e7f0ff;--line:#a9c4f2;--ink:#15182b;--mut:#515c75;--dim:#8590ac;--stripe:#e52521;--trace:#1f6fd6;--ok:#3aa83a;--warn:#e08a00;--bad:#e52521;}
+  /* Plumber -- warm brick base; Mario red / pipe-green / coin-gold pop like real game elements */
+  [data-theme="plumber"]{--bg:#241310;--panel:#2f1b13;--panel2:#3a241a;--line:#523322;--ink:#fff3e0;--mut:#d3ab8d;--dim:#9c7a60;--stripe:#e52521;--trace:#5bbf3a;--ok:#5bbf3a;--warn:#fbc02d;--bad:#ff5640;}
   main,footer{position:relative;z-index:1}
   header{position:relative;z-index:40}
   /* Daylight (light theme): keep branding + signal-mark legible on the pale base */
   [data-theme="daylight"] .lockup .logo{color:#1b2733}
   [data-theme="daylight"] .lockup .logo.light{color:#586675}
   [data-theme="daylight"] .mark rect[fill="#e9e9ee"]{fill:#1b2733}
-  [data-theme="plumber"] .lockup .logo{color:#15182b}
-  [data-theme="plumber"] .lockup .logo.light{color:#3a4a6a}
-  [data-theme="plumber"] .mark rect[fill="#e9e9ee"]{fill:#15182b}
   /* lock Kaizen Logic branding -- theme-independent */
   .lockup .logo{color:#e9e9ee}
   .lockup .logo.light{color:#8a8a93}
@@ -34,7 +31,6 @@
   .themewrap{position:relative;margin-left:auto}
   .themebtn{display:inline-flex;align-items:center;gap:8px;background:var(--panel2);color:var(--mut);border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer;transition:color .13s ease,border-color .13s ease}
   .themebtn:hover{color:var(--ink);border-color:var(--dim)}
-  .themebtn .tdot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--panel)}
   .themebtn .tcar{font-size:9px;opacity:.7;margin-left:1px}
   .thememenu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;min-width:186px;box-shadow:0 12px 34px rgba(0,0,0,.45);max-height:min(70vh,440px);overflow:auto}
   .thememenu[hidden]{display:none}
@@ -42,8 +38,6 @@
   .thememenu button:hover{background:var(--panel2);color:var(--ink)}
   .thememenu button[aria-checked="true"]{color:var(--ink)}
   .thememenu button[aria-checked="true"]::after{content:"\2713";margin-left:auto;color:var(--stripe);font-size:12px}
-  .tsw{display:inline-flex;gap:2px;flex:none}
-  .tsw i{width:9px;height:9px;border-radius:50%;display:block}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
     font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;}
@@ -1163,7 +1157,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     {id:"plumber",name:"Plumber",sw:["#e52521","#3aa83a","#fbc02d"]}
   ];
   var btn=document.getElementById("themeBtn"), menu=document.getElementById("themeMenu"),
-      nameEl=document.getElementById("themeName"), dot=document.getElementById("themeDot");
+      nameEl=document.getElementById("themeName");
   if(!btn||!menu) return;
   var cur=""; try{cur=localStorage.getItem("simplbench-theme")||"";}catch(e){}
   function apply(id){
@@ -1173,7 +1167,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     cur=id;
     void document.documentElement.offsetWidth; // nudge a reflow after the theme-var change
     var t=THEMES.filter(function(x){return x.id===id;})[0]||THEMES[0];
-    nameEl.textContent=t.name; dot.style.background=t.sw[0];
+    nameEl.textContent=t.name;
     var bs=menu.querySelectorAll("button");
     for(var i=0;i<bs.length;i++) bs[i].setAttribute("aria-checked", bs[i].dataset.id===id?"true":"false");
   }
@@ -1181,8 +1175,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
   THEMES.forEach(function(t){
     var b=document.createElement("button");
     b.type="button"; b.setAttribute("role","menuitemradio"); b.dataset.id=t.id;
-    var sw='<span class="tsw">'+t.sw.map(function(c){return '<i style="background:'+c+'"></i>';}).join('')+'</span>';
-    b.innerHTML=sw+'<span>'+t.name+'</span>';
+    b.innerHTML='<span>'+t.name+'</span>';
     b.addEventListener("click",function(){ apply(t.id); close(); });
     menu.appendChild(b);
   });
