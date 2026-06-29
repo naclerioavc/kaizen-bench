@@ -384,7 +384,7 @@
 <main>
   <!-- DIFF (hero) -->
   <section id="tab-diff">
-    <details class="tabhelp"><summary>How Version Diff works</summary><div>Load two builds of the same program &mdash; <b>A</b> is the older/baseline, <b>B</b> is the newer. You get exactly what changed: signals added, removed, or renamed; signal <b>type</b> changes (D↔A↔S); module instance counts; and <b>parameter changes</b> (a symbol whose wiring is unchanged but a setting was edited &mdash; the silent &ldquo;programming may be lost&rdquo; case). The one thing Git can&rsquo;t do for an <code>.smw</code>. Everything runs in your browser; nothing is uploaded.</div></details>
+    <details class="tabhelp"><summary>How Version Diff works</summary><div>Load two builds (<b>A</b> = older, <b>B</b> = newer). See exactly what changed: signals added/removed/renamed, <b>type</b> changes (D↔A↔S), module counts, and <b>parameter changes</b> (wiring unchanged but a setting edited &mdash; the silent &ldquo;lost programming&rdquo; case). Runs in your browser.</div></details>
     <div class="pair">
       <div class="slot">
         <h4>A — Baseline <span class="tag">(older build)</span></h4>
@@ -416,7 +416,7 @@
 
   <!-- CENSUS -->
   <section id="tab-census" class="hide">
-    <details class="tabhelp"><summary>How the Audit works</summary><div>Drop one program (a <code>.zip</code>, or <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) and it builds a full as-built: every device with its IP-ID, IP and the port it physically lands on; serial / IR / relay config; touchpanels; the full signal list; and your custom modules. <b>Click anything that&rsquo;s <span style="border-bottom:1px dotted">underlined</span> or a row with a ›</b> &mdash; a device, a signal, a module, a port &mdash; to drill into exactly what it connects to. Plain text isn&rsquo;t clickable. The amber bar up top flags anything worth a second look. <b>Lighting:</b> to read a D3 Pro system, zip the D3 <b>project folder</b> (the one containing the <code>data</code> and <code>Documentation</code> folders) and drop it &mdash; not a <code>.d3a</code> archive. <b>Whole-job backup?</b> If the zip holds several processors or D3 projects, it audits one and tells you up top what else is inside (so nothing gets mixed). Nothing is uploaded.</div></details>
+    <details class="tabhelp"><summary>How the Audit works</summary><div>Drop a program (<code>.zip</code> / <code>.smw</code> / <code>.smft</code> / <code>.dip</code>) for a full as-built: devices + IP-IDs + physical ports, serial/IR/relay, touchpanels, signals, custom modules. <b>Click anything <span style="border-bottom:1px dotted">underlined</span> or a row with ›</b> to drill in. The amber bar flags what&rsquo;s worth a look. <b>Lighting:</b> to read a D3 Pro system, zip the D3 <b>project folder</b> (the one containing the <code>data</code> and <code>Documentation</code> folders) and drop it &mdash; not a <code>.d3a</code> archive. <b>Whole-job backup?</b> If the zip holds several processors or D3 projects, it audits one and tells you up top what else is inside (so nothing gets mixed). Nothing is uploaded.</div></details>
     <div class="drop slim" id="dropC" tabindex="0" role="button" aria-label="Load a program">
       <p>Drop the program <code>.zip</code> &mdash; or a <code>.smw</code> / <code>.umc</code> / <code>.smft</code> / <code>.dip</code></p>
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
@@ -429,7 +429,7 @@
 
   <!-- LOG -->
   <section id="tab-log" class="hide">
-    <details class="tabhelp"><summary>How the Log Analyzer works</summary><div>Drop a processor error log or an Info-Tool / PLOG <code>.zip</code>. It triages recurring errors by rate, device socket drops (and whether they&rsquo;re on a regular cadence), logic-solve timeouts, processor load, and failed-login surges. <b>Tip:</b> load a program in the Audit tab too &mdash; the log then cross-references it, naming the dropping devices and tying &ldquo;could not be solved&rdquo; timeouts to the program&rsquo;s feedback loops.</div></details>
+    <details class="tabhelp"><summary>How the Log Analyzer works</summary><div>Drop a processor error log or Info-Tool / PLOG <code>.zip</code>. Triages recurring errors by rate, socket drops, logic-solve timeouts, CPU load, login surges. <b>Tip:</b> load the program in Audit too &mdash; the log then names the dropping devices and ties timeouts to feedback loops.</div></details>
     <div class="drop slim" id="dropL" tabindex="0" role="button" aria-label="Load a log file or zip">
       <p>Drop a processor error log or Info-Tool dump</p>
       <p class="muted" style="font-size:12px">.err / .log / .txt / .zip · or click to browse</p>
@@ -874,7 +874,7 @@ function renderArchiveDiff(){
     html+=`<div class="panel" style="margin-top:14px"><h3>${esc(x)} <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; work files</span><span class="ct">${arr.length}</span></h3><p class="card-intro">Programmer work that changed in this subsystem.${arr.some(it=>it.cls.diff)?" Click a <b>program</b> or <b>lighting</b> row to diff its contents.":""}</p>`+tbl([{t:"File"},{t:"Change"},{t:"Type"},{t:"Folder"}],arr.map(row).join(""))+`</div>`; });
   if(noise.length){ const byCat=new Map(); noise.forEach(it=>byCat.set(it.cls.cat,(byCat.get(it.cls.cat)||0)+1));
     const cs=[...byCat.entries()].sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c} ${n}`).join(" \u00b7 ");
-    html+=`<div class="panel" id="arcNoise" style="margin-top:14px"><h3>Derived / autosave / library files <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; not your work</span><span class="ct">${noise.length.toLocaleString()}</span></h3><p class="card-intro">${esc(cs)}. Compiled output, module libraries, autosave snapshots, regenerated docs and images &mdash; usually safe to ignore. <button class="btn ghost arcnoise" style="margin-top:6px">Show all ${noise.length.toLocaleString()}</button></p></div>`; }
+    html+=`<div class="panel" id="arcNoise" style="margin-top:14px"><h3>Derived / autosave / library files <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; not your work</span><span class="ct">${noise.length.toLocaleString()}</span></h3><p class="card-intro">${esc(cs)}. Compiled output, libraries, autosave, regenerated docs &mdash; usually safe to ignore. <button class="btn ghost arcnoise" style="margin-top:6px">Show all ${noise.length.toLocaleString()}</button></p></div>`; }
   $("#diffBody").innerHTML=(state.arcActive?ARC_BACK:"")+html;
 }
 function expandArcNoise(){ const r=state.arcResult; if(!r)return; const base=k=>k.replace(/^.*\//,"");
@@ -1290,7 +1290,7 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
     const row=(x,dir)=>`<tr><td class="data" title="${esc(x.Nm||'')}">${esc(x.Nm||'?')}</td><td class="data" title="${esc(coord(x,dir))}">${esc(coord(x,dir)||'—')}</td>${locCell(m,x.H)}</tr>`;
     const cols=[{t:"Module"},{t:"Physical (device · IP-ID · pin)"},{t:"Program address (S-#) — hover for folder"}];
     openModal(`${esc(val)} &mdash; ${drivers.length} source${drivers.length===1?'':'s'}, ${loads.length} load${loads.length===1?'':'s'}`,
-      `<p class="card-intro">Where this signal is driven from and read &mdash; the module, its <b>physical landing point</b> (device, IP-ID and pin where it&rsquo;s wired), and its folder path in the program.</p><div class="trace-actions"><button class="btn ghost" data-drill="rtrace" data-val="${esc(val)}">↑ What triggers this</button><button class="btn ghost" data-drill="ftrace" data-val="${esc(val)}">What this affects ↓</button></div>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
+      `<p class="card-intro">Where this signal is driven and read &mdash; module, <b>physical landing point</b> (device · IP-ID · pin), and folder.</p><div class="trace-actions"><button class="btn ghost" data-drill="rtrace" data-val="${esc(val)}">↑ What triggers this</button><button class="btn ghost" data-drill="ftrace" data-val="${esc(val)}">What this affects ↓</button></div>`+miniGraph(val,drivers,loads)+`<div class="lbl" style="margin-top:14px">Driven by (${drivers.length})</div>`+tbl(cols, drivers.map(x=>row(x,"out")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing drives this signal &mdash;</td></tr>`)+`<div class="lbl" style="margin-top:12px">Read by (${loads.length})</div>`+tbl(cols, loads.map(x=>row(x,"in")).join("")||`<tr><td class="muted" colspan="3">&mdash; nothing reads this signal &mdash;</td></tr>`));
   } else if((type==="rtrace"||type==="ftrace") && m){
     const dir=type==="rtrace"?"back":"fwd";
     const rows=traceRows(m,val,dir);
@@ -1302,7 +1302,7 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
       const ad=symAddr(m,r.x.H), co=coordOf(r.x); return `<div class="trrow mod" style="padding-left:${pad}px"><span class="tw">via</span><span class="trmod">${esc(r.x.Nm||"?")}</span>${co?` <span class="trco">${esc(co)}</span>`:""}${ad?` <span class="trad" title="${esc(folderPath(m,r.x.H)||"")}">${esc(ad)}</span>`:""}</div>`; }).join("");
     const roots=rows.filter(r=>r.type==="sig"&&!r.dup&&r.depth>0&&!rows.some(z=>z.type==="mod"&&Math.abs(z.depth-(r.depth+1))<0.1&&rows.indexOf(z)>rows.indexOf(r))).length;
     openModal(`${dir==="back"?"What triggers":"What&rsquo;s affected by"} ${esc(val)}`,
-      `<p class="card-intro">${dir==="back"?"The full upstream chain &mdash; every module and signal that can drive this, hop by hop back toward the original trigger (a button, schedule, or device feedback)." : "The full downstream chain &mdash; everything this signal drives, hop by hop."} Each indent is one hop &mdash; <b style="color:var(--ink)">signals</b> in white, the <span class="trmod">modules</span> between them in grey. Click any signal to re-trace from it. <code>↻</code> = already shown above (a loop or a shared signal). Showing up to ${maxd} hops; click a leaf to keep going.</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
+      `<p class="card-intro">${dir==="back"?"Upstream &mdash; what drives this, hop by hop back to the trigger." : "Downstream &mdash; everything this drives, hop by hop."} Each indent = one hop; <b style="color:var(--ink)">signals</b> white, <span class="trmod">modules</span> grey. Click to re-trace. <code>↻</code> = already shown. Up to ${maxd} hops; click a leaf for more.</p><div class="tracewrap">${body||'<p class="empty">Nothing.</p>'}</div>`);
   } else if(type==="ring"){
     const r=(state.audit&&state.audit.rings||[])[parseInt(val,10)]; if(!r)return;
     openModal(`Feedback loop &mdash; ${r.len} signals`, `<p class="foot-note">Through: ${esc(r.mods.join(", "))}</p>`+tbl([{t:"Signal in the loop"}], r.sigs.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("")));
@@ -1501,24 +1501,24 @@ function renderD3(d3){
   if(loads.length){
   const rows=loads.map(l=>`<tr><td class="data">${esc(l.out)}</td><td class="data">${esc(l.load)}</td><td class="data muted">${esc(l.area||"—")}</td><td class="num data">${esc(l.watt||"—")}</td><td class="data">${esc("Module "+l.modNum+" · "+l.modType)}</td><td class="data">${esc(l.netid||"—")}</td><td class="data muted">${esc(l.feed||"—")}</td><td class="data muted" title="${esc(l.encl||"")}">${esc(l.encl||"—")}</td></tr>`).join("");
   const m=d3.meta||{};
-  html=card("Lighting loads",loads.length,`<p class="card-intro">Every dimmer / switch / fan load read straight from the D3 Pro <code>loadwiring.htm</code>, resolved to its exact channel — control module, net-device ID, feed and enclosure. ${m.project?`Project <b>${esc(m.project)}</b>${m.creator?` &middot; ${esc(m.creator)}`:""}${m.date?` &middot; ${esc(m.date)}`:""}. `:""}The field question — &ldquo;this load is dead, which channel and feed?&rdquo; — answered per row.</p>`+tbl([{t:"Channel"},{t:"Load"},{t:"Area"},{t:"W",num:1},{t:"Control module"},{t:"Net-ID"},{t:"Feed"},{t:"Enclosure"}],rows,1),true);
+  html=card("Lighting loads",loads.length,`<p class="card-intro">Every load → its exact channel: control module, net-ID, feed, enclosure. ${m.project?`Project <b>${esc(m.project)}</b>${m.creator?` &middot; ${esc(m.creator)}`:""}${m.date?` &middot; ${esc(m.date)}`:""}. `:""}Answers &ldquo;this load is dead — which channel and feed?&rdquo; per row.</p>`+tbl([{t:"Channel"},{t:"Load"},{t:"Area"},{t:"W",num:1},{t:"Control module"},{t:"Net-ID"},{t:"Feed"},{t:"Enclosure"}],rows,1),true);
   const byMod=new Map();
   loads.forEach(l=>{ const k=(l.encl||"")+"||Module "+l.modNum+" ("+l.modType+")"; if(!byMod.has(k))byMod.set(k,{encl:l.encl,mod:"Module "+l.modNum+" ("+l.modType+")",loads:[]}); byMod.get(k).loads.push(l); });
   const groups=[...byMod.values()].filter(g=>g.loads.length>=2).sort((a,b)=>b.loads.length-a.loads.length);
   if(groups.length){
     const grows=groups.map(g=>`<tr><td class="data">${esc(g.mod)}</td><td class="num data">${g.loads.length}</td><td class="num data">${g.loads.reduce((x,l)=>x+(parseFloat(l.watt)||0),0)||"—"}</td><td class="data muted" title="${esc(g.loads.map(l=>l.load).join(", "))}">${esc(trim(g.loads.map(l=>l.load).join(", "),72))}</td><td class="data muted" title="${esc(g.encl||"")}">${esc(trim(g.encl||"—",28))}</td></tr>`).join("");
-    html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by control module. <b>Several dead loads on one module/feed → suspect that breaker/feed (electrical) before the program.</b> Confirm at the panel.</p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
+    html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by control module. <b>Several dead loads on one module → suspect that feed/breaker before the program.</b></p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
     }
   }
   const sc=d3.schedule;
   if(sc&&sc.rows&&sc.rows.length){
     const srows=sc.rows.map(r=>`<tr><td class="data">${esc(r._load)}</td><td class="data muted">${esc(r._area||"—")}</td><td class="data">${esc(r["Load Type"]||"—")}</td><td class="num data">${esc(r["Total Watts"]||r["Fixture Watts"]||"—")}</td><td class="data">${esc(r["Controlled Ckt No."]||"—")}</td><td class="data">${esc((r["Module"]||"")+(r["Output"]?" / "+r["Output"]:""))}</td><td class="data muted" title="${esc(r["Enclosure"]||"")}">${esc(trim(r["Enclosure"]||"—",26))}</td></tr>`).join("");
-    html+=card("Load schedule",sc.rows.length,`<p class="card-intro">Every load with type, wattage, circuit, dimmer module/output and enclosure — the full electrical view from <code>loadschedulept.htm</code>.</p>`+tbl([{t:"Load"},{t:"Area"},{t:"Type"},{t:"Total W",num:1},{t:"Circuit"},{t:"Module / out"},{t:"Enclosure"}],srows,1),true);
+    html+=card("Load schedule",sc.rows.length,`<p class="card-intro">Every load — type, wattage, circuit, dimmer module/output, enclosure.</p>`+tbl([{t:"Load"},{t:"Area"},{t:"Type"},{t:"Total W",num:1},{t:"Circuit"},{t:"Module / out"},{t:"Enclosure"}],srows,1),true);
   }
   const kp=d3.keypads;
   if(kp&&kp.stations&&kp.stations.length){
     const krows=kp.stations.map((st,i)=>`<tr${st.imgUrl?` class="drill" data-drill="kpimg" data-val="${i}"`:""}><td class="data">${esc(st.name||"—")}</td><td class="data muted">${esc(st.room||"—")}</td><td class="data">${esc(st.model||"—")}</td><td class="data">${esc(st.netid||"—")}</td><td class="${st.imgUrl?'data':'muted'}">${st.imgUrl?"view engraving":"—"}</td></tr>`).join("");
-    html+=card("Keypads",kp.stations.length,`<p class="card-intro">Every keypad station — room, model, Net-ID. Click a row to see the <b>engraving</b> (the physical button labels), so you can answer &ldquo;what does this button do?&rdquo; on the phone &mdash; without opening D3.</p>`+tbl([{t:"Station"},{t:"Room"},{t:"Model"},{t:"Net-ID"},{t:"Engraving"}],krows),true);
+    html+=card("Keypads",kp.stations.length,`<p class="card-intro">Every keypad station — room, model, Net-ID. Click for the <b>engraving</b> (button labels) to answer &ldquo;what does this button do?&rdquo; fast.</p>`+tbl([{t:"Station"},{t:"Room"},{t:"Model"},{t:"Net-ID"},{t:"Engraving"}],krows),true);
   }
   const lt=d3.lighting;
   if(lt && (lt.rooms.length||lt.loads.length||lt.scenes.length)){
@@ -1527,11 +1527,11 @@ function renderD3(d3){
     const byRoom=new Map(); lt.loads.forEach(ld=>{ const e=byRoom.get(ld.roomId)||{n:0,w:0}; e.n++; e.w+=ld.watt; byRoom.set(ld.roomId,e); });
     if(lt.rooms.length){
       const rrows=lt.rooms.map(r=>{ const e=byRoom.get(r.id)||{n:0,w:0}; return `<tr><td class="data">${esc(r.name)}</td><td class="data muted">${esc(areaName.get(r.areaId)||"—")}</td><td class="num data">${e.n||"—"}</td><td class="num data">${e.w?e.w.toLocaleString():"—"}</td></tr>`; }).join("");
-      html+=card("Lighting — rooms & loads",lt.rooms.length,`<p class="card-intro">Every room from the D3 project data (<code>areas.dat</code> / <code>rooms.dat</code> / <code>loads.dat</code>) — its area, how many lighting loads it has, and total connected wattage.</p>`+tbl([{t:"Room"},{t:"Area"},{t:"Loads",num:1},{t:"Total W",num:1}],rrows,1),false);
+      html+=card("Lighting — rooms & loads",lt.rooms.length,`<p class="card-intro">Every room — its area, load count and total connected wattage (from the D3 project data).</p>`+tbl([{t:"Room"},{t:"Area"},{t:"Loads",num:1},{t:"Total W",num:1}],rrows,1),false);
     }
     if(lt.scenes.length){
       const screws=lt.scenes.map(sc=>`<tr><td class="data">${esc(sc.name)}</td><td class="data muted">${esc(roomName.get(sc.roomId)||"—")}</td></tr>`).join("");
-      html+=card("Lighting scenes",lt.scenes.length,`<p class="card-intro">Every lighting <b>scene</b> defined in the project (<code>scenes.dat</code>), with its room where one resolves. Names match what's engraved on the keypads — the link from a button to what it recalls.</p>`+tbl([{t:"Scene"},{t:"Room"}],screws,1),false);
+      html+=card("Lighting scenes",lt.scenes.length,`<p class="card-intro">Every lighting <b>scene</b> and its room. Scene names match the keypad engraving — the button→scene link.</p>`+tbl([{t:"Scene"},{t:"Room"}],screws,1),false);
     }
   }
   return html;
@@ -1574,13 +1574,13 @@ function renderWholeSystem(){
   const ss=systemSummary(us), t=ss.totals;
   let html=renderUnitSelector();
   html+=`<div class="section-label">Whole system</div>`;
-  html+=card("System at a glance",`${t.processors} processor${t.processors===1?"":"s"}`,`<p class="card-intro">Every processor program in this job, parsed on its own — totals across the whole system. Pick a processor (in the bar above or the table below) to open its full as-built.</p><div class="row">${stat(t.processors,"Processors")}${stat(t.signals.toLocaleString(),"Signals")}${stat(t.symbols.toLocaleString(),"Symbols")}${stat(t.devices.toLocaleString(),"Devices")}${stat(t.ipids.toLocaleString(),"IP-IDs")}${stat(t.eisc.toLocaleString(),"Cross-links")}</div>`,true);
+  html+=card("System at a glance",`${t.processors} processor${t.processors===1?"":"s"}`,`<p class="card-intro">Totals across the whole job. Click a processor to open its full as-built.</p><div class="row">${stat(t.processors,"Processors")}${stat(t.signals.toLocaleString(),"Signals")}${stat(t.symbols.toLocaleString(),"Symbols")}${stat(t.devices.toLocaleString(),"Devices")}${stat(t.ipids.toLocaleString(),"IP-IDs")}${stat(t.eisc.toLocaleString(),"Cross-links")}</div>`,true);
   const rows=ss.processors.map((p,k)=>`<tr class="drill" data-unit="${progIdx[k]}"><td class="data">${esc(p.name)}</td><td class="data muted">${esc(p.program||"—")}</td><td class="num data">${p.signals.toLocaleString()}</td><td class="num data">${p.symbols.toLocaleString()}</td><td class="num data">${p.devices.toLocaleString()}</td><td class="num data">${p.ipids.toLocaleString()}</td><td class="num data">${p.eisc.length||"—"}</td></tr>`).join("");
-  html+=card("Processors",ss.processors.length,`<p class="card-intro">Each processor program at a glance — click a row to open its full audit.</p>`+tbl([{t:"Unit"},{t:"Program"},{t:"Signals",num:1},{t:"Symbols",num:1},{t:"Devices",num:1},{t:"IP-IDs",num:1},{t:"Cross-links",num:1}],rows,0),true);
+  html+=card("Processors",ss.processors.length,`<p class="card-intro">Click a processor to open its full audit.</p>`+tbl([{t:"Unit"},{t:"Program"},{t:"Signals",num:1},{t:"Symbols",num:1},{t:"Devices",num:1},{t:"IP-IDs",num:1},{t:"Cross-links",num:1}],rows,0),true);
   const links=[]; ss.processors.forEach(p=>p.eisc.forEach(e=>links.push({from:p.name,ipid:e.ipid,target:e.target,ip:e.ip})));
   if(links.length){
     const lrows=links.map(l=>{ const lm=/^127\.0\.0\.(\d+)$/.exec(l.ip||""); return `<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.target||"—")}</td><td class="data">${esc(l.ipid||"—")}</td><td class="data${lm?" muted":""}">${lm?`127.0.0.${lm[1]} <span class="muted">→ program slot ${lm[1]} (same processor)</span>`:esc(l.ip||"—")}</td></tr>`; }).join("");
-    html+=card("Intersystem links (EISC)",links.length,`<p class="card-intro">Every intersystem (EISC) bridge in the job — what each program talks to and at which IP, read straight from the programs. <code>127.0.0.N</code> = the program in <b>slot N</b> on the same processor (CIP loopback); a real IP = a separate system. A whole-system view no single-program tool gives you.</p>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0),true);
+    html+=card("Intersystem links (EISC)",links.length,`<p class="card-intro">Every EISC bridge — what each program talks to, and where. <code>127.0.0.N</code> = slot N on the same processor; a real IP = a separate system.</p>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0),true);
   }
   $("#censusBody").innerHTML=html;
   const fn=$("#censusName"); if(fn){ fn.classList.remove("hide"); const mn=fn.querySelector(".mono"); if(mn)mn.textContent=(state.unitName||"")+" › whole system"; }
@@ -1601,7 +1601,7 @@ function renderUnitSelector(){
   const pills=us.map((u,i)=>`<button class="unitpill${i===ai?' on':''}" data-unit="${i}">${u.kind==="d3"?"◐":u.kind==="system"?"◈":"▣"} ${esc(u.name||("Unit "+(i+1)))}</button>`).join("");
   const np=us.filter(u=>u.kind==="program").length, nd=us.filter(u=>u.kind==="d3").length;
   const lbl=[np?`${np} processor program${np>1?"s":""}`:"", nd?`${nd} lighting project${nd>1?"s":""}`:""].filter(Boolean).join(" + ");
-  return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl} — each parsed on its own, nothing mixed. Pick one to view:</div><div class="unitsel">${pills}</div></div>`;
+  return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl}. Pick one:</div><div class="unitsel">${pills}</div></div>`;
 }
 function runAudit(){
   const pr=state.prog;
@@ -1688,7 +1688,7 @@ function runAudit(){
       const isEisc=/eisc|intersystem|to\/from/i.test(role||"");
       const roleInner=isEisc?`<span class="rolechip">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
       return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td>${anyMask?`<td class="data muted">${esc(et.mask||'—')}</td>`:''}<td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
-    html+=card("Network devices",netIds.length,`<p class="card-intro">Every device on the IP network by IP-ID. <b>Role</b> flags what it actually is — e.g. an <b>EISC</b> link to another program. <code>127.0.0.1</code> = an internal slot (XPanel/app) or an unset IP-ID.</p>`+tbl([{t:"IP-ID"},{t:"IP address"}].concat(anyMask?[{t:"Subnet"}]:[]).concat([{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}]),rows,1),true);
+    html+=card("Network devices",netIds.length,`<p class="card-intro">Every device on the IP network by IP-ID. <b>Role</b> = what it actually is (e.g. an <b>EISC</b> link). <code>127.0.0.1</code> = internal slot or unset IP-ID.</p>`+tbl([{t:"IP-ID"},{t:"IP address"}].concat(anyMask?[{t:"Subnet"}]:[]).concat([{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}]),rows,1),true);
   }
   if(cres.length){
     const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr>${devCell(d.id,d.id,"C")}<td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
@@ -1759,7 +1759,7 @@ function runAudit(){
     const subT=new Map(); sigs.forEach(g=>{ const mm=g.nm.match(/\[([^\]]+)\]/); if(mm)subT.set(mm[1],(subT.get(mm[1])||0)+1); });
     const topSub=[...subT.entries()].sort((a,b)=>b[1]-a[1]).slice(0,18);
     const chips=topSub.length>=3?`<div class="subchips"><span class="muted" style="font-size:11px;margin-right:4px">Jump to a subsystem:</span>${topSub.map(([t,n])=>`<button class="subchip" data-sub="${esc(t)}">${esc(t)} <b>${n.toLocaleString()}</b></button>`).join("")}</div>`:"";
-    const body=`<p class="card-intro">Every signal, with how many places drive it (sources) and read it (loads). Type to find one, or jump to a <b>subsystem</b> by its name tag; click any signal to trace it.</p>${chips}<input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
+    const body=`<p class="card-intro">Every signal with its source/load counts. Type to filter, or pick a <b>subsystem</b>; click any to trace.</p>${chips}<input class="sigfilter" placeholder="find a signal\u2026" aria-label="find a signal"><div class="scroll"><table><thead><tr><th>Signal</th><th class="num">Type</th><th class="num">Sources</th><th class="num">Loads</th></tr></thead><tbody id="sigBody">${signalRows("")}</tbody></table></div>`;
     html+=card("Signals",sigs.length,body,false);
   }
   if(sa){
