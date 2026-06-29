@@ -250,3 +250,20 @@ and ~97% meaningless. The intelligent diff classifies every file (`fileClass`) i
   backups wrap in a dated dir; a bare-zipped project does not) — so paths align either way.
 - **Move detection:** an added file whose CRC matches a removed one is shown as *moved*, not both.
 - Plain-language verdict up top; deep-diff (programs + lighting) on demand with a back button.
+
+## D3 full loadout (loadwiring + load schedule + engraving)
+The D3 `Documentation/` folder is scanned for all three generated reports (any combination):
+- **`loadwiring.htm`** → instance-resolved loads (channel/module/net-ID/feed/enclosure) + shared-feed grouping.
+- **`loadschedulept.htm`** → `parseD3LoadSchedule`: the flat full-electrical table (Area/Room/Load,
+  Controlled Ckt No., Status, Fixture, Load Type, Fixture/Total Watts, Qty, Dim/Backup/Arc-Fault,
+  Enclosure/Slot/Module/Output) — generic header-zip so it survives column changes.
+- **`Engraving Report.htm`** → `parseD3Engraving`: keypad **station map** (room, name, model/BOM,
+  Net-Device ID). The button **labels are images** (`<img>` per station), not text — so when the
+  source is a `.zip`, the matching `Documentation/*.jpg` is extracted and shown inline (click a
+  keypad row → engraving picture). That answers "what does this button say?" on a phone call.
+- **Honest boundary — "what a button DOES / scene levels":** D3 does NOT emit a button→scene→level
+  report, and the engraving HTML has no function text. That mapping lives inside the D3 lighting
+  `.smw` as raw named signals/symbols (Preset/Scene/Level/Button names) — the `.smw` parses fine with
+  the standard parser, so those signals are searchable/traceable in the Audit, but a clean
+  "button → scene → loads at levels" extraction would require reverse-engineering D3's signal/scene
+  naming convention (a research project, not a parse) and is deliberately NOT guessed.

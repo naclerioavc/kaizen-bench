@@ -1163,6 +1163,9 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
   } else if(type==="ip"){
     const all=(state.audit&&state.audit.hits||[]).filter(h=>h.ip===val);
     openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Folder path (where to find it)"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data">${esc(h.module)}</td><td class="data muted" title="${esc(m&&h.H!=null?folderPath(m,h.H):'')}">${esc((m&&h.H!=null?folderPath(m,h.H):'')||'—')}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(h.value||h.ip)}</td><td class="data" title="${esc(h.context||'')}">${esc(h.context||'—')}</td></tr>`).join("")));
+  } else if(type==="kpimg"){
+    const st=state.prog.d3&&state.prog.d3.keypads&&state.prog.d3.keypads.stations[val];
+    if(st&&st.imgUrl) openModal(`${esc(st.name||"Keypad")} &mdash; ${esc(st.room||"")} &middot; ${esc(st.model||"")}`,`<p class="card-intro">The engraving as the customer sees it &mdash; read the button labels off the picture.</p><img src="${st.imgUrl}" style="max-width:100%;border-radius:8px;border:1px solid var(--line)">`);
   } else if(type==="signal" && m){
     const hs=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)hs.add(h); });
     const drivers=[], loads=[];
@@ -1263,17 +1266,60 @@ function parseD3Loadwiring(H){
   }
   return {meta, loads};
 }
+function _d3clean(v){return v.replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&#?\w+;/g," ").replace(/\s+/g," ").trim();}
+function parseD3LoadSchedule(H){
+  if(!H||!/Load Schedule|class="ld_cell"/i.test(H)) return null;
+  const thead=(H.match(/<thead>([\s\S]*?)<\/thead>/i)||[])[1]||"";
+  const cols=[...thead.matchAll(/class="header"[^>]*>([\s\S]*?)<\/td>/gi)].map(c=>_d3clean(c[1]));
+  const rows=[];
+  for(const tr of (H.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[])){
+    if(!/class="ld_cell"/i.test(tr)) continue;
+    const cells=[...tr.matchAll(/class="ld_cell"[^>]*>([\s\S]*?)<\/td>/gi)].map(c=>_d3clean(c[1]));
+    if(!cells.length) continue;
+    const ob={}; cols.forEach((h,i)=>ob[h]=cells[i]||"");
+    const parts=(cells[0]||"").split("/").map(x=>x.trim()).filter(Boolean);
+    ob._load=parts.length?parts[parts.length-1]:cells[0]; ob._area=parts.slice(0,-1).join(" / ");
+    rows.push(ob);
+  }
+  return {cols,rows};
+}
+function parseD3Engraving(H){
+  if(!H||!/Engraving|Room Name:/i.test(H)) return null;
+  const field=(b,l)=>{const m=b.match(new RegExp("<b>\\s*"+l+"\\s*:?\\s*</b>\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>","i"));return m?_d3clean(m[1]):"";};
+  const anchors=[...H.matchAll(/Room Name:/gi)].map(m=>m.index);
+  const stations=[];
+  for(let i=0;i<anchors.length;i++){
+    const b=H.slice(Math.max(0,anchors[i]-200), anchors[i+1]!=null?anchors[i+1]:anchors[i]+2000);
+    const room=field(b,"Room Name"),name=field(b,"Name"),bom=field(b,"BOM"),addr=field(b,"Address");
+    const im=b.match(/<img[^>]*src="([^"]+)"/i); const img=im?im[1].trim().replace(/.*[\\/]/,""):"";
+    if(room||name) stations.push({room,name,model:bom,netid:(addr.match(/Net-Device ID\s+(\w+)/i)||[])[1]||addr,img});
+  }
+  return {stations};
+}
+function bytesToDataUrl(u8,name){ let bin=""; for(let i=0;i<u8.length;i+=8192){ bin+=String.fromCharCode.apply(null,u8.subarray(i,i+8192)); } const mime=/\.png$/i.test(name)?"image/png":"image/jpeg"; return "data:"+mime+";base64,"+btoa(bin); }
 function renderD3(d3){
-  const loads=d3.loads||[]; if(!loads.length) return "";
+  const loads=d3.loads||[]; let html="";
+  if(loads.length){
   const rows=loads.map(l=>`<tr><td class="data">${esc(l.out)}</td><td class="data">${esc(l.load)}</td><td class="data muted">${esc(l.area||"—")}</td><td class="num data">${esc(l.watt||"—")}</td><td class="data">${esc("Module "+l.modNum+" · "+l.modType)}</td><td class="data">${esc(l.netid||"—")}</td><td class="data muted">${esc(l.feed||"—")}</td><td class="data muted" title="${esc(l.encl||"")}">${esc(l.encl||"—")}</td></tr>`).join("");
   const m=d3.meta||{};
-  let html=card("Lighting loads",loads.length,`<p class="card-intro">Every dimmer / switch / fan load read straight from the D3 Pro <code>loadwiring.htm</code>, resolved to its exact channel — control module, net-device ID, feed and enclosure. ${m.project?`Project <b>${esc(m.project)}</b>${m.creator?` &middot; ${esc(m.creator)}`:""}${m.date?` &middot; ${esc(m.date)}`:""}. `:""}The field question — &ldquo;this load is dead, which channel and feed?&rdquo; — answered per row.</p>`+tbl([{t:"Channel"},{t:"Load"},{t:"Area"},{t:"W",num:1},{t:"Control module"},{t:"Net-ID"},{t:"Feed"},{t:"Enclosure"}],rows,1),true);
+  html=card("Lighting loads",loads.length,`<p class="card-intro">Every dimmer / switch / fan load read straight from the D3 Pro <code>loadwiring.htm</code>, resolved to its exact channel — control module, net-device ID, feed and enclosure. ${m.project?`Project <b>${esc(m.project)}</b>${m.creator?` &middot; ${esc(m.creator)}`:""}${m.date?` &middot; ${esc(m.date)}`:""}. `:""}The field question — &ldquo;this load is dead, which channel and feed?&rdquo; — answered per row.</p>`+tbl([{t:"Channel"},{t:"Load"},{t:"Area"},{t:"W",num:1},{t:"Control module"},{t:"Net-ID"},{t:"Feed"},{t:"Enclosure"}],rows,1),true);
   const byMod=new Map();
   loads.forEach(l=>{ const k=(l.encl||"")+"||Module "+l.modNum+" ("+l.modType+")"; if(!byMod.has(k))byMod.set(k,{encl:l.encl,mod:"Module "+l.modNum+" ("+l.modType+")",loads:[]}); byMod.get(k).loads.push(l); });
   const groups=[...byMod.values()].filter(g=>g.loads.length>=2).sort((a,b)=>b.loads.length-a.loads.length);
   if(groups.length){
     const grows=groups.map(g=>`<tr><td class="data">${esc(g.mod)}</td><td class="num data">${g.loads.length}</td><td class="num data">${g.loads.reduce((x,l)=>x+(parseFloat(l.watt)||0),0)||"—"}</td><td class="data muted" title="${esc(g.loads.map(l=>l.load).join(", "))}">${esc(trim(g.loads.map(l=>l.load).join(", "),72))}</td><td class="data muted" title="${esc(g.encl||"")}">${esc(trim(g.encl||"—",28))}</td></tr>`).join("");
     html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by control module. <b>Several dead loads on one module/feed → suspect that breaker/feed (electrical) before the program.</b> Confirm at the panel.</p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
+    }
+  }
+  const sc=d3.schedule;
+  if(sc&&sc.rows&&sc.rows.length){
+    const srows=sc.rows.map(r=>`<tr><td class="data">${esc(r._load)}</td><td class="data muted">${esc(r._area||"—")}</td><td class="data">${esc(r["Load Type"]||"—")}</td><td class="num data">${esc(r["Total Watts"]||r["Fixture Watts"]||"—")}</td><td class="data">${esc(r["Controlled Ckt No."]||"—")}</td><td class="data">${esc((r["Module"]||"")+(r["Output"]?" / "+r["Output"]:""))}</td><td class="data muted" title="${esc(r["Enclosure"]||"")}">${esc(trim(r["Enclosure"]||"—",26))}</td></tr>`).join("");
+    html+=card("Load schedule",sc.rows.length,`<p class="card-intro">Every load with type, wattage, circuit, dimmer module/output and enclosure — the full electrical view from <code>loadschedulept.htm</code>.</p>`+tbl([{t:"Load"},{t:"Area"},{t:"Type"},{t:"Total W",num:1},{t:"Circuit"},{t:"Module / out"},{t:"Enclosure"}],srows,1),true);
+  }
+  const kp=d3.keypads;
+  if(kp&&kp.stations&&kp.stations.length){
+    const krows=kp.stations.map((st,i)=>`<tr${st.imgUrl?` class="drill" data-drill="kpimg" data-val="${i}"`:""}><td class="data">${esc(st.name||"—")}</td><td class="data muted">${esc(st.room||"—")}</td><td class="data">${esc(st.model||"—")}</td><td class="data">${esc(st.netid||"—")}</td><td class="${st.imgUrl?'data':'muted'}">${st.imgUrl?"view engraving":"—"}</td></tr>`).join("");
+    html+=card("Keypads",kp.stations.length,`<p class="card-intro">Every keypad station — room, model, Net-ID. Click a row to see the <b>engraving</b> (the physical button labels), so you can answer &ldquo;what does this button do?&rdquo; on the phone, no D3.</p>`+tbl([{t:"Station"},{t:"Room"},{t:"Model"},{t:"Net-ID"},{t:"Engraving"}],krows),true);
   }
   return html;
 }
@@ -1338,7 +1384,7 @@ function runAudit(){
   ov+=`</div>`;
   if(c){ ov+=`<div style="margin-top:16px"><div class="lbl">Signal mix &mdash; digital / analog / serial</div>${stackBar([{label:"Digital",val:c.D,cls:"sig-d"},{label:"Analog",val:c.A,cls:"sig-a"},{label:"Serial",val:c.Ser,cls:"sig-s"}])}</div>`; }
   if(devRows.length){ ov+=`<div style="margin-top:16px"><div class="lbl">Devices by network</div>${stackBar([{label:"Ethernet",val:eth.length,cls:"s1"},{label:"Cresnet",val:cres.length,cls:"s2"},{label:"Other",val:devRows.length-eth.length-cres.length,cls:"s3"}])}</div>`; }
-  const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length)||(pr.d3&&pr.d3.loads&&pr.d3.loads.length));
+  const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length)||(pr.d3&&((pr.d3.loads&&pr.d3.loads.length)||pr.d3.schedule||pr.d3.keypads)));
   const hasProg=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
   if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
@@ -1623,12 +1669,19 @@ async function loadProgram(file){
     const files=await unzip(buf);
     const g=ext=>{const e=files.find(f=>new RegExp("\\."+ext+"$","i").test(f.name)); return e?decodeText(e.bytes):null;};
     out.smft=g("smft"); out.dip=g("dip"); out.smw=g("smw"); out.ir=files.filter(f=>/\.ir$/i.test(f.name)).map(f=>f.name.replace(/.*\//,"").replace(/\.ir$/i,""));
-    const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)); if(dw){ try{ out.d3=parseD3Loadwiring(decodeText(dw.bytes)); }catch(e){} }
+    const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name));
+    const dsch=files.find(f=>/loadschedule\w*\.html?$/i.test(f.name));
+    const deng=files.find(f=>/engraving[^/]*\.html?$/i.test(f.name));
+    if(dw||dsch||deng){ out.d3=out.d3||{};
+      if(dw){ try{ Object.assign(out.d3,parseD3Loadwiring(decodeText(dw.bytes))); }catch(e){} }
+      if(dsch){ try{ out.d3.schedule=parseD3LoadSchedule(decodeText(dsch.bytes)); }catch(e){} }
+      if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} } }); out.d3.keypads=eng; }catch(e){} }
+    }
     if(!out.smft&&!out.dip&&!out.smw&&!out.d3) throw new Error("no .smft / .dip / .smw / loadwiring.htm inside the zip");
   } else {
     const txt=decodeText(u8); const n=file.name.toLowerCase();
     if(n.endsWith(".smft"))out.smft=txt; else if(n.endsWith(".dip"))out.dip=txt; else if(n.endsWith(".smw")||n.endsWith(".umc")||n.endsWith(".chd"))out.smw=txt;
-    else if(n.endsWith(".htm")||n.endsWith(".html")){ out.d3=parseD3Loadwiring(txt); if(!out.d3)throw new Error("that .htm isn't a D3 Pro loadwiring report"); }
+    else if(n.endsWith(".htm")||n.endsWith(".html")){ const lw=parseD3Loadwiring(txt),ls=parseD3LoadSchedule(txt),eg=parseD3Engraving(txt); if(lw)out.d3=lw; else if(ls)out.d3={schedule:ls}; else if(eg)out.d3={keypads:eg}; if(!out.d3)throw new Error("that .htm isn't a recognized D3 Pro report (loadwiring / load schedule / engraving)"); }
     else throw new Error("drop the program .zip, or a .smw / .umc / .chd / .smft / .dip / loadwiring.htm file");
   }
   return out;
@@ -2026,7 +2079,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

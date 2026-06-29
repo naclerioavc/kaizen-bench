@@ -140,6 +140,17 @@ ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway]
   const cb=w.document.getElementById('censusBody').textContent;
   has("D3 renders a Lighting loads card", /Lighting loads/.test(cb));
   has("D3 renders shared-module grouping", /Loads by control module/.test(cb)); }
+{ const lsHtml=`<html><body>Load Schedule<table><thead><tr><td class="header"><b>Area / Room / Controlled Ckt Name</b></td><td class="header"><b>Load Type</b></td><td class="header"><b>Total Watts</b></td><td class="header"><b>Module</b></td><td class="header"><b>Output</b></td></tr></thead>
+<tr><td class="ld_cell">Main / Kitchen / Cans</td><td class="ld_cell">LED</td><td class="ld_cell">150</td><td class="ld_cell">CLX-2DIMU8</td><td class="ld_cell">1</td></tr>
+<tr><td class="ld_cell">Main / Powder / Fan</td><td class="ld_cell">Fan</td><td class="ld_cell">60</td><td class="ld_cell">CLX-1FAN4</td><td class="ld_cell">2</td></tr></table></body></html>`;
+  const ls=w.parseD3LoadSchedule(lsHtml);
+  ck("D3 load schedule: rows + columns parsed",[ls.rows.length, ls.cols.length], [2,5]);
+  ck("D3 load schedule: row resolves load/type/watts/module",[ls.rows[0]._load, ls.rows[0]["Load Type"], ls.rows[0]["Total Watts"], ls.rows[0]["Module"]],["Cans","LED","150","CLX-2DIMU8"]);
+  const egHtml=`<html><body>Engraving Report<table><tr class="r0"><td><b>Room Name:</b></td><td>Kitchen</td></tr><tr class="r1"><td><b>Name:</b></td><td>Main Entry</td></tr><tr class="r0"><td><b>BOM:</b></td><td>HZ-KPCN-W</td></tr><tr class="r1"><td><b>Address:</b></td><td>Net-Device ID 1A</td></tr></table>
+<table><tr class="r0"><td><b>Room Name:</b></td><td>Theater</td></tr><tr class="r1"><td><b>Name:</b></td><td>Bar</td></tr><tr class="r0"><td><b>BOM:</b></td><td>HZ-KPCN-B</td></tr><tr class="r1"><td><b>Address:</b></td><td>Net-Device ID 2B</td></tr></table></body></html>`;
+  const eg=w.parseD3Engraving(egHtml);
+  ck("D3 engraving: keypad stations parsed",eg.stations.length,2);
+  ck("D3 engraving: station resolves room/name/model/net-id",[eg.stations[0].room,eg.stations[0].name,eg.stations[0].model,eg.stations[0].netid],["Kitchen","Main Entry","HZ-KPCN-W","1A"]); }
 { // archive manifest diff (zip central-directory, no decompression)
   const crc32=buf=>{ let crc=~0; for(let i=0;i<buf.length;i++){ crc^=buf[i]; for(let k=0;k<8;k++) crc=(crc>>>1)^(0xEDB88320&-(crc&1)); } return (~crc)>>>0; };
   const makeZip=files=>{ const locals=[],centrals=[]; let off=0;
