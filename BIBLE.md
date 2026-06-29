@@ -185,3 +185,25 @@ confidently wrong — a land mine. `systemMatch(prog,a,text)` gates it:
   caveated (best-effort). Conservative thresholds avoid false alarms on small/partial logs.
 - Graded: same-system not flagged; wrong model → mismatch(model); same model + zero IP-ID overlap
   → mismatch(ipid).
+
+## D3 Pro lighting drop type (`loadwiring.htm`)
+Crestron **D3 Pro** compiles a lighting project and auto-writes plain HTML as-built reports into the
+project's `Documentation/` folder. The compiled D3 `.smw` has a different internal structure than a
+hand-built AV `.smw` (`Mdl=` device records don't surface the same way), so for D3 lighting we read
+the **generated HTML, not the compiled program.**
+- **`loadwiring.htm`** is parsed (`parseD3Loadwiring`) into instance-resolved load records. Structure:
+  per-enclosure sections (`td.pagetitle` = "Room/Enclosure N(...) - [ slot ], Total Load : Nw"),
+  each containing modules (`td.modulename` = "Module N: CLX-type" then "Net-Device ID XX"), each
+  containing circuit rows (`tr.circuit`): `td.ckt_loc` holds "Level/Room/Load ( watt W )" and a
+  sibling cell holds the output channel. Real loads = channels matching `^(DIM|SW|FAN)\d+`; skip
+  the feed/`LINE` and neutral `N IN`/`N OUT` rows. A trailing " O" glyph (crestron-transport icon
+  font) is stripped from load names. Header gives Project / Creator / Date.
+- **What it unlocks:** the #1 lighting service question, instance-resolved — "this load is dead,
+  which channel + feed?" → channel · module · net-ID · feed · enclosure, per row. Plus a
+  **shared-module / shared-feed grouping** (loads grouped by control module): if several
+  complained-about loads share one module or feed, suspect that module or its breaker/feed
+  (electrical) before the program — surfaced as a likely root cause, labeled inference.
+- Intake: dropped directly (`.htm`/`.html`) or found inside a program `.zip` (`Documentation/`).
+  Detected by content (`Load Wiring` / `class="ckt_loc"`), so a non-D3 `.htm` is declined.
+- Scene model FYI (do not false-alarm): D3 Pro 3.06 stores scenes in `Presets`/`PresetSteps`, not
+  the legacy `Scenes` table (empty by design).

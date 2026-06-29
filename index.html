@@ -364,7 +364,7 @@
     <div class="drop slim" id="dropC" tabindex="0" role="button" aria-label="Load a program">
       <p>Drop the program <code>.zip</code> &mdash; or a <code>.smw</code> / <code>.umc</code> / <code>.smft</code> / <code>.dip</code></p>
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
-      <input type="file" id="fileC" class="hide" accept=".zip,.smw,.umc,.chd,.smft,.dip">
+      <input type="file" id="fileC" class="hide" accept=".zip,.smw,.umc,.chd,.smft,.dip,.htm,.html">
     </div>
     <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><button class="btn ghost" id="auditPrint" disabled>As-Built Report (PDF)</button><button class="btn ghost" id="auditExport" disabled>Export selected</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
     <p class="filename hide" id="censusName"><span class="dot"></span><span class="mono"></span></p>
@@ -878,7 +878,7 @@ function structAnalysis(model){
 }
 wireDrop($("#dropC"),$("#fileC"),f=>{
   $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
-  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,auditDone:true,devDone:true,_dvByH:null,_symByH:null,_symToDev:null,_sigAds:null}); updateDiffLoaded(); setTimeout(runAudit,20); })
+  loadProgram(f).then(out=>{ Object.assign(state.prog,{name:out.name,model:null,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,d3:out.d3,auditDone:true,devDone:true,_dvByH:null,_symByH:null,_symToDev:null,_sigAds:null}); updateDiffLoaded(); setTimeout(runAudit,20); })
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 $("#censusBody").addEventListener("click",e=>{
@@ -1083,6 +1083,49 @@ function signalRows(q){
     + (list.length>shown.length?`<tr><td class="muted" colspan="4">\u2026${(list.length-shown.length).toLocaleString()} more \u2014 type above to find a specific signal</td></tr>`:"");
 }
 function tbl(head,rows,flt){ return `${flt?`<input class="filter" placeholder="filter\u2026" aria-label="filter">`:""}<div class="scroll"><table><thead><tr>${head.map(h=>`<th${h.num?' class="num"':''}>${h.t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`; }
+function parseD3Loadwiring(H){
+  if(!H || !/Load Wiring|class="ckt_loc"/i.test(H)) return null;
+  const txt=v=>v.replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&#?\w+;/g," ");
+  const clean=v=>txt(v).replace(/\s+/g," ").trim();
+  const meta={};
+  const grab=lbl=>{ const m=H.match(new RegExp("<b>\\s*"+lbl+"\\s*:?\\s*</b>\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>","i")); return m?clean(m[1]):""; };
+  meta.project=grab("Project"); meta.creator=grab("Creator"); meta.date=grab("Date");
+  const rows=H.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[];
+  let encl=null,modNum=null,modType=null,netid=null,feed=null; const loads=[];
+  for(const r of rows){
+    if(/class="pagetitle"/i.test(r)){ const m=r.match(/class="pagetitle"[^>]*>([\s\S]*?)<\/td>/i); let e=clean(m?m[1]:""); e=e.replace(/\s*-\s*\[\s*slot[\s\S]*$/i,"").replace(/\s*,\s*Total Load[\s\S]*$/i,"").trim(); encl=e; modNum=modType=netid=feed=null; continue; }
+    let mm; const reM=/class="modulename"[^>]*>([\s\S]*?)<\/td>/gi;
+    while((mm=reM.exec(r))){ const c=clean(mm[1]); const x=c.match(/Module\s+(\d+)\s*:\s*(\S+)/i); if(x){modNum=x[1];modType=x[2];} const nn=c.match(/Net-Device ID\s+(\w+)/i); if(nn)netid=nn[1]; }
+    const fm=r.match(/Feed\s+(\d+)\s+for\s+Module\s+(\d+)/i); if(fm)feed="Feed "+fm[1];
+    if(!/class="circuit"/i.test(r)) continue;
+    const cells=[...r.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(c=>clean(c[1]));
+    const out=cells.find(c=>/^(DIM|SW|FAN)\s*\d+$/i.test(c));
+    if(!out) continue;
+    const lm=r.match(/class="ckt_loc"[^>]*>([\s\S]*?)<\/td>/i);
+    let loc=clean(lm?lm[1]:""); loc=loc.replace(/\s+O$/,"").trim();
+    const wm=loc.match(/\(\s*([\d.]+)\s*W\s*\)/i); const watt=wm?wm[1]:"";
+    let name=loc.replace(/\(\s*[\d.]+\s*W\s*\)/i,"").replace(/\s+O\s*$/,"").trim();
+    const parts=name.split("/").map(v=>v.trim()).filter(Boolean);
+    const load=parts.length?parts[parts.length-1]:name; const area=parts.slice(0,-1).join(" / ");
+    if(!load) continue;
+    loads.push({encl,modNum,modType,netid,feed,out:out.toUpperCase().replace(/\s+/," "),area,load,watt});
+  }
+  return {meta, loads};
+}
+function renderD3(d3){
+  const loads=d3.loads||[]; if(!loads.length) return "";
+  const rows=loads.map(l=>`<tr><td class="data">${esc(l.out)}</td><td class="data">${esc(l.load)}</td><td class="data muted">${esc(l.area||"—")}</td><td class="num data">${esc(l.watt||"—")}</td><td class="data">${esc("Module "+l.modNum+" · "+l.modType)}</td><td class="data">${esc(l.netid||"—")}</td><td class="data muted">${esc(l.feed||"—")}</td><td class="data muted" title="${esc(l.encl||"")}">${esc(l.encl||"—")}</td></tr>`).join("");
+  const m=d3.meta||{};
+  let html=card("Lighting loads",loads.length,`<p class="card-intro">Every dimmer / switch / fan load read straight from the D3 Pro <code>loadwiring.htm</code>, resolved to its exact channel — control module, net-device ID, feed and enclosure. ${m.project?`Project <b>${esc(m.project)}</b>${m.creator?` &middot; ${esc(m.creator)}`:""}${m.date?` &middot; ${esc(m.date)}`:""}. `:""}The field question — &ldquo;this load is dead, which channel and feed?&rdquo; — answered per row.</p>`+tbl([{t:"Channel"},{t:"Load"},{t:"Area"},{t:"W",num:1},{t:"Control module"},{t:"Net-ID"},{t:"Feed"},{t:"Enclosure"}],rows,1),true);
+  const byMod=new Map();
+  loads.forEach(l=>{ const k=(l.encl||"")+"||Module "+l.modNum+" ("+l.modType+")"; if(!byMod.has(k))byMod.set(k,{encl:l.encl,mod:"Module "+l.modNum+" ("+l.modType+")",loads:[]}); byMod.get(k).loads.push(l); });
+  const groups=[...byMod.values()].filter(g=>g.loads.length>=2).sort((a,b)=>b.loads.length-a.loads.length);
+  if(groups.length){
+    const grows=groups.map(g=>`<tr><td class="data">${esc(g.mod)}</td><td class="num data">${g.loads.length}</td><td class="num data">${g.loads.reduce((x,l)=>x+(parseFloat(l.watt)||0),0)||"—"}</td><td class="data muted" title="${esc(g.loads.map(l=>l.load).join(", "))}">${esc(trim(g.loads.map(l=>l.load).join(", "),72))}</td><td class="data muted" title="${esc(g.encl||"")}">${esc(trim(g.encl||"—",28))}</td></tr>`).join("");
+    html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by the control module that drives them. <b>If several complained-about loads share one module or feed, suspect that module or its breaker / feed (electrical) before the program</b> — a likely root cause to check at the panel, not a certainty.</p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
+  }
+  return html;
+}
 function runAudit(){
   const pr=state.prog;
   if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; } }
@@ -1144,10 +1187,11 @@ function runAudit(){
   ov+=`</div>`;
   if(c){ ov+=`<div style="margin-top:16px"><div class="lbl">Signal mix &mdash; digital / analog / serial</div>${stackBar([{label:"Digital",val:c.D,cls:"sig-d"},{label:"Analog",val:c.A,cls:"sig-a"},{label:"Serial",val:c.Ser,cls:"sig-s"}])}</div>`; }
   if(devRows.length){ ov+=`<div style="margin-top:16px"><div class="lbl">Devices by network</div>${stackBar([{label:"Ethernet",val:eth.length,cls:"s1"},{label:"Cresnet",val:cres.length,cls:"s2"},{label:"Other",val:devRows.length-eth.length-cres.length,cls:"s3"}])}</div>`; }
-  const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
-  if(hasData) html+=`<div class="section-label">Program</div>`;
+  const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length)||(pr.d3&&pr.d3.loads&&pr.d3.loads.length));
+  const hasProg=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
+  if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
-  if(hasData) html+=card("Overview",null,ov,true);
+  if(hasProg) html+=card("Overview",null,ov,true);
   if(actionN){ const cats=[]; if(dupConf.length)cats.push("duplicate IP-IDs"); if(contention.length)cats.push("signals driven by more than one source"); if(orphan.length)cats.push("signals wired to nothing"); if(sa&&sa.oscCandidates)cats.push("feedback loops");
     html+=`<div class="actionbar" role="button" tabindex="0"><span class="ab-dot"></span><span><b>${actionN}</b> thing${actionN===1?'':'s'} worth a look &mdash; ${cats.join(", ")}</span><span class="ab-go">see details ↓</span></div>`; }
   if(devRows.length||tps.length||dipList.length||thirdParty.length) html+=`<div class="section-label">Devices &amp; network</div>`;
@@ -1263,6 +1307,7 @@ function runAudit(){
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
+  if(pr.d3 && pr.d3.loads && pr.d3.loads.length){ html+=`<div class="section-label">Lighting (D3 Pro)</div>`+renderD3(pr.d3); }
   if(m && state.logXref){ const lx=state.logXref;
     const total=lx.drops.length+(lx.loops&&lx.waveTimeouts?1:0)+lx.missingFiles.length+lx.devConflicts.length;
     if(total){ let lb=`<p class="card-intro">Pulled from the error log you loaded, tied back to this program &mdash; click to dig in.</p>`;
@@ -1422,16 +1467,18 @@ function scanProgramIPs(smw){
 async function loadProgram(file){
   const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
   const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04)||/\.zip$/i.test(file.name);
-  const out={smft:null,dip:null,smw:null,ir:[],name:file.name};
+  const out={smft:null,dip:null,smw:null,ir:[],d3:null,name:file.name};
   if(isZip){
     const files=await unzip(buf);
     const g=ext=>{const e=files.find(f=>new RegExp("\\."+ext+"$","i").test(f.name)); return e?decodeText(e.bytes):null;};
     out.smft=g("smft"); out.dip=g("dip"); out.smw=g("smw"); out.ir=files.filter(f=>/\.ir$/i.test(f.name)).map(f=>f.name.replace(/.*\//,"").replace(/\.ir$/i,""));
-    if(!out.smft&&!out.dip&&!out.smw) throw new Error("no .smft / .dip / .smw inside the zip");
+    const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)); if(dw){ try{ out.d3=parseD3Loadwiring(decodeText(dw.bytes)); }catch(e){} }
+    if(!out.smft&&!out.dip&&!out.smw&&!out.d3) throw new Error("no .smft / .dip / .smw / loadwiring.htm inside the zip");
   } else {
     const txt=decodeText(u8); const n=file.name.toLowerCase();
     if(n.endsWith(".smft"))out.smft=txt; else if(n.endsWith(".dip"))out.dip=txt; else if(n.endsWith(".smw")||n.endsWith(".umc")||n.endsWith(".chd"))out.smw=txt;
-    else throw new Error("drop the program .zip, or a .smw / .umc / .chd / .smft / .dip file");
+    else if(n.endsWith(".htm")||n.endsWith(".html")){ out.d3=parseD3Loadwiring(txt); if(!out.d3)throw new Error("that .htm isn't a D3 Pro loadwiring report"); }
+    else throw new Error("drop the program .zip, or a .smw / .umc / .chd / .smft / .dip / loadwiring.htm file");
   }
   return out;
 }
@@ -1821,7 +1868,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring}; }
 </script>
 </body>
 </html>

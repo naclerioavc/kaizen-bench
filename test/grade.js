@@ -115,6 +115,30 @@ ck("systemInfo model+network",[si.identity.model,si.network&&si.network.gateway]
   ck("systemMatch: wrong processor model -> mismatch",[mWrong.status,mWrong.reason],["mismatch","model"]);
   const mProj=w.systemMatch(prog,{bootModel:"CP4",dropTop:[["IP-ID 62",9],["IP-ID 7A",3]]},"");
   ck("systemMatch: same model, no shared IP-IDs -> mismatch",[mProj.status,mProj.reason],["mismatch","ipid"]); }
+{ const d3html=`<html><head><title>Load Wiring</title></head><body>
+<table class="header"><tr class="titleblock"><td align="right"><b>Project: </b></td><td>Demo Residence</td></tr>
+<tr class="titleblock"><td align="right"><b>Creator: </b></td><td>Crestron D3 Pro v3.06</td></tr></table>
+<table class="default"><tr class="pageseparate"><td class="pagetitle"><b>Main Rack/Enclosure 1(Mech)</b> - [ slot 1 ], Total Load : 350W</td></tr></table>
+<table class="module"><tr><td></td><td class="modulename" colspan="2">Module 1: CLX-2DIMU8</td></tr>
+<tr><td></td><td class="modulename" colspan="2">Net-Device ID 1A</td></tr>
+<tr class="circuit"><td class="ckt_loc" align="right"><b> Feed 1 for Module 1  (Arc Fault)</b></td><td class="hot" align="center">LINE 1</td><td class="hot">BLACK</td></tr>
+<tr class="circuit"><td class="ckt_loc" align="right">Main Floor/Kitchen/Cans ( 150W )</td><td class="ckt_red" style="font-weight: bold" align="center">DIM 1</td><td class="ckt_red">RED</td></tr>
+<tr class="circuit"><td class="ckt_loc" align="right">Main Floor/Kitchen/Island ( 100W )</td><td class="ckt_red" style="font-weight: bold" align="center">DIM 2</td><td class="ckt_red">RED</td></tr>
+<tr class="circuit"><td class="ckt_loc" align="right"><b>Neutral feed</b></td><td class="ckt_white" align="center">N OUT 1</td><td class="ckt_white">WHITE</td></tr></table>
+<table class="module"><tr><td></td><td class="modulename" colspan="2">Module 2: CLX-4HSW4</td></tr>
+<tr><td></td><td class="modulename" colspan="2">Net-Device ID 1B</td></tr>
+<tr class="circuit"><td class="ckt_loc" align="right">Main Floor/Powder/Exhaust Fan ( 60W )</td><td class="ckt_white" style="font-weight: bold" align="center">SW 1</td><td class="ckt_white">WHITE</td></tr></table>
+</body></html>`;
+  const d3=w.parseD3Loadwiring(d3html);
+  ck("D3 loadwiring: load count (feed/neutral rows skipped)", d3.loads.length, 3);
+  const l0=d3.loads[0];
+  ck("D3 load fully instance-resolved",[l0.out,l0.modNum,l0.modType,l0.netid,l0.feed,l0.area,l0.load,l0.watt],
+     ["DIM 1","1","CLX-2DIMU8","1A","Feed 1","Main Floor / Kitchen","Cans","150"]);
+  has("D3 meta project + creator parsed", /Demo Residence/.test(d3.meta.project)&&/D3 Pro/.test(d3.meta.creator));
+  w.eval(`state.prog={name:'demo.htm',model:null,smw:null,smft:null,dip:null,ir:null,d3:${JSON.stringify(d3)},auditDone:true,devDone:true}; runAudit();`);
+  const cb=w.document.getElementById('censusBody').textContent;
+  has("D3 renders a Lighting loads card", /Lighting loads/.test(cb));
+  has("D3 renders shared-module grouping", /Loads by control module/.test(cb)); }
 
 // ===== render checks: the tool actually displays it =====
 w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.smft=${JSON.stringify(smft)}; state.prog.dip=${JSON.stringify(dip)}; state.prog.ir=['SomeTV']; state.prog.model=null; runAudit();`);
