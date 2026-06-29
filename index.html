@@ -220,6 +220,14 @@
   .modal-body thead th{position:sticky;top:-14px;background:var(--panel);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
   .filter{display:block;width:100%;max-width:300px;margin:0 0 10px;background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12.5px;padding:7px 11px;border-radius:7px}
   .filter:focus{outline:none;border-color:var(--stripe)}
+  /* global cross-entity search */
+  .gsbar{position:relative;margin:2px 0 16px}
+  .gsbar input{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:14px;padding:11px 92px 11px 40px;border-radius:9px;background-repeat:no-repeat;background-position:14px center;background-size:16px 16px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a92' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.5' y2='16.5'/%3E%3C/svg%3E")}
+  .gsbar input:focus{outline:none;border-color:var(--stripe)}
+  .gscount{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--mut);pointer-events:none;letter-spacing:.02em}
+  #censusBody.gsearch .card.gs-empty{display:none}
+  #censusBody.gsearch tbody tr:not(.gs-hit){display:none!important}
+  mark.gs-mark{background:var(--stripe);color:var(--bg);border-radius:2px;padding:0 1px;font-weight:600}
   .beta{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#000;background:var(--stripe);padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:6px;font-weight:700}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
   .modal.hide{display:none}
@@ -345,7 +353,7 @@
     .report-cover .rc-l{color:#666;width:42%} .report-cover .rc-v{color:#000;font-weight:600}
     .report-cover .rc-counts{margin-top:24px;font-size:13px;color:#333;font-weight:600}
     .report-cover .rc-foot{margin-top:34px;font-size:10.5px;color:#777;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.5}
-    nav, .drop, footer, .diffbar, .filter, .chev, #modal, .stripe, .tagline, .card-intro, header, #censusName, .actionbar, .modal-nav { display:none !important; }
+    nav, .drop, footer, .diffbar, .filter, .gsbar, .chev, #modal, .stripe, .tagline, .card-intro, header, #censusName, .actionbar, .modal-nav { display:none !important; }
     html,body{ background:#fff !important; color:#000 !important; }
     main{ padding:0; max-width:none; }
     .section-label{ color:#000; border-color:#000; }
@@ -1146,6 +1154,7 @@ function openModal(title,body){ $("#modalTitle").innerHTML=title; $("#modalBody"
 function closeModal(){ $("#modal").classList.add("hide"); mHist=[]; mPos=-1; }
 function updateModalNav(){ const bk=document.getElementById("modalBack"),fw=document.getElementById("modalFwd"),nv=document.querySelector(".modal-nav"); if(!bk)return; const show=mHist.length>1; if(nv)nv.style.display=show?"":"none"; bk.disabled=mPos<=0; fw.disabled=mPos>=mHist.length-1; }
 $("#censusBody").addEventListener("input",e=>{
+  if(e.target.id==="auditSearch"){ globalSearch(e.target.value); return; }
   if(e.target.classList&&e.target.classList.contains("sigfilter")){ const tb=document.getElementById("sigBody"); if(tb)tb.innerHTML=signalRows(e.target.value); return; }
   if(!e.target.classList||!e.target.classList.contains("filter"))return;
   const q=e.target.value.toLowerCase(); const sc=e.target.nextElementSibling; const tb=sc&&sc.querySelector("tbody"); if(!tb)return;
@@ -1350,6 +1359,62 @@ function miniGraph(center, drivers, loads){
   svg+=`</svg>`;
   const more=(drivers.length>9?`<span class="muted">+${drivers.length-9} more sources</span> `:"")+(loads.length>9?`<span class="muted">+${loads.length-9} more loads</span>`:"");
   return `<div class="gwrap">${svg}</div>${more?`<p class="foot-note">${more}</p>`:""}`;
+}
+function setGsCount(t){ const e=document.getElementById("gsCount"); if(e)e.textContent=t; }
+function gsUnmark(root){
+  root.querySelectorAll("mark.gs-mark").forEach(mk=>{ const p=mk.parentNode; p.replaceChild(document.createTextNode(mk.textContent),mk); p.normalize&&p.normalize(); });
+}
+function gsMark(el,q){
+  if(!q)return;
+  const W=el.ownerDocument.createTreeWalker(el,(el.ownerDocument.defaultView||window).NodeFilter.SHOW_TEXT,null);
+  const texts=[]; let n; while(n=W.nextNode()){ if(n.nodeValue && n.nodeValue.toLowerCase().indexOf(q)>=0 && (!n.parentNode||n.parentNode.nodeName!=="MARK")) texts.push(n); }
+  texts.forEach(t=>{
+    const sVal=t.nodeValue, low=sVal.toLowerCase(); const frag=t.ownerDocument.createDocumentFragment();
+    let last=0, i=low.indexOf(q);
+    while(i>=0){
+      if(i>last)frag.appendChild(t.ownerDocument.createTextNode(sVal.slice(last,i)));
+      const mk=t.ownerDocument.createElement("mark"); mk.className="gs-mark"; mk.textContent=sVal.slice(i,i+q.length); frag.appendChild(mk);
+      last=i+q.length; i=low.indexOf(q,last);
+    }
+    if(last<sVal.length)frag.appendChild(t.ownerDocument.createTextNode(sVal.slice(last)));
+    t.parentNode.replaceChild(frag,t);
+  });
+}
+// One box to find any IP-ID / device / signal / serial port / model across every audit card.
+// Works on the rendered cards; routes the query through the full signal set so nothing is missed.
+function globalSearch(q){
+  const root=document.getElementById("censusBody"); if(!root) return {matches:0,cards:0};
+  q=(q||"").trim().toLowerCase();
+  const cards=[...root.querySelectorAll(".card")];
+  if(!root.dataset.gsSnap){ cards.forEach(c=>c.dataset.gsCol=c.classList.contains("collapsed")?"1":"0"); root.dataset.gsSnap="1"; }
+  // reset prior pass
+  root.querySelectorAll("tr.gs-hit").forEach(r=>r.classList.remove("gs-hit"));
+  root.querySelectorAll(".card.gs-empty").forEach(c=>c.classList.remove("gs-empty"));
+  gsUnmark(root);
+  // route through the full signal dataset (DOM caps at 1500 rows)
+  const sigBody=document.getElementById("sigBody"); const sigF=root.querySelector(".sigfilter");
+  if(sigBody){ sigBody.innerHTML=signalRows(q); if(sigF)sigF.value=q; }
+  if(!q){
+    root.classList.remove("gsearch");
+    cards.forEach(c=>{ if(c.dataset.gsCol==="1")c.classList.add("collapsed"); else c.classList.remove("collapsed"); });
+    delete root.dataset.gsSnap;
+    setGsCount(""); return {matches:0,cards:0};
+  }
+  root.classList.add("gsearch");
+  let total=0, cardHits=0;
+  cards.forEach(c=>{
+    const rows=[...c.querySelectorAll("tbody tr")]; let ch=0;
+    if(rows.length){
+      rows.forEach(r=>{ if(r.textContent.toLowerCase().indexOf(q)>=0){ r.classList.add("gs-hit"); gsMark(r,q); ch++; } });
+      total+=ch;
+    } else {
+      const body=c.querySelector(".card-body");
+      if(body && body.textContent.toLowerCase().indexOf(q)>=0){ gsMark(body,q); ch=1; total+=1; }
+    }
+    if(ch>0){ c.classList.remove("collapsed"); cardHits++; } else { c.classList.add("gs-empty"); }
+  });
+  setGsCount(total?`${total.toLocaleString()} match${total===1?"":"es"} \u00b7 ${cardHits} card${cardHits===1?"":"s"}`:"no matches");
+  return {matches:total,cards:cardHits};
 }
 function signalRows(q){
   const all=state.signals||[]; q=(q||"").trim().toLowerCase();
@@ -1661,6 +1726,7 @@ function runAudit(){
     </div>`;
     html=cover+html;
   }
+  if(hasData){ html = `<div class="gsbar"><input id="auditSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Search everything \u2014 IP-ID, device, signal, serial port, model\u2026" aria-label="Search the whole as-built"><span class="gscount" id="gsCount"></span></div>` + html; }
   $("#censusBody").innerHTML=html;
 }
 
@@ -2201,7 +2267,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

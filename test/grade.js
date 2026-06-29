@@ -272,5 +272,19 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const loop=[sg2(1,"Vol.A"),sg2(2,"Vol.B"),`[\nObjTp=Sm\nH=10\nNm=Gain\nI1=1\nO1=2\n]`,`[\nObjTp=Sm\nH=11\nNm=Scale\nI1=2\nO1=1\n]`].join("\n");
   const sa=w.structAnalysis(w.parseSmw(loop));
   has("analog-only loop classified self-limiting (not an oscillation candidate)", sa.loopsNoBreaker>=1 && sa.oscCandidates===0 && sa.analogLoops>=1); }
+// ===== global search across audit cards =====
+{ // re-render the program audit so #censusBody is the program (not the last loop fixture)
+  w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smw)}; state.prog.smft=${JSON.stringify(smft)}; state.prog.dip=${JSON.stringify(dip)}; state.prog.ir=['SomeTV']; state.prog.model=null; runAudit();`);
+  const cbEl=w.document.getElementById('censusBody');
+  const r1=w.globalSearch('nvx');
+  has("global search: 'nvx' finds at least one match", r1.matches>=1 && r1.cards>=1);
+  has("global search: container enters search mode", cbEl.classList.contains('gsearch'));
+  has("global search: matched rows are marked, hidden rows exist", cbEl.querySelectorAll('tr.gs-hit').length>=1 && cbEl.querySelectorAll('mark.gs-mark').length>=1);
+  has("global search: a non-matching card is hidden (gs-empty)", cbEl.querySelectorAll('.card.gs-empty').length>=1);
+  const r0=w.globalSearch('zzqqxxnotreal');
+  has("global search: nonsense query yields zero matches", r0.matches===0);
+  w.globalSearch('');
+  has("global search: clearing exits search mode and removes marks", !cbEl.classList.contains('gsearch') && cbEl.querySelectorAll('mark.gs-mark').length===0 && cbEl.querySelectorAll('.card.gs-empty').length===0);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
