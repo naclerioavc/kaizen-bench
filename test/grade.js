@@ -300,5 +300,18 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   let cap=null; const orig=w.downloadCsv; w.downloadCsv=(n,txt)=>{cap=txt;}; w.exportAll(); w.downloadCsv=orig;
   has("Export all produces a multi-card CSV", typeof cap==='string' && (cap.match(/^# /gm)||[]).length>=3);
 }
+// ===== Version Diff: Swap A/B actually swaps models + names (synchronous part of handler) =====
+{ const Aprog=[`[\nObjTp=Hd\nPgmNm=PA\n]`, sg(1,"Common",""), sg(2,"OnlyInA","")].join("\n");
+  const Bprog=[`[\nObjTp=Hd\nPgmNm=PB\n]`, sg(1,"Common",""), sg(3,"OnlyInB","")].join("\n");
+  w.eval(`setSlot('A','A.smw',parseSmw(${JSON.stringify(Aprog)})); setSlot('B','B.smw',parseSmw(${JSON.stringify(Bprog)}));`);
+  const d0=w.eval('computeDiff(state.diffA,state.diffB)');
+  const add0=JSON.stringify(d0.added), rem0=JSON.stringify(d0.removed);
+  w.document.getElementById('diffSwap').dispatchEvent(new w.Event('click'));
+  const aName=w.eval('state.diffAname'), bName=w.eval('state.diffBname');
+  has("Swap A/B exchanges the slot names", aName==='B.smw' && bName==='A.smw');
+  const d1=w.eval('computeDiff(state.diffA,state.diffB)');
+  has("Swap A/B inverts added/removed", JSON.stringify(d1.added)===rem0 && JSON.stringify(d1.removed)===add0);
+  has("Swap A/B updates the drop labels", w.document.getElementById('dropAlabel').textContent.includes('B.smw') && w.document.getElementById('dropBlabel').textContent.includes('A.smw'));
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
