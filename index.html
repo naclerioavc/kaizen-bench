@@ -387,7 +387,7 @@
   <section id="tab-help" class="hide">
     <div class="panel">
       <h3>What this is</h3>
-      <p class="verdict">A field diagnostic kit for Crestron 4-Series work. Drop a program or a log; it reads the file format directly and surfaces what changed, what's heavy, and what's recurring. Built by Kaizen Logic. Runs entirely client-side — safe for client files. SIMPL-produced files are opened <b>read-only</b>; nothing is written back to them, and an Info-Tool <code>.zip</code> is unpacked in your browser without leaving your machine.</p>
+      <p class="verdict">Drop a Crestron program, project archive, or processor log — see what changed, what's heavy, and what's failing, down to the exact device, IP-ID, and signal. Read-only; your files never leave your machine.</p>
       <dl class="help">
         <dt>Version Diff <span class="muted">— two .smw</span></dt>
         <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Also detects</b> parameter changes on symbols whose wiring is unchanged (the silent &ldquo;programming may be lost&rdquo; edits). <b>Does not detect</b> rewiring of existing signals or constant edits inside compiled modules. Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
@@ -413,7 +413,7 @@
 
 <footer>
   <span><span class="sigdots"><i></i><i></i><i></i></span>kaizen Logic · SIMPL Windows diagnostics</span>
-  <span class="cta">100% in your browser · <a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
+  <span class="cta"><a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
 </footer>
 
 <script>
@@ -914,8 +914,7 @@ function runDiff(){
       </div>
       <div class="panel" style="margin-top:14px"><h3>Read</h3>
         <p class="verdict">${verdict}</p>
-        <p class="foot-note">A = <span class="data">${esc(state.diffAname||"baseline")}</span> · B = <span class="data">${esc(state.diffBname||"current")}</span>. Type mix D/A/S: ${d.tcA.D.toLocaleString()}/${d.tcA.A.toLocaleString()}/${d.tcA.S.toLocaleString()} → ${d.tcB.D.toLocaleString()}/${d.tcB.A.toLocaleString()}/${d.tcB.S.toLocaleString()}.
-        <br><b>Detects:</b> name add/remove/rename, signal type changes, module instance counts. <b>Not detected:</b> rewiring of existing signals, constant/parameter edits, device/IP-table changes. <b>*Renamed</b> is inferred from identical wiring — confirm any that matter.</p>
+        <p class="foot-note"><b>Detects:</b> name add/remove/rename, signal type changes, module instance counts. <b>Not detected:</b> rewiring of existing signals, constant/parameter edits, device/IP-table changes. <b>*Renamed</b> is inferred from identical wiring — confirm any that matter.</p>
       </div>`;
 
     if(total===0){ $("#diffBody").innerHTML=(state.arcActive?ARC_BACK:"")+html; return; }
@@ -1130,7 +1129,7 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
     const inA=[...inM.entries()].sort((a,b)=>a[1]-b[1]), outA=[...outM.entries()].sort((a,b)=>a[1]-b[1]);
     const li=e=>`<tr><td class="num data muted">${e[1]}</td><td class="data drill ${sigCls(m,e[0])}" data-drill="signal" data-val="${esc(e[0])}" title="${esc(e[0])}">${esc(e[0])}</td></tr>`;
     const cap=2500, sect=(t,arr)=>`<div class="lbl" style="margin-top:12px">${t} (${arr.length.toLocaleString()})</div>`+(arr.length?`<input class="mfilter" placeholder="filter\u2026" aria-label="filter"><div class="scroll">`+tbl([{t:"Join / pin",num:1},{t:"Signal"}],arr.slice(0,cap).map(li).join(""))+`</div>`+(arr.length>cap?`<p class="foot-note">Showing first ${cap.toLocaleString()} &mdash; filter to narrow.</p>`:""):`<p class="muted">&mdash; none &mdash;</p>`);
-    openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal wired to and from this device, by its join/pin number &mdash; feedback the program sends it, and presses/status it sends back. Click any signal to trace it.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
+    openModal(`IP-ID ${esc(ad)}${dname?" &mdash; "+esc(dname):""} &mdash; wired signals`, `<p class="card-intro">Every signal to/from this device by join/pin &mdash; feedback in, presses/status out. Click any to trace.</p>`+sect("Into the device (feedback / commands)",inA)+sect("Out of the device (presses / status)",outA));
   } else if(type==="syminst" && m){
     const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
     const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
@@ -1274,7 +1273,7 @@ function renderD3(d3){
   const groups=[...byMod.values()].filter(g=>g.loads.length>=2).sort((a,b)=>b.loads.length-a.loads.length);
   if(groups.length){
     const grows=groups.map(g=>`<tr><td class="data">${esc(g.mod)}</td><td class="num data">${g.loads.length}</td><td class="num data">${g.loads.reduce((x,l)=>x+(parseFloat(l.watt)||0),0)||"—"}</td><td class="data muted" title="${esc(g.loads.map(l=>l.load).join(", "))}">${esc(trim(g.loads.map(l=>l.load).join(", "),72))}</td><td class="data muted" title="${esc(g.encl||"")}">${esc(trim(g.encl||"—",28))}</td></tr>`).join("");
-    html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by the control module that drives them. <b>If several complained-about loads share one module or feed, suspect that module or its breaker / feed (electrical) before the program</b> — a likely root cause to check at the panel, not a certainty.</p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
+    html+=card("Loads by control module",groups.length,`<p class="card-intro">Loads grouped by control module. <b>Several dead loads on one module/feed → suspect that breaker/feed (electrical) before the program.</b> Confirm at the panel.</p>`+tbl([{t:"Control module"},{t:"Loads",num:1},{t:"Total W",num:1},{t:"Drives"},{t:"Enclosure"}],grows),true);
   }
   return html;
 }
@@ -1361,7 +1360,7 @@ function runAudit(){
       const isEisc=/eisc|intersystem|to\/from/i.test(role||"");
       const roleInner=isEisc?`<span class="rolechip">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
       return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
-    html+=card("Network devices",netIds.length,`<p class="card-intro">Everything on the IP network by IP-ID — the device tree and the processor IP table (<code>.dip</code>) merged into one list. The <b>Role / type</b> column flags what a device actually is (e.g. an <b>EISC</b> intersystem link to another program). <code>127.0.0.1</code> means an internal/loopback slot (XPanel, mobile app) or an IP-ID with no address set yet.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
+    html+=card("Network devices",netIds.length,`<p class="card-intro">Every device on the IP network by IP-ID. <b>Role</b> flags what it actually is — e.g. an <b>EISC</b> link to another program. <code>127.0.0.1</code> = an internal slot (XPanel/app) or an unset IP-ID.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
   }
   if(cres.length){
     const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr>${devCell(d.id,d.id,"C")}<td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
@@ -1376,7 +1375,7 @@ function runAudit(){
     if(irDev.length){
       const loc=x=>{ if(m&&x.smH!=null){ return folderPath(m,x.smH)||""; } return ""; };
       const rows=irDev.map(x=>{ const hip=x.hostIpid?(dip.get(x.hostIpid)||""):""; return `<tr${x.smH!=null?` class="drill" data-drill="syminst" data-val="${x.smH}"`:""}><td class="data" title="${esc(x.device||'')}">${esc(x.device||'—')}</td><td class="data" title="${esc(x.model||'')}">${esc(x.model||'—')}</td><td class="data muted">${esc(x.mfr||'—')}</td><td class="data">${esc(x.port?('IR '+(parseInt(x.port,10)||x.port)):'—')}</td><td class="data" title="${esc(x.host||'')}">${esc(x.host||'—')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data${hip==='127.0.0.1'?' muted':''}">${esc(hip||'—')}</td><td class="data muted" title="${esc(x.driver||'')}">${esc(x.driver||'—')}</td><td class="data muted" title="${esc(loc(x))}">${esc(loc(x)||'—')}</td></tr>`; }).join("");
-      html+=card("IR devices",irDev.length,`<p class="card-intro">Infrared-controlled devices: the driver loaded, the IR port, and the <b>specific endpoint it lands on</b> &mdash; the exact device by name, its IP-ID, and resolved IP &mdash; so you can find the physical port, not just &ldquo;an NVX somewhere.&rdquo;</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"On endpoint"},{t:"Endpoint IP-ID"},{t:"Endpoint IP"},{t:"Driver file"},{t:"Location"}],rows,1),false);
+      html+=card("IR devices",irDev.length,`<p class="card-intro">IR devices: driver, IR port, and the <b>exact endpoint it lands on</b> (device · IP-ID · IP) &mdash; the physical port, not just &ldquo;an NVX somewhere.&rdquo;</p>`+tbl([{t:"Device"},{t:"Model"},{t:"Manufacturer"},{t:"IR port"},{t:"On endpoint"},{t:"Endpoint IP-ID"},{t:"Endpoint IP"},{t:"Driver file"},{t:"Location"}],rows,1),false);
     } else if(state.prog.ir&&state.prog.ir.length){
       const rows=state.prog.ir.map(n=>`<tr><td class="data">${esc(n)}</td></tr>`).join("");
       html+=card("IR devices",state.prog.ir.length,`<p class="card-intro">IR driver files in the program. Load the full program <code>.smw</code>/<code>.zip</code> for the wired view (port + location).</p>`+tbl([{t:"IR driver file"}],rows,1),false);
@@ -1396,7 +1395,7 @@ function runAudit(){
   if(pr.smw && m){ const io=scanIO(pr.smw);
     if(io.length){ const onIO=x=>{ return folderPath(m,x.smH)||x.nm; };
       const rows=io.map(x=>`<tr class="drill" data-drill="ioports" data-val="${x.smH}"><td><span class="pill ${x.type==='Relay'?'warn':x.type==='IR'?'':'ok'}">${esc(x.type)}</span></td><td class="data">${esc(x.host||'processor (onboard)')}</td><td class="data">${esc(x.hostIpid||'—')}</td><td class="data">${esc(x.port)}${x.count>1?` (${x.count} ports)`:''}</td><td class="data" title="${esc(folderPath(m,x.smH))}">${esc(onIO(x)||'—')}</td></tr>`).join("");
-      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports: the device they physically land on (onboard processor card vs. an expander like a CEN-IO or an AV-over-IP endpoint), that device&rsquo;s IP-ID, the port, and what the bank controls. <b>Click a row to break out each individual port and the exact signal it drives.</b></p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Port"},{t:"Controls"}],rows,1),false);
+      html+=card("Relay / IR / I-O ports",io.length,`<p class="card-intro">Relay, IR and digital-I/O ports — the device each lands on (onboard card, a CEN-IO expander, or an AV-over-IP endpoint), its IP-ID, the port, and what the bank controls. <b>Click a row to break out each individual port and the exact signal it drives.</b></p>`+tbl([{t:"Type"},{t:"Lands on (device)"},{t:"Endpoint IP-ID"},{t:"Port"},{t:"Controls"}],rows,1),false);
     }
   }
   if(pr.smw){ const serial=scanSerial(pr.smw).filter(x=>x.proto||x.baud);
@@ -1453,8 +1452,8 @@ function runAudit(){
   if(m && actionN){
     { let b=`<p class="card-intro">Things worth a look &mdash; candidates, not verdicts. The live box (SIMPL debugger) confirms.</p>`;
       if(dupConf.length){ b+=`<div class="lbl">Duplicate IP-IDs &mdash; same ID, different address (real conflict)</div>`+tbl([{t:"IP-ID"},{t:"Addresses"}],dupConf.map(d=>`<tr><td class="data">${esc(d.id)}</td><td class="data">${esc(d.addrs.join(", "))}</td></tr>`).join("")); }
-      if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Open the Signals card, sort by Sources, and trace the top ones. Often intentional &mdash; confirm intent.</p>`; }
-      if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but not connected on either end. Often reserved/placeholder names; a quick glance catches the occasional forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
+      if(contention.length){ b+=`<div class="lbl" style="margin-top:14px">Analog/serial signals written by more than one source &mdash; ${contention.length.toLocaleString()}</div><p class="foot-note">Possible value fights (last-writer-wins). Sort the Signals card by Sources and trace the top ones — often intentional.</p>`; }
+      if(orphan.length){ b+=`<div class="lbl" style="margin-top:14px">Named signals wired to nothing &mdash; neither driven nor read (${orphan.length.toLocaleString()})</div><p class="foot-note">Defined but wired to nothing. Usually placeholders — occasionally a forgotten wire. Find them in the Signals card (sort by Sources, then Loads).</p>`; }
       if(sa&&sa.oscCandidates){ b+=`<div class="lbl" style="margin-top:14px">Digital feedback loops (oscillation risk) &mdash; ${sa.oscCandidates}</div><p class="foot-note">See the Feedback loops card; tie these to any &ldquo;could not be solved&rdquo; storms in the log.</p>`; }
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
@@ -1940,11 +1939,11 @@ function runLog(name,text){
     let cb="";
     if(a.missingFiles.length)cb+=`<div class="lbl">Program files the processor expected but could not find (failed / partial upload, or version mismatch)</div>`+tbl([{t:"Missing file"}],a.missingFiles.map(f=>`<tr><td class="data">${esc(f)}</td></tr>`).join(""));
     if(a.devConflicts.length)cb+=`<div class="lbl" style="margin-top:12px">A device claimed by more than one program</div>`+tbl([{t:"Conflict"}],a.devConflicts.map(c=>`<tr><td class="data">${esc(c)}</td></tr>`).join(""));
-    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Critical &mdash; look here first</h3>${cb}<p class="foot-note">Config / boot problems, not background noise: a device two programs both claim, or program files the box couldn&rsquo;t load. These often cause the error storms below.</p></div>`;
+    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Critical &mdash; look here first</h3>${cb}<p class="foot-note">Config/boot problems, not background noise — a device two programs claim, or files the box couldn&rsquo;t load. These often trigger the error storms below.</p></div>`;
   }
 
   if(a.storms&&a.storms.length){
-    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Feedback / command storms <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; many errors in a single tick</span><span class="ct">${a.storms.length}</span></h3><p class="card-intro">Seconds where a large batch of errors fired at once${a.storms.some(s=>s.overflowDriven)?` &mdash; here driven by SIMPL+ string <b>overflows</b>`:""}. The classic cause is <b>every zone recomputing feedback on one global event</b> (All&nbsp;On / All&nbsp;Off): the processor saturates for a tick and panels can freeze. Correlation, not proof &mdash; line it up with the user action that triggered it.</p>`+tbl([{t:"Timestamp"},{t:"Errors in 1s",num:1},{t:"Overflows",num:1},{t:"Sources"}], a.storms.map(s=>`<tr><td class="data">${esc(s.tstr||"—")}</td><td class="num data">${s.n.toLocaleString()}</td><td class="num data">${s.ov?s.ov.toLocaleString():"—"}</td><td class="data muted" title="${esc(s.sources.join(", "))}">${esc(trim(s.sources.join(", "),58))}</td></tr>`).join(""))+`</div>`;
+    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Feedback / command storms <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; many errors in a single tick</span><span class="ct">${a.storms.length}</span></h3><p class="card-intro">A burst of errors in one second${a.storms.some(s=>s.overflowDriven)?` &mdash; SIMPL+ string <b>overflows</b>`:""}. Usually <b>every zone recomputing feedback on one global event</b> (All&nbsp;On/Off) &rarr; CPU saturates for a tick, panels freeze. Correlation, not proof.</p>`+tbl([{t:"Timestamp"},{t:"Errors in 1s",num:1},{t:"Overflows",num:1},{t:"Sources"}], a.storms.map(s=>`<tr><td class="data">${esc(s.tstr||"—")}</td><td class="num data">${s.n.toLocaleString()}</td><td class="num data">${s.ov?s.ov.toLocaleString():"—"}</td><td class="data muted" title="${esc(s.sources.join(", "))}">${esc(trim(s.sources.join(", "),58))}</td></tr>`).join(""))+`</div>`;
   }
   html+=`<div class="panel" style="margin-top:14px"><h3>Recurring problems <span class="muted" style="text-transform:none;letter-spacing:0">— warnings &amp; errors by frequency</span><span class="ct">${a.recurring.length.toLocaleString()}</span></h3>`;
   if(a.recurring.length){
@@ -1957,7 +1956,7 @@ function runLog(name,text){
         <td><span class="pill ${t.rate.kind==='rate'?'warn':''}">${t.rate.txt}</span></td>
       </tr>`).join("")}
       </tbody></table></div>
-      <p class="foot-note"><b>burst</b> = all within a minute (usually one boot/upload event); a steady <b>/h</b> rate is an ongoing condition. ${a.infoTotal?`<b>${a.infoTotal.toLocaleString()}</b> informational messages (Ok/Info/Notice) set aside${a.infoTop&&a.infoTop[0]?` — top: &ldquo;${esc(trim(a.infoTop[0].example||a.infoTop[0].msg,40))}&rdquo; ×${a.infoTop[0].n.toLocaleString()}`:""}.`:"Numbers in messages are normalized so the same error counts once."}</p>`;
+      <p class="foot-note"><b>burst</b> = all in one minute (a boot/upload event); a steady <b>/h</b> = ongoing. ${a.infoTotal?`<b>${a.infoTotal.toLocaleString()}</b> informational messages (Ok/Info/Notice) set aside${a.infoTop&&a.infoTop[0]?` — top: &ldquo;${esc(trim(a.infoTop[0].example||a.infoTop[0].msg,40))}&rdquo; ×${a.infoTop[0].n.toLocaleString()}`:""}.`:"Numbers in messages are normalized so the same error counts once."}</p>`;
   } else html+=`<p class="empty">No recurring warnings or errors.${a.infoTotal?` (${a.infoTotal.toLocaleString()} informational messages present.)`:""}</p>`;
   html+=`</div>`;
 
@@ -1985,7 +1984,7 @@ function runLog(name,text){
     </div>
     <p class="foot-note">${a.loadavg
       ? (a.cores
-          ? `Load average is threads waiting to run. This dump reports <b>${a.cores}</b> core${a.cores===1?'':'s'}, so load ≈ <b>${(parseFloat(a.loadavg[0])/a.cores).toFixed(2)} per core</b> (≥1.0 per core = fully subscribed).`
+          ? `Load avg = threads waiting to run; <b>${a.cores}</b> core${a.cores===1?'':'s'}, so ≈ <b>${(parseFloat(a.loadavg[0])/a.cores).toFixed(2)} per core</b> (≥1.0 per core = fully subscribed).`
           : `Load average is threads waiting to run — compare against this processor's core count (not stated in the dump) to judge oversubscription.`)
       : `CPU split is the snapshot at dump time.`}</p>
     ${a.proc.length?`<table style="margin-top:8px"><thead><tr><th>Process</th><th class="num">%CPU</th></tr></thead><tbody>
