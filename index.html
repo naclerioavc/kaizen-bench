@@ -1633,6 +1633,10 @@ function analyzeLog(text){
     let g=tally.get(key); if(!g){g={sev:e.sev,who:e.who,msg,example:raw.slice(0,600),n:0,first:null,last:null};tally.set(key,g);}
     g.n+=mult; if(e.t!=null){ if(g.first===null||e.t<g.first)g.first=e.t; if(g.last===null||e.t>g.last)g.last=e.t; }
   }
+  // same-tick error bursts — a global event (All On/Off) can overrun the CPU in one tick (lockup risk)
+  const bySec=new Map();
+  for(const e of entries){ if(!(e.sev==="Error"||e.sev==="Fatal")||e.t==null)continue; const mult=Math.max(e.rep,wrote(e.raw),1); const ov=/overflow/i.test(e.raw); let b=bySec.get(e.t); if(!b){b={t:e.t,tstr:e.tstr,n:0,ov:0,who:new Set()};bySec.set(e.t,b);} b.n+=mult; if(ov)b.ov+=mult; if(e.who)b.who.add(e.who); }
+  const storms=[...bySec.values()].filter(b=>b.n>=20).sort((a,b)=>b.n-a.n).slice(0,12).map(b=>({tstr:b.tstr,n:b.n,ov:b.ov,sources:[...b.who].slice(0,8),overflowDriven:b.ov>=Math.max(5,b.n*0.5)}));
   const rated=g=>{
     const span=(g.first!=null&&g.last!=null)?(g.last-g.first):null;
     let rate;
@@ -1701,7 +1705,7 @@ function analyzeLog(text){
   periodic.sort((a,b)=>b.count-a.count);
 
   return { compatible, firstTs,lastTs,spanH, errN,warnN,fatalN,suspended, mem, infoTotal,infoTop, sourceCount:sources.size,
-    recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds], periodic, boots, bootModel, bootFw, missingFiles, devConflicts };
+    storms, recurring, toRows,maxGap,noStart, loadavg,cpu,cores,proc, dropTop, authFails, dropIds:[...dropIds], periodic, boots, bootModel, bootFw, missingFiles, devConflicts };
 }
 function parseDiscovered(text){
   const sec=sectionOf(text,"autodiscovery query tableformat"); if(!sec)return [];
@@ -1882,6 +1886,9 @@ function runLog(name,text){
     html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Critical &mdash; look here first</h3>${cb}<p class="foot-note">Config / boot problems, not background noise: a device two programs both claim, or program files the box couldn&rsquo;t load. These often cause the error storms below.</p></div>`;
   }
 
+  if(a.storms&&a.storms.length){
+    html+=`<div class="panel" style="margin-top:14px;border-left:3px solid var(--bad)"><h3>Feedback / command storms <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; many errors in a single tick</span><span class="ct">${a.storms.length}</span></h3><p class="card-intro">Seconds where a large batch of errors fired at once${a.storms.some(s=>s.overflowDriven)?` &mdash; here driven by SIMPL+ string <b>overflows</b>`:""}. The classic cause is <b>every zone recomputing feedback on one global event</b> (All&nbsp;On / All&nbsp;Off): the processor saturates for a tick and panels can freeze. Correlation, not proof &mdash; line it up with the user action that triggered it.</p>`+tbl([{t:"Timestamp"},{t:"Errors in 1s",num:1},{t:"Overflows",num:1},{t:"Sources"}], a.storms.map(s=>`<tr><td class="data">${esc(s.tstr||"—")}</td><td class="num data">${s.n.toLocaleString()}</td><td class="num data">${s.ov?s.ov.toLocaleString():"—"}</td><td class="data muted" title="${esc(s.sources.join(", "))}">${esc(trim(s.sources.join(", "),58))}</td></tr>`).join(""))+`</div>`;
+  }
   html+=`<div class="panel" style="margin-top:14px"><h3>Recurring problems <span class="muted" style="text-transform:none;letter-spacing:0">— warnings &amp; errors by frequency</span><span class="ct">${a.recurring.length.toLocaleString()}</span></h3>`;
   if(a.recurring.length){
     html+=`<div class="scroll"><table><thead><tr><th>Sev</th><th>Source</th><th>Message</th><th class="num">Count</th><th>Rate</th></tr></thead><tbody>

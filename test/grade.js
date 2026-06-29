@@ -242,6 +242,14 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("log: boot model + firmware extracted",[al.bootModel,al.bootFw],["CP4","2.8001.00098"]);
   has("log: missing program files surfaced", al.missingFiles.some(f=>/01_CP4_Main\.bin/.test(f)));
   has("log: cross-program device conflict surfaced", al.devConflicts.length>=1); }
+{ // feedback/command storm: many same-tick SIMPL+ string-overflow errors
+  const burst=[]; for(let i=0;i<25;i++) burst.push(`Error: HTML_Text_Combiner_${i} # 2026-06-10 14:00:00 # Overflow. Capacity = 250. Length = ${300+i}.`);
+  const stormLog=["Error: SomeModule # 2026-06-10 13:00:00 # routine error", ...burst, "Notice: System # 2026-06-10 14:00:01 # back to normal"].join("\n");
+  const sa2=w.analyzeLog(stormLog);
+  has("log: same-tick error burst clustered as ONE storm finding", sa2.storms.length===1);
+  has("log: storm counts the burst (>=25 in one second)", sa2.storms[0] && sa2.storms[0].n>=25);
+  has("log: storm flagged overflow-driven", sa2.storms[0] && sa2.storms[0].overflowDriven===true);
+  has("log: a single routine error is NOT a storm", !sa2.storms.some(x=>x.n<20)); }
 
 { w.eval('state.prog={name:"junk.smw",model:null,smw:"random junk not a crestron file",smft:null,dip:null,ir:[]};runAudit();');
   has("garbage/unreadable file shows a clear message (not a blank hero)", /no readable SIMPL data/.test(w.document.getElementById('censusBody').textContent)); }

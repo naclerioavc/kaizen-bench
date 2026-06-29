@@ -223,3 +223,14 @@ later). Drop two `.zip` archives into the Version Diff slots.
   (added/removed/renamed/type/param). A "Back to file changes" button returns to the manifest.
 - KISS: cheap manifest up front, heavy work only on the one file the user asks for. Graded with a
   synthetic STORED-zip fixture (manifest + add/remove/change detection).
+
+## Log: feedback / command storm detection
+A "storm" = a single second with a large batch of Error/Fatal entries (threshold ≥20), clustered
+as ONE finding rather than N separate rows. Computed by bucketing logical log entries by their
+timestamp-second (the multi-line rejoin already merges wrapped lines). Tracks how many of the burst
+are SIMPL+ string **overflow** errors (`/overflow/i`); `overflowDriven` when overflows are ≥half the
+burst. The classic cause is every zone recomputing feedback on one global event (All On / All Off)
+→ momentary CPU saturation → panels freeze. Rendered as a red-bordered panel above the recurring
+table, **framed as correlation, not proof** (line it up with the user action that triggered it).
+Graded against a synthetic 25-overflow same-tick fixture (clusters to one storm, overflow-driven;
+a lone routine error is not a storm).
