@@ -286,5 +286,19 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   w.globalSearch('');
   has("global search: clearing exits search mode and removes marks", !cbEl.classList.contains('gsearch') && cbEl.querySelectorAll('mark.gs-mark').length===0 && cbEl.querySelectorAll('.card.gs-empty').length===0);
 }
+// ===== network subnet column + whole-audit export =====
+{ ck("parseEt captures subnet mask", w.parseEt(smw).get('06') && w.parseEt(smw).get('06').mask, "255.255.255.0");
+  // augment fixture so an IP-network device (NVX 1F) carries a mask, then re-render
+  const smwMask = smw + "\n[\nObjTp=Et\nH=9\nDvH=960\nIPA=192.168.9.9\nIPM=255.255.0.0\n]";
+  w.eval(`state.prog.name='t'; state.prog.smw=${JSON.stringify(smwMask)}; state.prog.smft=${JSON.stringify(smft)}; state.prog.dip=${JSON.stringify(dip)}; state.prog.ir=null; state.prog.model=null; runAudit();`);
+  const netCard=[...w.document.querySelectorAll('#censusBody .card')].find(c=>c.querySelector('.card-title').textContent.includes('Network devices'));
+  has("Network card shows a Subnet column when mask data exists", !!netCard && [...netCard.querySelectorAll('th')].some(th=>th.textContent.trim()==='Subnet'));
+  has("Network card lists the subnet mask value", !!netCard && netCard.textContent.includes('255.255.0.0'));
+  const eaBtn=w.document.getElementById('auditExportAll');
+  has("Export all button is enabled when audit has content", !!eaBtn && eaBtn.disabled===false);
+  // exportAll should assemble multiple card blocks (capture the CSV via downloadCsv stub)
+  let cap=null; const orig=w.downloadCsv; w.downloadCsv=(n,txt)=>{cap=txt;}; w.exportAll(); w.downloadCsv=orig;
+  has("Export all produces a multi-card CSV", typeof cap==='string' && (cap.match(/^# /gm)||[]).length>=3);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

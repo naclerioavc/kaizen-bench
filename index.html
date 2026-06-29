@@ -414,7 +414,7 @@
       <p class="muted" style="font-size:12px">full audit · runs in your browser</p>
       <input type="file" id="fileC" class="hide" accept=".zip,.smw,.umc,.chd,.smft,.dip,.htm,.html">
     </div>
-    <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><button class="btn ghost" id="auditPrint" disabled>As-Built Report (PDF)</button><button class="btn ghost" id="auditExport" disabled>Export selected</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
+    <div class="diffbar"><button class="btn ghost" id="auditCopy" disabled>Copy audit</button><button class="btn ghost" id="auditPrint" disabled>As-Built Report (PDF)</button><button class="btn ghost" id="auditExport" disabled>Export selected</button><button class="btn ghost" id="auditExportAll" disabled>Export all</button><span class="muted" style="font-size:12.5px">Devices, IPs, structure &mdash; no SIMPL Windows.</span></div>
     <p class="filename hide" id="censusName"><span class="dot"></span><span class="mono"></span></p>
     <div id="censusBody"></div>
   </section>
@@ -1287,6 +1287,7 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
 $("#auditCopy").addEventListener("click",()=>{ navigator.clipboard.writeText(auditToText()).then(()=>{ const b=$("#auditCopy"),o=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=o,1500); }); });
 $("#auditPrint").addEventListener("click",()=>{ $$("#tab-census .card.collapsed").forEach(c=>c.classList.remove("collapsed")); $$("#tab-census .panel.lc").forEach(p=>p.classList.remove("lc")); window.print(); });
 $("#auditExport").addEventListener("click",exportSelected);
+$("#auditExportAll").addEventListener("click",exportAll);
 function auditToText(){
   const a=state.audit; if(!a) return "";
   const L=["DEVICES","NETWORK\tID\tMODEL\tNAME\tIP"];
@@ -1299,6 +1300,13 @@ function card(title,badge,body,open,cls){ const hasT=/<table/.test(body); const 
 function csvEsc(v){ v=String(v==null?"":v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function tableToCsv(table){ const out=[]; const hr=table.tHead&&table.tHead.rows[0]; if(hr)out.push([...hr.cells].map(c=>csvEsc(c.textContent.trim())).join(",")); const tb=table.tBodies[0]; if(tb)[...tb.rows].forEach(r=>{ if(r.style.display==="none")return; out.push([...r.cells].map(c=>csvEsc(c.textContent.trim())).join(",")); }); return out.join("\r\n"); }
 function updateExportSel(){ const n=document.querySelectorAll("#censusBody .cardsel:checked").length; const b=document.getElementById("auditExport"); if(!b)return; b.disabled=!n; b.textContent=n?`Export selected (${n})`:"Export selected"; }
+function exportAll(){
+  const cards=[...document.querySelectorAll("#censusBody .card")].filter(c=>c.querySelector("table"));
+  if(!cards.length)return;
+  const blocks=cards.map(c=>{ const t=c.querySelector("table"); const title=c.querySelector(".card-title").textContent.trim(); return `# ${title}\r\n`+tableToCsv(t); });
+  const pn=(state.prog.name||"program").replace(/\.[^.]+$/,"").replace(/[^A-Za-z0-9._-]+/g,"_");
+  downloadCsv(`${pn}_as-built_all.csv`, blocks.join("\r\n\r\n"));
+}
 function exportSelected(){ const cards=[...document.querySelectorAll("#censusBody .card")].filter(c=>{const cb=c.querySelector(".cardsel");return cb&&cb.checked;}); if(!cards.length)return; const blocks=cards.map(c=>{ const t=c.querySelector("table"); if(!t)return ""; const title=c.querySelector(".card-title").textContent.trim(); return `# ${title}\r\n`+tableToCsv(t); }).filter(Boolean); const pn=(state.prog.name||"program").replace(/\.[^.]+$/,"").replace(/[^A-Za-z0-9._-]+/g,"_"); downloadCsv(`${pn}_export.csv`, blocks.join("\r\n\r\n")); }
 function downloadCsv(name,csv){ const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},150); }
 function stackBar(parts){ const tot=parts.reduce((a,p)=>a+p.val,0)||1; return `<div class="stack">${parts.map(p=>p.val?`<span class="seg ${p.cls}" style="width:${(p.val/tot*100).toFixed(2)}%" title="${esc(p.label)}: ${p.val.toLocaleString()}"></span>`:'').join("")}</div><div class="stack-key">${parts.map(p=>`<span><i class="kdot ${p.cls}"></i>${esc(p.label)} <b>${p.val.toLocaleString()}</b></span>`).join("")}</div>`; }
@@ -1491,7 +1499,7 @@ function runAudit(){
   const seen=new Map(); hits.forEach(h=>{ if(!seen.has(h.ip))seen.set(h.ip,{...h}); else if(!seen.get(h.ip).context&&h.context)seen.get(h.ip).context=h.context; });
   const thirdParty=[...seen.values()].filter(x=>!dipIPs.has(x.ip)).sort((a,b)=>a.ip.localeCompare(b.ip,undefined,{numeric:true}));
   state.audit={devRows,dipList,thirdParty,hits,rings:[]};
-  $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length); $("#auditPrint").disabled=!(m||devRows.length); updateExportSel();
+  $("#auditCopy").disabled=!(devRows.length||dipList.length||thirdParty.length); $("#auditPrint").disabled=!(m||devRows.length); { const ea=document.getElementById("auditExportAll"); if(ea) ea.disabled=!(m||devRows.length||dipList.length||thirdParty.length); } updateExportSel();
   const c=m?censusStats(m):null, ax=m?auditExtras(m):null, sa=m?structAnalysis(m):null;
   if(sa) state.audit.rings=sa.rings;
   // ---- compute "what needs attention" up front so the summary can lead with it ----
@@ -1541,6 +1549,7 @@ function runAudit(){
   const ethById=new Map(); eth.forEach(d=>ethById.set(d.id,d));
   const netIds=[...new Set([...dipList.map(x=>x[0]), ...eth.map(d=>d.id)])].sort((a,b)=>(parseInt(a,16)||0)-(parseInt(b,16)||0));
   if(netIds.length){
+    const anyMask=netIds.some(id=>{ const e=etMap.get(id); return e&&e.mask; });
     const rows=netIds.map(id=>{ const d=ethById.get(id)||{}; const ip=dip.get(id)||""; const c=enrich(d.model); const nr=netRoles.get(id)||{}; const loop=ip==="127.0.0.1";
       const et=etMap.get(id)||{};
       const ipR=(ip&&ip!=="127.0.0.1")?ip:((et.ip&&et.ip!=="127.0.0.1")?et.ip:(ip||et.ip||""));
@@ -1551,8 +1560,8 @@ function runAudit(){
       const model=d.model||nr.name||et.name||"";
       const isEisc=/eisc|intersystem|to\/from/i.test(role||"");
       const roleInner=isEisc?`<span class="rolechip">EISC</span><span class="muted">${detail?("→ "+esc(detail)):"intersystem link"}</span>`:(roleD?`<span title="${esc(roleD)}">${esc(roleD)}</span>`:`<span class="muted">—</span>`);
-      return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td><td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
-    html+=card("Network devices",netIds.length,`<p class="card-intro">Every device on the IP network by IP-ID. <b>Role</b> flags what it actually is — e.g. an <b>EISC</b> link to another program. <code>127.0.0.1</code> = an internal slot (XPanel/app) or an unset IP-ID.</p>`+tbl([{t:"IP-ID"},{t:"IP address"},{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}],rows,1),true);
+      return `<tr>${devCell(id,id,"E")}<td class="data${looR?' muted':''}">${esc(ipR||'—')}</td>${anyMask?`<td class="data muted">${esc(et.mask||'—')}</td>`:''}<td class="data" title="${esc(model)}">${esc(model||'—')}</td><td class="data" title="${esc(name)}">${esc(name||'—')}</td><td class="data">${roleInner}</td><td class="data muted">${esc(c.mfr||'—')}</td></tr>`; }).join("");
+    html+=card("Network devices",netIds.length,`<p class="card-intro">Every device on the IP network by IP-ID. <b>Role</b> flags what it actually is — e.g. an <b>EISC</b> link to another program. <code>127.0.0.1</code> = an internal slot (XPanel/app) or an unset IP-ID.</p>`+tbl([{t:"IP-ID"},{t:"IP address"}].concat(anyMask?[{t:"Subnet"}]:[]).concat([{t:"Model / device"},{t:"Name"},{t:"Role / type"},{t:"Manufacturer"}]),rows,1),true);
   }
   if(cres.length){
     const rows=cres.map(d=>{ const c=enrich(d.model); const behind=d.parent?`${esc(d.parent.name||d.parent.model||'gateway')} (IP-ID ${esc(d.parent.id)})`:"processor Cresnet bus"; return `<tr>${devCell(d.id,d.id,"C")}<td class="data" title="${esc(d.model)}">${esc(d.model||'—')}</td><td class="data" title="${esc(d.name||'')}">${esc(d.name||'—')}</td><td class="data">${behind}</td><td class="data muted">${esc(c.mfr||'—')}</td><td class="data muted" title="${esc(c.type||'')}">${esc(c.type||'—')}</td></tr>`; }).join("");
@@ -2226,7 +2235,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
