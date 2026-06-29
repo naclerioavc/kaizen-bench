@@ -207,3 +207,19 @@ the **generated HTML, not the compiled program.**
   Detected by content (`Load Wiring` / `class="ckt_loc"`), so a non-D3 `.htm` is declined.
 - Scene model FYI (do not false-alarm): D3 Pro 3.06 stores scenes in `Presets`/`PresetSteps`, not
   the legacy `Scenes` table (empty by design).
+
+## Archive ↔ archive comparison (whole-project diff)
+Compare two full project backups (e.g., your copy vs a backup from another integrator months
+later). Drop two `.zip` archives into the Version Diff slots.
+- **Manifest first, cheap:** `zipManifest(buf)` reads the zip **central directory only** (per-file
+  name + CRC-32 + uncompressed size) — **no decompression**, so a 500 MB archive is read in a
+  fraction of a second. The top-level folder is stripped from each path so two archives with
+  different root names line up.
+- **Diff = name + CRC:** files added / removed / changed (CRC differs). Validated on two real
+  500 MB backups of one project: 2,262 vs 1,782 files → it pinpointed the 2 changed `.smw`
+  programs out of thousands of files.
+- **Deep diff on demand:** click a changed `.smw`/`.umc`/`.chd` → `extractOne(buf,name)` inflates
+  just that one file from each archive → the existing `computeDiff` renders the full program diff
+  (added/removed/renamed/type/param). A "Back to file changes" button returns to the manifest.
+- KISS: cheap manifest up front, heavy work only on the one file the user asks for. Graded with a
+  synthetic STORED-zip fixture (manifest + add/remove/change detection).
