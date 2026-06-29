@@ -313,5 +313,41 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("Swap A/B inverts added/removed", JSON.stringify(d1.added)===rem0 && JSON.stringify(d1.removed)===add0);
   has("Swap A/B updates the drop labels", w.document.getElementById('dropAlabel').textContent.includes('B.smw') && w.document.getElementById('dropBlabel').textContent.includes('A.smw'));
 }
+// ===== D3 project data (.dat) lighting parse =====
+{ const H="File Version\tv3.06.00\r\nModified Date\t07/16/2024\r\nModified Time\t18:38:31\r\n\r\n";
+  const areas=H+"AreaID\tAreaName\r\n1\tMain Floor\r\n2\tLower Level\r\n";
+  const rooms=H+"RoomID\tAreaID\tRoomName\r\n1\t1\tGathering\r\n6\t1\tMaster Bath\r\n";
+  const loads=H+"LoadID\tLoadName\tRoomID\tDIM_setting\tRamp_time\tUpper_limit\tLower_limit\tTotalWattage\r\n47\tOuter Cans\t1\tTrue\t500\t100\t1\t120\r\n48\tInner Cans\t1\tTrue\t500\t100\t1\t60\r\n";
+  const scenes=H+"SceneID\tRoomID\tSceneName\r\n1\t1\tEvening\r\n2\t6\tNight Lights\r\n";
+  const d=w.parseD3Data({areas,rooms,loads,scenes});
+  ck("D3 .dat: areas parsed", d.areas.length, 2);
+  ck("D3 .dat: room maps to area + name", [d.rooms[0].id,d.rooms[0].areaId,d.rooms[0].name], ["1","1","Gathering"]);
+  ck("D3 .dat: load wattage + dim parsed", [d.loads[0].name,d.loads[0].watt,d.loads[0].dim], ["Outer Cans",120,true]);
+  ck("D3 .dat: scene name + room parsed", [d.scenes[0].name,d.scenes[0].roomId], ["Evening","1"]);
+  // render the lighting cards via runAudit
+  w.eval(`state.prog={name:'proj.zip',model:null,smw:null,smft:null,dip:null,ir:null,d3:{lighting:parseD3Data(${JSON.stringify({areas,rooms,loads,scenes})})},auditDone:true,devDone:true}; runAudit();`);
+  const txt=w.document.getElementById('censusBody').textContent;
+  has("D3 lighting renders rooms & scenes cards", /Lighting — rooms & loads/.test(txt) && /Lighting scenes/.test(txt) && /Gathering/.test(txt) && /Evening/.test(txt));
+}
+// ===== multi-program archive: coherent selection, no mixing =====
+{ const B=n=>({length:n}); // fake bytes with a .length for sizing
+  const fl=[
+    {name:"Job/01-CP4 AV/AV.smw", bytes:B(1000)},
+    {name:"Job/01-CP4 AV/AV.smft", bytes:B(10)},
+    {name:"Job/01-CP4 AV/AV.dip", bytes:B(10)},
+    {name:"Job/01-CP4 AV/SPlsWork/compiled.smw", bytes:B(99999)},
+    {name:"Job/02-CP4 Security/Sec.smw", bytes:B(500)},
+    {name:"Job/02-CP4 Security/Sec.smft", bytes:B(10)},
+    {name:"Job/D3/ResidenceA/data/rooms.dat", bytes:B(10)},
+    {name:"Job/D3/ResidenceA/Documentation/loadwiring.htm", bytes:B(10)},
+    {name:"Job/D3/ResidenceB/data/rooms.dat", bytes:B(10)}
+  ];
+  const p=w.chooseProgramSet(fl);
+  ck("multi-archive: picks the largest real program (.smw), ignores SPlsWork", fl[p.smw].name, "Job/01-CP4 AV/AV.smw");
+  ck("multi-archive: .smft taken from the SAME folder (not another processor)", fl[p.smft].name, "Job/01-CP4 AV/AV.smft");
+  ck("multi-archive: detects all processor programs", p.programs.length, 2);
+  ck("multi-archive: detects both D3 projects", p.d3projects.length, 2);
+  has("multi-archive: chosen D3 root is ONE project, not mixed", /ResidenceA\/$/.test(p.d3root));
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
