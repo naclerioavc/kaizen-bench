@@ -193,6 +193,21 @@
   .unitpill{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;transition:color .13s ease,border-color .13s ease,background .13s ease}
   .unitpill:hover{color:var(--ink);border-color:var(--dim)}
   .unitpill.on{background:var(--trace);border-color:var(--trace);color:#fff}
+  /* Plumber Quest easter egg (Plumber theme only) */
+  #mgGround{display:none}
+  [data-theme="plumber"] #mgGround{display:flex;justify-content:center;margin-bottom:-6px;position:relative;z-index:2}
+  #mgTrigger{width:40px;height:40px;border-radius:7px;background:#fbc02d;border:2px solid #c8960c;color:#7a4a00;font-weight:800;font-size:20px;cursor:pointer;box-shadow:0 4px 0 #2a7d2f;font-family:inherit;line-height:1}
+  #mgTrigger:hover{filter:brightness(1.06)}
+  #mgTrigger:active{transform:translateY(3px);box-shadow:0 1px 0 #2a7d2f}
+  #mgOverlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center}
+  #mgOverlay.hide{display:none}
+  .mg-box{background:#15182b;border-radius:12px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .mg-bar{display:flex;align-items:center;gap:16px;margin-bottom:10px;font-size:13px;color:#fff}
+  .mg-title{font-weight:800;letter-spacing:.08em;color:#fbc02d}
+  #mgClose{margin-left:auto;background:none;border:0;color:#fff;font-size:18px;cursor:pointer}
+  #mgCanvas{display:block;border-radius:8px}
+  .mg-help{margin-top:9px;color:#9aa4bd;font-size:12px;text-align:center}
+  @media print{ #mgGround,#mgOverlay{display:none!important} }
   @media print{ .unitbar{display:none!important} }
   #censusBody.gsearch .card.gs-empty{display:none}
   #censusBody.gsearch tbody tr:not(.gs-hit){display:none!important}
@@ -467,6 +482,14 @@
   </div>
 </div>
 
+<div id="mgGround" aria-hidden="true"><button id="mgTrigger" title="Sonny’s Quest — jump on the block!">?</button></div>
+<div id="mgOverlay" class="hide">
+  <div class="mg-box">
+    <div class="mg-bar"><span class="mg-title">SONNY’S QUEST</span><span id="mgScore">Coins 0 / 5</span><button id="mgClose" title="Close">✕</button></div>
+    <canvas id="mgCanvas" width="720" height="380"></canvas>
+    <div class="mg-help">← → move · ↑ / space jump · Esc close — grab every coin</div>
+  </div>
+</div>
 <footer>
   <span><span class="sigdots"><i></i><i></i><i></i></span>kaizen Logic · SIMPL Windows diagnostics</span>
   <span class="cta"><a href="https://kaizenlogic.com" target="_blank" rel="noopener">kaizenlogic.com</a></span>
@@ -2403,6 +2426,51 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
+// ---------- Sonny’s Quest: a tiny ORIGINAL platformer (named for Bud’s grandpa Sonny; generic shapes; Plumber theme only) ----------
+(function(){
+  var ov=document.getElementById("mgOverlay"), cv=document.getElementById("mgCanvas"),
+      trg=document.getElementById("mgTrigger"), cl=document.getElementById("mgClose"), sc=document.getElementById("mgScore");
+  if(!ov||!cv||!trg)return;
+  var W=720,H=380, ctx=null, raf=0, keys={}, player, plats, coins, won;
+  function reset(){
+    player={x:40,y:H-90,w:20,h:26,vx:0,vy:0,g:false}; won=false;
+    plats=[{x:0,y:H-30,w:W,h:30},{x:150,y:H-110,w:90,h:16},{x:300,y:H-172,w:90,h:16},{x:470,y:H-122,w:110,h:16},{x:612,y:H-200,w:84,h:16}];
+    coins=[{x:195,y:H-142},{x:345,y:H-204},{x:525,y:H-154},{x:652,y:H-232},{x:250,y:H-58}].map(function(c){return {x:c.x,y:c.y,got:false};});
+  }
+  function open(){ ov.classList.remove("hide"); reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
+  function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} }
+  function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
+  function loop(){
+    raf=requestAnimationFrame(loop); if(!ctx)return;
+    player.vx=0;
+    if(keys["ArrowLeft"]||keys["a"])player.vx=-3.3;
+    if(keys["ArrowRight"]||keys["d"])player.vx=3.3;
+    if((keys["ArrowUp"]||keys[" "]||keys["w"])&&player.g){player.vy=-11;player.g=false;}
+    player.vy+=0.6; if(player.vy>14)player.vy=14;
+    player.x+=player.vx; player.y+=player.vy;
+    if(player.x<0)player.x=0; if(player.x+player.w>W)player.x=W-player.w;
+    player.g=false;
+    for(var i=0;i<plats.length;i++){ var p=plats[i];
+      if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
+    if(player.y>H+80)reset();
+    var got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+10-c.x)<16&&Math.abs(player.y+13-c.y)<16)c.got=true; if(c.got)got++; });
+    won=got>=coins.length;
+    rect(0,0,W,H,"#5c94fc");
+    ctx.fillStyle="rgba(255,255,255,.92)";
+    [[95,58],[340,40],[565,76]].forEach(function(q){ctx.beginPath();ctx.arc(q[0],q[1],15,0,7);ctx.arc(q[0]+17,q[1],19,0,7);ctx.arc(q[0]+36,q[1],15,0,7);ctx.fill();});
+    plats.forEach(function(p,i){ rect(p.x,p.y,p.w,p.h,i===0?"#3cb043":"#c8521f"); if(i===0)rect(p.x,p.y,p.w,5,"#2a7d2f"); else { rect(p.x,p.y,p.w,2,"#e07b3a"); } });
+    coins.forEach(function(c){ if(c.got)return; ctx.fillStyle="#ffcf33";ctx.beginPath();ctx.arc(c.x,c.y,7,0,7);ctx.fill();ctx.strokeStyle="#b8860b";ctx.lineWidth=2;ctx.stroke(); });
+    rect(player.x,player.y+11,player.w,player.h-11,"#1f6fd6");
+    rect(player.x,player.y,player.w,13,"#e52521");
+    rect(player.x+3,player.y-5,player.w-6,6,"#e52521");
+    rect(player.x+player.w-6,player.y+15,4,4,"#15182b");
+    sc.textContent="Coins "+got+" / "+coins.length+(won?"  \u2014  ALL CLEAR!":"");
+  }
+  trg.addEventListener("click",open);
+  if(cl)cl.addEventListener("click",close);
+  document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); });
+  document.addEventListener("keyup",function(e){ keys[e.key]=false; });
+})();
 if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
