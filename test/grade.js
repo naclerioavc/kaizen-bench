@@ -329,38 +329,6 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const txt=w.document.getElementById('censusBody').textContent;
   has("D3 lighting renders rooms & scenes cards", /Lighting — rooms & loads/.test(txt) && /Lighting scenes/.test(txt) && /Gathering/.test(txt) && /Evening/.test(txt));
 }
-// ===== multi-program archive: coherent selection, no mixing =====
-{ const B=n=>({length:n}); // fake bytes with a .length for sizing
-  const fl=[
-    {name:"Job/01-CP4 AV/AV.smw", bytes:B(1000)},
-    {name:"Job/01-CP4 AV/AV.smft", bytes:B(10)},
-    {name:"Job/01-CP4 AV/AV.dip", bytes:B(10)},
-    {name:"Job/01-CP4 AV/SPlsWork/compiled.smw", bytes:B(99999)},
-    {name:"Job/02-CP4 Security/Sec.smw", bytes:B(500)},
-    {name:"Job/02-CP4 Security/Sec.smft", bytes:B(10)},
-    {name:"Job/D3/ResidenceA/data/rooms.dat", bytes:B(10)},
-    {name:"Job/D3/ResidenceA/Documentation/loadwiring.htm", bytes:B(10)},
-    {name:"Job/D3/ResidenceB/data/rooms.dat", bytes:B(10)}
-  ];
-  const p=w.chooseProgramSet(fl);
-  ck("multi-archive: picks the largest real program (.smw), ignores SPlsWork", fl[p.smw].name, "Job/01-CP4 AV/AV.smw");
-  ck("multi-archive: .smft taken from the SAME folder (not another processor)", fl[p.smft].name, "Job/01-CP4 AV/AV.smft");
-  ck("multi-archive: detects all processor programs", p.programs.length, 2);
-  ck("multi-archive: detects both D3 projects", p.d3projects.length, 2);
-  has("multi-archive: chosen D3 root is ONE project, not mixed", /ResidenceA\/$/.test(p.d3root));
-}
-// ===== single-program zip stays coherent (no false multi banner) =====
-{ const B=n=>({length:n});
-  const one=[
-    {name:"BoardroomAV/AV.smw", bytes:B(1000)},
-    {name:"BoardroomAV/AV.smft", bytes:B(10)},
-    {name:"BoardroomAV/AV.dip", bytes:B(10)}
-  ];
-  const p=w.chooseProgramSet(one);
-  ck("single zip: exactly one program detected", p.programs.length, 1);
-  ck("single zip: smft+dip resolve", [p.smft>=0,p.dip>=0], [true,true]);
-  ck("single zip: no D3 projects", p.d3projects.length, 0);
-}
 // ===== log bundle: split multiple processors, keep one coherent =====
 { const multi=[
     {name:"Job/01-CP4 AV/console.txt", text:"Error: A # 2026-06-25 12:00:00 # x\n".repeat(50)},
@@ -403,6 +371,7 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("all-programs: unit 0 keeps its own .smft", fl[a.programs[0].smft].name, "Job/01-CP4 AV/AV.smft");
   ck("all-programs: unit 1 (Security) has no .dip of its own", a.programs[1].dip, -1);
   ck("all-programs: one D3 project root", a.d3roots.length, 1);
+  ck("all-programs: a single-program zip yields exactly one unit (no false multi)", w.chooseAllPrograms([{name:"P/AV.smw",bytes:B(100)},{name:"P/AV.smft",bytes:B(5)}]).programs.length, 1);
 }
 // ===== whole-system: unit selector switches between processor programs (no mixing) =====
 { const hd="[\nObjTp=Hd\nPgmNm=P\n]";
@@ -415,6 +384,21 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   w.eval('setActiveUnit(1)');
   has("switching to unit 1 loads Security program cleanly", /SECURITYonly\.Signal/.test(w.eval('state.prog.smw')) && !/AVonly/.test(w.eval('state.prog.smw')));
   has("active pill follows the selection", w.document.querySelectorAll('#censusBody .unitpill.on').length===1);
+}
+// ===== whole-system: System overview rollup + cross-processor EISC =====
+{ const smwB=[`[\nObjTp=Hd\nPgmNm=SecProg\n]`, sg(1,"Sec.A",""), sg(2,"Sec.B","")].join("\n");
+  const units=[{kind:"program",name:"01-AV.smw",smw:smw},{kind:"program",name:"02-SEC.smw",smw:smwB}];
+  const ss=w.systemSummary(units);
+  ck("system summary: two processors", ss.totals.processors, 2);
+  has("system summary: signal total sums both programs", ss.totals.signals === ss.processors[0].signals + ss.processors[1].signals && ss.totals.signals>0);
+  has("system summary: detects an EISC/intersystem link in the AV program", ss.processors[0].eisc.length>=1);
+  // render the System view
+  w.eval(`state.unitName='Job.zip'; state.units=[{kind:'system',name:'System overview'},{kind:'program',name:'01-AV.smw',smw:${JSON.stringify(smw)}},{kind:'program',name:'02-SEC.smw',smw:${JSON.stringify(smwB)}}]; setActiveUnit(0);`);
+  const cb=w.document.getElementById('censusBody').textContent;
+  has("System view renders rollup + processors + cross-links", /System at a glance/.test(cb) && /Processors/.test(cb) && /Cross-processor links/.test(cb));
+  // clicking a processor row opens that unit's full audit (data-unit switch)
+  const prow=w.document.querySelector('#censusBody tr[data-unit]'); if(prow){ prow.dispatchEvent(new w.Event('click',{bubbles:true})); }
+  has("clicking a processor row opens its full as-built", w.eval('state.unitIndex')>=1 && /PROGRAM|Overview|Network/i.test(w.document.getElementById('censusBody').textContent));
 }
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
