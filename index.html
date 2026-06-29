@@ -463,7 +463,7 @@
 "use strict";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const TABS=["diff","census","log","help"];
-const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, arcA:null, arcB:null, arcResult:null, arcActive:false, census:null, censusName:null, lastDiff:null, signals:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false} };
+const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, arcA:null, arcB:null, arcResult:null, arcActive:false, census:null, censusName:null, lastDiff:null, signals:null, logMulti:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false} };
 
 /* ---------- tabs ---------- */
 function show(tab){
@@ -483,7 +483,7 @@ function updateDiffLoaded(){
   ["A","B"].forEach(w=>{ const b=$("#diffUse"+w); if(!b)return; b.classList.toggle("hide",!has); b.textContent=`Use ${trim(nm,16)} → ${w}`; });
 }
 $("#nav").addEventListener("click",e=>{
-  const b=e.target.closest("button"); if(!b||b.disabled)return; show(b.dataset.tab);
+  const b=e.target.closest("button"); if(!b||b.disabled||!b.dataset.tab)return; show(b.dataset.tab);
 });
 
 /* ---------- drop wiring ---------- */
@@ -598,6 +598,21 @@ function chooseEntry(files, kind){
       || c.filter(f=>looksTextual(f.bytes)).sort((a,b)=>b.bytes.length-a.bytes.length)[0]
       || null;
 }
+// Split a multi-file log drop into systems by their folder, so a whole-job dump (AV + Security
+// logs in separate processor folders) isn't silently merged into one analysis. A normal single-
+// processor PLOG/Info-Tool zip stays one group (merged as before).
+function splitLogSystems(files){
+  const items=files.map(f=>({f, dir:f.name.replace(/\\/g,"/").replace(/[^/]*$/,"")}));
+  let prefix=items.length?items[0].dir:"";
+  for(const it of items){ let k=0; while(k<prefix.length&&k<it.dir.length&&prefix[k]===it.dir[k])k++; prefix=prefix.slice(0,k); }
+  prefix=prefix.replace(/[^/]*$/,"");
+  const keyOf=it=>{ const rest=it.dir.slice(prefix.length); return (rest.split("/")[0]||""); };
+  const map=new Map();
+  items.forEach(it=>{ const k=keyOf(it); if(!map.has(k))map.set(k,[]); map.get(k).push(it.f); });
+  const groups=[...map.entries()].map(([key,fs])=>({key, files:fs, size:fs.reduce((a,x)=>a+((x.text&&x.text.length)||0),0)})).sort((a,b)=>b.size-a.size);
+  const named=groups.filter(g=>g.key);
+  return {groups, multi:named.length>1, systems:named.map(g=>g.key)};
+}
 async function readPayload(file, kind){
   const buf=await file.arrayBuffer();
   const u8=new Uint8Array(buf);
@@ -615,9 +630,11 @@ async function readPayload(file, kind){
         if(looksTextual(bytes)) out.push({name, text:decodeText(bytes)});
       }
       if(!out.length) throw new Error("no log / console text found inside the zip");
-      out.sort((a,b)=>a.name<b.name?-1:1);
-      const merged=out.map(f=>`===== ${f.name} =====\n${f.text}`).join("\n");
-      return {name:`${file.name} › ${out.length} log file${out.length>1?'s':''}`, text:merged};
+      const grp=splitLogSystems(out); let use=out, multi=null;
+      if(grp.multi){ const chosen=grp.groups.find(g=>g.key); use=chosen.files; multi={systems:grp.systems, chosen:chosen.key}; }
+      use.sort((a,b)=>a.name<b.name?-1:1);
+      const merged=use.map(f=>`===== ${f.name} =====\n${f.text}`).join("\n");
+      return {name:`${file.name} › ${use.length} log file${use.length>1?'s':''}${multi?" · "+multi.chosen:""}`, text:merged, multi};
     }
     const pick=chooseEntry(files,kind);
     if(!pick) throw new Error("no .smw program found inside the zip");
@@ -1139,9 +1156,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     else document.documentElement.removeAttribute("data-theme");
     try{localStorage.setItem("simplbench-theme",id);}catch(e){}
     cur=id;
-    // sticky table headers cache a composited layer; changing theme vars leaves it stale
-    // (content "disappears" until refresh). Force a real repaint so every layer re-renders.
-    try{ var bd=document.body, pd=bd.style.display; bd.style.display="none"; void bd.offsetHeight; bd.style.display=pd||""; }catch(e){}
+    void document.documentElement.offsetWidth; // nudge a reflow after the theme-var change
     var t=THEMES.filter(function(x){return x.id===id;})[0]||THEMES[0];
     nameEl.textContent=t.name; dot.style.background=t.sw[0];
     var bs=menu.querySelectorAll("button");
@@ -1573,7 +1588,10 @@ function runAudit(){
     const mp=state.prog.multi, bits=[];
     if(mp.programs&&mp.programs.length>1) bits.push(`<b>${mp.programs.length}</b> processor programs`);
     if(mp.d3projects&&mp.d3projects.length>1) bits.push(`<b>${mp.d3projects.length}</b> D3 projects`);
-    html+=`<div class="banner" style="border-left-color:var(--warn);margin-bottom:14px">This archive holds ${bits.join(" and ")}. Showing <b>${esc(state.prog.name||"this program")}</b>${mp.chosenD3?` &middot; D3 <b>${esc(mp.chosenD3)}</b>`:""} — the rest aren&rsquo;t mixed in. To see another, drop that program&rsquo;s folder on its own, or use <b>Version Diff → compare archives</b> for the whole set.</div>`;
+    const others=(mp.programs||[]).filter(p=>p!==mp.chosenProg);
+    const otherD3=(mp.d3projects||[]).filter(p=>p!==mp.chosenD3);
+    const alsoBits=[]; if(others.length)alsoBits.push("programs "+others.map(esc).join(", ")); if(otherD3.length)alsoBits.push("D3 "+otherD3.map(esc).join(", "));
+    html+=`<div class="banner" style="border-left-color:var(--warn);margin-bottom:14px">This archive holds ${bits.join(" and ")}. Showing <b>${esc(mp.chosenProg||state.prog.name||"this program")}</b>${mp.chosenD3?` &middot; D3 <b>${esc(mp.chosenD3)}</b>`:""} — nothing else is mixed in.${alsoBits.length?` Also inside: ${alsoBits.join("; ")}.`:""} To audit another, drop that program&rsquo;s folder on its own, or use <b>Version Diff → compare archives</b> for the whole set.</div>`;
   }
   if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
@@ -1888,7 +1906,7 @@ async function loadProgram(file){
     out.dip = pick.dip>=0?decodeText(files[pick.dip].bytes):null;
     out.ir  = pick.ir.map(i=>files[i].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,""));
     const base=r=>(r||"").replace(/[\\/]$/,"").replace(/.*[\\/]/,"");
-    out.multi={ programs:pick.programs, d3projects:pick.d3projects.map(base), chosenD3:base(pick.d3root) };
+    out.multi={ programs:pick.programs, chosenProg:(pick.smw>=0?files[pick.smw].name.replace(/.*[\\/]/,""):null), d3projects:pick.d3projects.map(base), chosenD3:base(pick.d3root) };
     const root=(pick.d3root||"").replace(/\\/g,"/").toLowerCase();
     const inD3=f=>!root || f.name.replace(/\\/g,"/").toLowerCase().startsWith(root);
     const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inD3(f));
@@ -1917,7 +1935,7 @@ async function loadProgram(file){
 wireDrop($("#dropL"),$("#fileL"),f=>{
   $("#logBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
   readPayload(f,"log")
-    .then(p=>{runLog(p.name,p.text); if(state.prog&&state.prog.smw)runAudit();})
+    .then(p=>{state.logMulti=p.multi||null; runLog(p.name,p.text); if(state.prog&&state.prog.smw)runAudit();})
     .catch(err=>{ $("#logBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 function analyzeLog(text){
@@ -2188,6 +2206,9 @@ function runLog(name,text){
     + (worst?` Worst recurring issue: <span class="data">${esc(trim(worst.example||worst.msg,54))}</span> — ${worst.n}× (${worst.rate.txt}) from ${esc(trim(worst.who,22))}.`:" No recurring issues stood out.");
 
   let html="";
+  if(state.logMulti){
+    html+=`<div class="banner" style="border-left-color:var(--warn)">This bundle has logs from <b>${state.logMulti.systems.length}</b> systems (${esc(state.logMulti.systems.join(", "))}). Analyzing <b>${esc(state.logMulti.chosen)}</b> only — the others aren&rsquo;t mixed in. Drop a single processor&rsquo;s logs to analyze another.</div>`;
+  }
   if(state.prog&&state.prog.smw&&sysMatch.status==="mismatch"){
     html+=`<div class="banner" style="border-left-color:var(--bad)"><b>\u26A0 This log and the loaded program look like different systems.</b> Program ${sysMatch.progName?`<b>${esc(sysMatch.progName)}</b> `:""}${sysMatch.progModel?`(targets ${esc(sysMatch.progModel)})`:""} vs log ${sysMatch.logModel?`from <b>${esc(sysMatch.logModel)}</b>`:"(model unknown)"}${sysMatch.logHost?` &middot; host ${esc(sysMatch.logHost)}`:""}${sysMatch.reason==="ipid"?" &mdash; they share no IP-IDs":""}. Cross-referencing to the program is <b>turned off</b> so you don't get false matches; the log analysis below stands on its own. Load the log and program from the same processor to correlate.</div>`;
   } else if(state.prog&&state.prog.smw&&sysMatch.status==="unknown"){
@@ -2304,7 +2325,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseProgramSet,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

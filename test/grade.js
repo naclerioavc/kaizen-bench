@@ -349,5 +349,42 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("multi-archive: detects both D3 projects", p.d3projects.length, 2);
   has("multi-archive: chosen D3 root is ONE project, not mixed", /ResidenceA\/$/.test(p.d3root));
 }
+// ===== single-program zip stays coherent (no false multi banner) =====
+{ const B=n=>({length:n});
+  const one=[
+    {name:"BoardroomAV/AV.smw", bytes:B(1000)},
+    {name:"BoardroomAV/AV.smft", bytes:B(10)},
+    {name:"BoardroomAV/AV.dip", bytes:B(10)}
+  ];
+  const p=w.chooseProgramSet(one);
+  ck("single zip: exactly one program detected", p.programs.length, 1);
+  ck("single zip: smft+dip resolve", [p.smft>=0,p.dip>=0], [true,true]);
+  ck("single zip: no D3 projects", p.d3projects.length, 0);
+}
+// ===== log bundle: split multiple processors, keep one coherent =====
+{ const multi=[
+    {name:"Job/01-CP4 AV/console.txt", text:"Error: A # 2026-06-25 12:00:00 # x\n".repeat(50)},
+    {name:"Job/01-CP4 AV/err.log", text:"more AV log\n".repeat(20)},
+    {name:"Job/02-CP4 Security/console.txt", text:"Error: B # 2026-06-25 12:00:00 # y\n".repeat(10)}
+  ];
+  const g=w.splitLogSystems(multi);
+  has("log split: detects 2 systems", g.multi===true && g.systems.length===2);
+  ck("log split: largest system chosen first", g.groups[0].key, "01-CP4 AV");
+  const single=[
+    {name:"PLOG/err.log", text:"a\n".repeat(100)},
+    {name:"PLOG/err.1.log", text:"b\n".repeat(100)}
+  ];
+  const gs=w.splitLogSystems(single);
+  has("log split: a single-folder PLOG is NOT flagged multi (no regression)", gs.multi===false);
+}
+// ===== regression: picking a theme must NOT hide the page (theme menu lives in <nav>) =====
+{ // default active tab is diff; pick a theme via the menu (a real bubbling click)
+  w.eval('show("diff")');
+  const before = !w.document.getElementById('tab-diff').classList.contains('hide');
+  const btn = w.document.querySelector('#themeMenu button[data-id="synthwave"]') || w.document.querySelector('#themeMenu button');
+  if(btn){ const ev=new w.Event('click',{bubbles:true}); btn.dispatchEvent(ev); }
+  const after = !w.document.getElementById('tab-diff').classList.contains('hide');
+  has("selecting a theme does not hide the active tab (nav-handler guard)", before===true && after===true);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
