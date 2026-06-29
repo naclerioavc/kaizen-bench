@@ -14,19 +14,14 @@
   }
   [data-theme="synthwave"]{--bg:#190b2e;--panel:#241141;--panel2:#2d1850;--line:#3d2470;--ink:#f4e9ff;--mut:#a98fd0;--dim:#6b549a;--stripe:#ff5dcd;--trace:#36e0ff;--ok:#36e0ff;--warn:#ffd24a;--bad:#ff5d8f;}
   [data-theme="matrix"]{--bg:#020a04;--panel:#06180c;--panel2:#0a2613;--line:#11401d;--ink:#b6ffb6;--mut:#4f9f5f;--dim:#2f7040;--stripe:#39ff14;--trace:#39ff14;--ok:#39ff14;--warn:#c8ff4a;--bad:#ff6a6f;}
-  [data-theme="blueprint"]{--bg:#06182e;--panel:#0a2240;--panel2:#0d2c52;--line:#16406e;--ink:#dcecff;--mut:#7aa4d6;--dim:#48648c;--stripe:#48b4ff;--trace:#48b4ff;--ok:#54d6c0;--warn:#ffcf6b;--bad:#ff7a8f;}
-  /* Unicorn Cookie -- light pastel sugar-cookie palette (color only) */
-  [data-theme="cookie"]{--bg:#f6e7c8;--panel:#fdf5e6;--panel2:#f4e8d0;--line:#e4cda0;--ink:#5a4124;--mut:#9c7c4e;--dim:#bda06f;--stripe:#ff3f97;--trace:#8a4fff;--ok:#0f9d68;--warn:#d97506;--bad:#e23b57;}
-  /* Half-Shell -- sewer green + bandana accents */
-  [data-theme="halfshell"]{--bg:#0c1f0e;--panel:#13301a;--panel2:#1a4023;--line:#245a30;--ink:#e8ffe0;--mut:#86c98e;--dim:#4f8a59;--stripe:#7fe04a;--trace:#3aa0ff;--ok:#5fd35f;--warn:#ff8a2a;--bad:#ff4f4f;}
-  /* Mouse Ears -- classic red/black/white/yellow */
-  [data-theme="mouse"]{--bg:#1a0e10;--panel:#261519;--panel2:#321b20;--line:#4a2730;--ink:#fff3e6;--mut:#d6a0a8;--dim:#9a6a72;--stripe:#e8413a;--trace:#ffcf33;--ok:#43c07a;--warn:#ffcf33;--bad:#e8413a;}
+  /* Daylight -- the light theme (cream base, vivid accents) */
+  [data-theme="daylight"]{--bg:#f6e7c8;--panel:#fdf5e6;--panel2:#f4e8d0;--line:#e4cda0;--ink:#5a4124;--mut:#9c7c4e;--dim:#bda06f;--stripe:#ff3f97;--trace:#8a4fff;--ok:#0f9d68;--warn:#d97506;--bad:#e23b57;}
   main,footer{position:relative;z-index:1}
   header{position:relative;z-index:40}
-  /* light theme (cookie): keep branding + signal-mark legible on the pale base */
-  [data-theme="cookie"] .lockup .logo{color:#4a3414}
-  [data-theme="cookie"] .lockup .logo.light{color:#9c7c4e}
-  [data-theme="cookie"] .mark rect[fill="#e9e9ee"]{fill:#5a4124}
+  /* Daylight (light theme): keep branding + signal-mark legible on the pale base */
+  [data-theme="daylight"] .lockup .logo{color:#4a3414}
+  [data-theme="daylight"] .lockup .logo.light{color:#9c7c4e}
+  [data-theme="daylight"] .mark rect[fill="#e9e9ee"]{fill:#5a4124}
   /* lock Kaizen Logic branding -- theme-independent */
   .lockup .logo{color:#e9e9ee}
   .lockup .logo.light{color:#8a8a93}
@@ -1131,12 +1126,9 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
 (function(){
   var THEMES=[
     {id:"",name:"Midnight",sw:["#4f8ef7","#ef4444","#e9e9ee"]},
+    {id:"daylight",name:"Daylight",sw:["#ff3f97","#8a4fff","#0f9d68"]},
     {id:"synthwave",name:"Synthwave",sw:["#ff5dcd","#36e0ff","#ffd24a"]},
-    {id:"blueprint",name:"Blueprint",sw:["#48b4ff","#54d6c0","#ffcf6b"]},
-    {id:"matrix",name:"Matrix",sw:["#39ff14","#c8ff4a","#9dff9d"]},
-    {id:"cookie",name:"Unicorn Cookie",sw:["#ff3f97","#8a4fff","#0f9d68"]},
-    {id:"halfshell",name:"Half-Shell",sw:["#7fe04a","#3aa0ff","#ff8a2a"]},
-    {id:"mouse",name:"Mouse Ears",sw:["#e8413a","#ffcf33","#fff3e6"]}
+    {id:"matrix",name:"Matrix",sw:["#39ff14","#c8ff4a","#9dff9d"]}
   ];
   var btn=document.getElementById("themeBtn"), menu=document.getElementById("themeMenu"),
       nameEl=document.getElementById("themeName"), dot=document.getElementById("themeDot");
@@ -1147,7 +1139,9 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     else document.documentElement.removeAttribute("data-theme");
     try{localStorage.setItem("simplbench-theme",id);}catch(e){}
     cur=id;
-    void document.documentElement.offsetWidth; /* force repaint on theme switch */
+    // sticky table headers cache a composited layer; changing theme vars leaves it stale
+    // (content "disappears" until refresh). Force a real repaint so every layer re-renders.
+    try{ var bd=document.body, pd=bd.style.display; bd.style.display="none"; void bd.offsetHeight; bd.style.display=pd||""; }catch(e){}
     var t=THEMES.filter(function(x){return x.id===id;})[0]||THEMES[0];
     nameEl.textContent=t.name; dot.style.background=t.sw[0];
     var bs=menu.querySelectorAll("button");
