@@ -3331,9 +3331,10 @@ var TR_PRESETS={
       body.innerHTML='<span class="tr-aibadge">AI draft — verify</span><div class="tr-md">'+mdToHtml(md)+'</div>'
         +'<label class="tr-lbl" style="margin-top:14px">Edit the issue list if needed, then resolve against the program facts:</label>'
         +'<textarea id="trIssues" class="tr-text" rows="7"></textarea>'
-        +'<div class="tr-actions"><button class="btn hero" id="trResolve">Resolve + diagnose →</button><span class="muted">Pulls facts from the Audit tab automatically.</span></div>'
-        +'<div id="trBody2"></div>';
+        +'<div class="tr-actions"><button class="btn hero" id="trResolve">Resolve + diagnose →</button><span class="muted">Uses every loaded program + console log automatically.</span></div>'
+        +'<details class="tr-adv" style="margin-top:12px"><summary>+ Add more context &amp; rebuild</summary><textarea id="trMore" class="tr-text" rows="3" placeholder="extra complaints, or what you found on site\u2026"></textarea><div class="tr-actions"><button class="btn ghost" id="trMoreBtn">Add &amp; rebuild list</button></div></details>'+'<div id="trBody2"></div>';
       $id("trIssues").value=md;
+      { var _mb=$id("trMoreBtn"); if(_mb)_mb.addEventListener("click",function(){ var add=($id("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); }); }
       $id("trResolve").addEventListener("click",function(){
         var issues=$id("trIssues").value.trim(); var facts=exportFactsForLLM();
         var b2=$id("trBody2"); b2.innerHTML='<div class="working"><span class="stripe"></span>Resolving to instances + diagnosing…</div>';
