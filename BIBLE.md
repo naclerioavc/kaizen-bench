@@ -286,8 +286,14 @@ jobs. Capability only — no customer data.
     (or `EISC`), **NOT `Dv` records**. Resolve: `Sm.DvH → Dv` gives the **target name** (`Dv.Nm`,
     e.g. `02_Security`, `[RSD Lighting Loads].rsd`) and **IP-ID** (`Dv.Ad`); `Ad → .dip` gives the
     **target IP**. `dvNetRoles`/`parseEt` only scan `Dv`/`Et`, so they MISS these — use `eiscLinks()`.
-  - **EISC target IP `127.0.0.N`** = the program in **slot N** on the **same processor** (CIP
-    loopback); a real IP = a separate system/processor. This is how the cross-processor map is built.
+  - **EISC bridges are keyed by IP-ID, NOT by the loopback octet.** A `127.0.0.x` target IP means the
+    bridge lands on **another program on the same physical processor** (CIP loopback); a real IP means a
+    **separate box**. The loopback octet is **not** a slot number — VALIDATED on real jobs: every intra-box
+    bridge uses `127.0.0.2` regardless of which program, and both ends of one bridge carry the **same IP-ID**.
+    So the cross-processor map matches two programs that **share an EISC IP-ID** (loopback ⇒ same box, real IP ⇒
+    separate box). Self-IPs are recoverable by reciprocity (each side's dip maps the shared IP-ID to the other's
+    real IP). Proven on an 11-processor job: a hub (`01_Main`) with 11 EISC links paired all 11 by IP-ID, zero
+    false edges, even when 6 of the programs had no `.dip`. (Earlier "127.0.0.N = slot N" was WRONG — do not use it.)
 - **`.smft`** — device/network hardware tree. Attributes are ONLY `Model`,`Name`,`DeviceId`,`Type`
   (Network),`Id` (Network). Devices nest inside `<Network>`; gateways nest sub-devices. **No
   per-device slot/rack attribute exists** (the "SlotNN" you see is the processor *program* slot =
@@ -370,7 +376,7 @@ already shown per keypad as the interim (labels readable in-tool, no D3 needed).
 
 ## Continuing this project (onboarding for a fresh session)
 This repo IS the handoff. To pick up: `git clone`, then read this BIBLE + `index.html` + `test/grade.js`.
-- Grader is the contract: `node test/grade.js` (currently 154/0). Nothing ships ungraded.
+- Grader is the contract: `node test/grade.js` (currently 165/0). Nothing ships ungraded.
 - Validate every new parser against the user's REAL files locally before shipping; commit only
   synthetic fixtures (no customer data — privacy-grep first).
 - Don't make the user open Crestron software for anything but a change or live test; if data looks
@@ -385,10 +391,11 @@ read a manual. Drop files → the tool surfaces what matters and points them at 
 feature-rich. Everything below is buildable NOW because the deterministic model is done + validated
 (no guesses) — these are render/UX layers on top of `systemSummary`, `eiscLinks`, `chooseAllPrograms`.
 
-1. **Visual System Map (headline — the "nothing else does this" demo).** A rendered topology of a
-   whole job: a node per processor, lines for the cross-processor **EISC bridges** (`127.0.0.N` =
-   slot N same box; real IP = separate system), the D3/RSD lighting systems hanging off, clickable to
-   drill into each processor's audit. Generate deterministically from `systemSummary()` + `eiscLinks()`
+1. **✅ BUILT — Visual System Map (headline — the "nothing else does this" demo).** A rendered topology of a
+   whole job: a node per processor, lines for the cross-processor **EISC bridges** (matched by **shared
+   IP-ID**; loopback `127.0.0.x` = same box, real IP = separate box), the D3/RSD lighting systems hanging off,
+   clickable to drill into each processor's audit. Generate deterministically from `systemGraph()` (the IP-ID
+   matcher, graded) on top of `systemSummary()` + `eiscLinks()`
    (both done + graded). This is the visual that makes a multi-processor job finally *legible* — no
    Crestron tool shows it. Pure SVG/canvas, no deps.
 2. **Per-processor build switcher.** Today `chooseAllPrograms` auto-picks the primary `.smw` per

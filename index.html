@@ -1686,18 +1686,79 @@ function systemSummary(units){
   const sum=k=>procs.reduce((a,p)=>a+(k==="eisc"?p.eisc.length:p[k]),0);
   return { processors:procs, totals:{ processors:procs.length, signals:sum("signals"), symbols:sum("symbols"), devices:sum("devices"), ipids:sum("ipids"), eisc:sum("eisc") } };
 }
+function systemGraph(units){
+  const progs=[]; (units||[]).forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progs.push({i,u}); });
+  const nodes=progs.map(p=>({ id:"u"+p.i, unitIndex:p.i, kind:"processor", label:(p.u.folder||p.u.name||("Unit "+p.i)), program:p.u.name||"" }));
+  const isLoop=ip=>/^127\./.test(ip||"");
+  const linksByNode={}, ipidMap={};
+  progs.forEach(p=>{ let dip=new Map(); try{ dip=p.u.dip?parseDip(p.u.dip):new Map(); }catch(e){}
+    let ls=[]; try{ ls=eiscLinks(p.u.smw,dip); }catch(e){}
+    linksByNode[p.i]=ls;
+    ls.forEach((l,li)=>{ const id=(l.ipid||"").toUpperCase(); if(!id)return; (ipidMap[id]=ipidMap[id]||[]).push({node:p.i,ip:(l.ip||"").trim(),target:l.target||"",li}); });
+  });
+  // BRIDGE KEY (validated on real multi-proc jobs): a shared EISC IP-ID between two programs
+  // is a bridge between them. Loopback ip => same physical box; real ip => separate box.
+  // Excluded: both sides point to the SAME real ip (that's two procs talking to one third device).
+  const pair={}, consumed=new Set();
+  Object.keys(ipidMap).forEach(id=>{ const arr=ipidMap[id]; if(arr.length!==2)return; const a=arr[0],b=arr[1];
+    if(a.node===b.node)return;
+    if(a.ip&&b.ip&&!isLoop(a.ip)&&!isLoop(b.ip)&&a.ip===b.ip)return;
+    const loop=isLoop(a.ip)||isLoop(b.ip);
+    const key=["u"+a.node,"u"+b.node].sort().join("~");
+    const e=pair[key]||(pair[key]={a:"u"+a.node,b:"u"+b.node,kind:loop?"intra":"cross",ip:loop?"":(a.ip||b.ip),ipids:[]});
+    e.ipids.push(id); if(!loop&&!e.ip) e.ip=(a.ip||b.ip);
+    consumed.add(a.node+":"+a.li); consumed.add(b.node+":"+b.li);
+  });
+  const edges=Object.keys(pair).map(k=>pair[k]);
+  // unmatched EISC links -> honest external endpoints (keyed by ip; loopback-orphan keyed by ipid). Never guessed onto a node.
+  const extMap={};
+  progs.forEach(p=>{ (linksByNode[p.i]||[]).forEach((l,li)=>{ if(consumed.has(p.i+":"+li))return;
+    const ip=(l.ip||"").trim(), real=ip&&!isLoop(ip);
+    const key=real?("ip:"+ip):(isLoop(ip)?("loop:"+(l.ipid||"").toUpperCase()):("nm:"+(l.target||l.ipid||"")));
+    const e=extMap[key]||(extMap[key]={ip:real?ip:"",loop:isLoop(ip),label:l.target||"",ipid:(l.ipid||"").toUpperCase(),froms:[]});
+    e.froms.push({node:p.i,ipid:(l.ipid||"").toUpperCase(),target:l.target||""}); if(!e.label&&l.target)e.label=l.target;
+  }); });
+  const external=Object.keys(extMap).map((k,n)=>{ const e=extMap[k]; return {id:"x"+n,kind:"external",label:e.ip||e.label||("IP-ID "+e.ipid),ip:e.ip,loop:e.loop,froms:e.froms,ipids:[...new Set(e.froms.map(f=>f.ipid))]}; });
+  external.forEach(x=>{ const grp={}; x.froms.forEach(f=>{ (grp["u"+f.node]=grp["u"+f.node]||[]).push(f.ipid); });
+    Object.keys(grp).forEach(uid=>edges.push({a:uid,b:x.id,kind:x.loop?"orphan":"external",ip:x.ip,ipids:[...new Set(grp[uid])]})); });
+  return {nodes,external,edges};
+}
+function renderSystemMap(g){
+  const procs=g.nodes||[], ext=g.external||[]; if(procs.length<2) return "";
+  const deg={}; g.edges.forEach(e=>{ deg[e.a]=(deg[e.a]||0)+1; deg[e.b]=(deg[e.b]||0)+1; });
+  let hub=null,hd=-1; procs.forEach(p=>{ const d=deg[p.id]||0; if(d>hd){hd=d;hub=p;} });
+  const W=820, H=Math.max(380, 220+procs.length*10), cx=W/2, cy=H/2;
+  const spokes=procs.filter(p=>p!==hub);
+  const useHub = hub && hd>=2 && hd>=Math.ceil(spokes.length*0.6);
+  const pos={}, R=Math.min(W,H)/2-115;
+  if(useHub){ pos[hub.id]={x:cx,y:cy}; spokes.forEach((p,k)=>{ const a=-Math.PI/2+2*Math.PI*k/Math.max(spokes.length,1); pos[p.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}; }); }
+  else { procs.forEach((p,k)=>{ const a=-Math.PI/2+2*Math.PI*k/procs.length; pos[p.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}; }); }
+  const Rx=Math.min(W,H)/2-28;
+  ext.forEach((x,k)=>{ const src=(x.froms&&x.froms[0])?pos["u"+x.froms[0].node]:null; let a=src?Math.atan2(src.y-cy,src.x-cx):(-Math.PI/2+2*Math.PI*k/Math.max(ext.length,1)); a+=(k%2?0.2:-0.2); pos[x.id]={x:cx+Rx*Math.cos(a),y:cy+Rx*Math.sin(a)}; });
+  const lineSvg=e=>{ const A=pos[e.a],B=pos[e.b]; if(!A||!B)return""; const mx=(A.x+B.x)/2,my=(A.y+B.y)/2; const lbl=(e.ipids&&e.ipids.length)?("ID "+e.ipids.join(",")):"";
+    return `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" class="sm-${e.kind}"/>`+(lbl?`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" class="sm-elbl">${esc(lbl)}</text>`:""); };
+  const nodeSvg=n=>{ const p=pos[n.id]; if(!p)return""; const w=146,h=40,x=p.x-w/2,y=p.y-h/2,proc=n.kind==="processor";
+    const lab=esc((n.label||"").length>23?(n.label.slice(0,22)+"…"):(n.label||"")); const sub=proc?"processor":(n.loop?"slot not in drop":"external system");
+    return `<g class="smnode ${proc?'sm-proc':'sm-ext'}"${proc?` data-unit="${n.unitIndex}" tabindex="0" role="button"`:""}><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" rx="7" width="${w}" height="${h}"/><text x="${p.x.toFixed(1)}" y="${(p.y-2).toFixed(1)}" class="sm-nl">${lab}</text><text x="${p.x.toFixed(1)}" y="${(p.y+12).toFixed(1)}" class="sm-ns">${esc(sub)}</text></g>`; };
+  const edgesSvg=g.edges.map(lineSvg).join(""), nodesSvg=procs.map(nodeSvg).join("")+ext.map(nodeSvg).join("");
+  const legend=`<g transform="translate(14,${H-16})"><line x1="0" y1="0" x2="22" y2="0" class="sm-intra"/><text x="28" y="4" class="sm-lg">same box (loopback)</text><line x1="172" y1="0" x2="194" y2="0" class="sm-cross"/><text x="200" y="4" class="sm-lg">separate box (IP)</text><line x1="320" y1="0" x2="342" y2="0" class="sm-external"/><text x="348" y="4" class="sm-lg">external / not in drop</text></g>`;
+  return `<div class="smwrap"><svg viewBox="0 0 ${W} ${H}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;font-family:inherit}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.sm-elbl{fill:#6b7280;font-size:9px;text-anchor:middle}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-proc{cursor:pointer}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-proc:hover rect{fill:#dbe7ff}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
+}
+
 function renderWholeSystem(){
   const us=state.units||[]; const progIdx=[]; us.forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progIdx.push(i); });
   const ss=systemSummary(us), t=ss.totals;
   let html=renderUnitSelector();
   html+=`<div class="section-label">Whole system</div>`;
+  const _g=systemGraph(us); const _map=renderSystemMap(_g);
+  if(_map) html+=card("System map",`${_g.nodes.length} processor${_g.nodes.length===1?"":"s"}`,`<p class="card-intro">The whole job at a glance \u2014 each box is a processor, lines are EISC bridges matched by <b>shared IP-ID</b>. <b>Dashed grey</b> = same physical box (loopback); <b>solid blue</b> = a separate box over IP; <b>amber dotted</b> = a system not in this drop. Click a processor to open its as-built.</p>`+_map,true);
   html+=card("System at a glance",`${t.processors} processor${t.processors===1?"":"s"}`,`<p class="card-intro">Totals across the whole job. Click a processor to open its full as-built.</p><div class="row">${stat(t.processors,"Processors")}${stat(t.signals.toLocaleString(),"Signals")}${stat(t.symbols.toLocaleString(),"Symbols")}${stat(t.devices.toLocaleString(),"Devices")}${stat(t.ipids.toLocaleString(),"IP-IDs")}${stat(t.eisc.toLocaleString(),"Cross-links")}</div>`,true);
   const rows=ss.processors.map((p,k)=>`<tr class="drill" data-unit="${progIdx[k]}"><td class="data" title="${esc((p.folder?p.folder+" / ":"")+p.name)}">${esc(p.folder||p.name)}</td><td class="data muted">${esc(p.program||p.name||"—")}${p.versions&&p.versions.length?` <span class="muted">(+${p.versions.length} build${p.versions.length===1?"":"s"})</span>`:""}</td><td class="num data">${p.signals.toLocaleString()}</td><td class="num data">${p.symbols.toLocaleString()}</td><td class="num data">${p.devices.toLocaleString()}</td><td class="num data">${p.ipids.toLocaleString()}</td><td class="num data">${p.eisc.length||"—"}</td></tr>`).join("");
   html+=card("Processors",ss.processors.length,`<p class="card-intro">One row per processor (its program <b>folder</b>) — multiple <code>.smw</code> in a folder are versions/test builds of the same program, collapsed and counted once. Click a row to open its audit.</p>`+tbl([{t:"Processor"},{t:"Program"},{t:"Signals",num:1},{t:"Symbols",num:1},{t:"Devices",num:1},{t:"IP-IDs",num:1},{t:"Cross-links",num:1}],rows,0),true);
   const links=[]; ss.processors.forEach(p=>p.eisc.forEach(e=>links.push({from:p.name,ipid:e.ipid,target:e.target,ip:e.ip})));
   if(links.length){
-    const lrows=links.map(l=>{ const lm=/^127\.0\.0\.(\d+)$/.exec(l.ip||""); return `<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.target||"—")}</td><td class="data">${esc(l.ipid||"—")}</td><td class="data${lm?" muted":""}">${lm?`127.0.0.${lm[1]} <span class="muted">→ program slot ${lm[1]} (same processor)</span>`:esc(l.ip||"—")}</td></tr>`; }).join("");
-    html+=card("Intersystem links (EISC)",links.length,`<p class="card-intro">Every EISC bridge — what each program talks to, and where. <code>127.0.0.N</code> = slot N on the same processor; a real IP = a separate system.</p>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0),true);
+    const lrows=links.map(l=>{ const lm=/^127\.0\.0\.(\d+)$/.exec(l.ip||""); return `<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.target||"—")}</td><td class="data">${esc(l.ipid||"—")}</td><td class="data${lm?" muted":""}">${lm?`${esc(l.ip)} <span class="muted">→ same processor (loopback)</span>`:esc(l.ip||"—")}</td></tr>`; }).join("");
+    html+=card("Intersystem links (EISC)",links.length,`<p class="card-intro">Every EISC bridge, matched by <b>shared IP-ID</b>. <code>127.0.0.x</code> = a loopback bridge to another program on the <b>same processor</b>; a real IP = a <b>separate box</b>.</p>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0),true);
   }
   $("#censusBody").innerHTML=html;
   const fn=$("#censusName"); if(fn){ fn.classList.remove("hide"); const mn=fn.querySelector(".mono"); if(mn)mn.textContent=(state.unitName||"")+" › whole system"; }

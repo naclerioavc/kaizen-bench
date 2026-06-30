@@ -452,5 +452,28 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const cs=w.censusStats(m);
   has("custom-module count excludes .ced (counts .usp only)", cs.custom===1 || (cs.customDistinct? cs.customDistinct===1 : true));
 }
+// ===== Visual System Map: systemGraph() + renderSystemMap() (validated on real multi-proc jobs) =====
+{ const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
+  const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
+  const dipOf=ps=>"[IPTable]\n"+ps.map((p,i)=>`id${i}=${p[0]}\naddr${i}=${p[1]}`).join("\n")+"\n";
+  const A={kind:"program",name:"01-Main",folder:"01-Main",smw:proc("Main",[eisc(101,201,"F2","02_Lighting"),eisc(102,202,"20","To/From Security")]),dip:dipOf([["F2","127.0.0.2"],["20","10.0.0.7"]])};
+  const B={kind:"program",name:"02-Lighting",folder:"02-Lighting",smw:proc("Lighting",[eisc(110,210,"F2","Main")]),dip:dipOf([["F2","127.0.0.2"]])};
+  const C={kind:"program",name:"03-Security",folder:"03-Security",smw:proc("Security",[eisc(120,220,"20","Main"),eisc(121,221,"30","Alarm Panel")]),dip:dipOf([["20","10.0.0.9"],["30","10.0.0.50"]])};
+  const sysUnits=[{kind:"system",name:"System overview"},A,B,C];
+  const G=w.systemGraph(sysUnits);
+  ck("system map: one node per program", G.nodes.length, 3);
+  const br=G.edges.filter(e=>/^u/.test(e.b));
+  has("system map: intra-box bridge from shared loopback IP-ID", br.some(e=>e.kind==="intra"));
+  has("system map: cross-box bridge from shared real-IP IP-ID", br.some(e=>e.kind==="cross"));
+  has("system map: no false leaf<->leaf edge (exactly 2 bridges)", br.length===2);
+  ck("system map: unmatched EISC -> one external endpoint", G.external.length, 1);
+  ck("system map: external endpoint keyed by IP", G.external[0].label, "10.0.0.50");
+  // render into the whole-system Audit view
+  w.eval(`state.units=${JSON.stringify(sysUnits)}; state.unitName='TestJob'; state.unitIndex=0; setActiveUnit(0);`);
+  const cb=w.document.getElementById('censusBody');
+  has("system map renders an SVG in the whole-system view", cb.querySelector('svg.sysmap')!=null);
+  has("system map nodes are clickable (data-unit drill)", cb.querySelectorAll('svg .sm-proc[data-unit]').length===3);
+  has("system map draws bridge edges (intra+cross)", cb.querySelectorAll('svg line.sm-intra, svg line.sm-cross').length>=2);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
