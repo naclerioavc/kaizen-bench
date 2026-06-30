@@ -429,5 +429,13 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("D3 scene contents: scene resolves to its load IDs", !!ev && ev.loadIds.join(",")==="47,48");
   has("D3 scene contents: underscores in scene names normalized to spaces", sc.some(x=>x.scene==="Up All ON"));
 }
+// ===== D3 sysdata.xml: keypad button -> preset -> loads @ levels (the full "what does this button do") =====
+{ const xml='<Preset><ID>307</ID><Step><Text>Demo Room, Wall Sconces--&gt;Level = 70% Fade Time = 2s</Text></Step></Preset>'
+   +'<Device type="Interface"><ID>328</ID><Name>Theater</Name><Family>Keypad</Family><Address>Net-Device ID 06</Address><Product_Name>HZ-KPCN-W</Product_Name><Program><Signal><ID>40</ID><Name>Button #1</Name><ButtonModelName>Single Press</ButtonModelName><Event><Name>Press</Name><Preset>307</Preset></Event></Signal></Program></Device>';
+  const sd=w.parseD3SysData(xml);
+  has("sysdata: keypad + button parsed", sd.keypads.length===1 && sd.keypads[0].name==="Theater" && sd.keypads[0].buttons[0].name==="Button #1");
+  has("sysdata: button event resolves to its preset", sd.keypads[0].buttons[0].events[0].preset==="307");
+  ck("sysdata: preset step -> load + level + fade", [sd.presets["307"][0].load,sd.presets["307"][0].level,sd.presets["307"][0].fade], ["Demo Room, Wall Sconces","70%","2s"]);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

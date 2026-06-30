@@ -231,6 +231,12 @@
   .tr-md th{background:var(--panel2);color:var(--mut);font-weight:600}
   .tr-md code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
   .tr-out-actions{display:flex;gap:9px;margin:12px 0}
+  /* light themes: form fields need a white surface + readable placeholder (sky-blue/grey bg washed them out) */
+  [data-theme="plumber"] input,[data-theme="plumber"] select,[data-theme="plumber"] textarea,
+  [data-theme="daylight"] input,[data-theme="daylight"] select,[data-theme="daylight"] textarea{background:#ffffff;color:var(--ink)}
+  [data-theme="plumber"] ::placeholder,[data-theme="daylight"] ::placeholder{color:#7d8794;opacity:1}
+  [data-theme="plumber"] .tr-row label,[data-theme="daylight"] .tr-row label,
+  [data-theme="plumber"] .tr-lbl,[data-theme="daylight"] .tr-lbl{color:var(--mut)}
   #censusBody.gsearch .card.gs-empty{display:none}
   #censusBody.gsearch tbody tr:not(.gs-hit){display:none!important}
   mark.gs-mark{background:var(--stripe);color:var(--bg);border-radius:2px;padding:0 1px;font-weight:600}
@@ -1602,6 +1608,13 @@ function renderD3(d3){
   }
   if(d3.sceneLoads && d3.sceneLoads.length){
     const slr=d3.sceneLoads.map(s=>`<tr><td class="data">${esc(s.scene)}</td><td class="num data">${s.loads.length}</td><td class="data muted" title="${esc(s.loads.join(", "))}">${esc(trim(s.loads.join(", "),96))}</td></tr>`).join("");
+  if(d3.sysKeypads && d3.sysKeypads.length){
+    const rows=[]; d3.sysKeypads.forEach(kp=>kp.buttons.forEach(b=>{
+      const rec=b.steps&&b.steps.length ? b.steps.slice(0,5).map(st=>esc(st.load)+(st.level?(" <b>"+esc(st.level)+"</b>"):"")).join(", ")+(b.steps.length>5?(" <span class=\"muted\">+"+(b.steps.length-5)+"</span>"):"") : '<span class="muted">—</span>';
+      rows.push(`<tr><td class="data">${esc(kp.name||"")}</td><td class="data muted">${esc(kp.address||"")}</td><td class="data">${esc(b.name||"")}${b.model?` <span class="muted">${esc(b.model)}</span>`:""}</td><td class="data muted">${esc(b.primary?b.primary.name:"")}</td><td class="data">${rec}</td></tr>`);
+    }));
+    html+=card("Keypad buttons — what each does",rows.length,`<p class="card-intro">Every keypad button and <b>exactly what it recalls</b> — the loads and their <b>levels</b>, from the D3 project (<code>sysdata.xml</code>). Answers &ldquo;what does this button do?&rdquo; on the phone, no D3.</p>`+tbl([{t:"Keypad"},{t:"Net-ID"},{t:"Button"},{t:"Press"},{t:"Recalls (load @ level)"}],rows.join(""),1),false);
+  }
     html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>. <span class="muted">(Each load&rsquo;s dim <i>level</i> is saved live on the processor, not in the files.)</span></p>`+tbl([{t:"Scene"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
   }
   return html;
@@ -2039,6 +2052,37 @@ function chooseAllPrograms(files){
 // Scene -> loads it controls, straight from the D3 program .smw: scene blocks
 // [_..Scene][<Name>] expose Load_NN_In_Scene signals; NN = LoadID (resolve via loads.dat).
 // Validated against a real D3 job. (Exact per-load dim levels live in the preset modules — not here yet.)
+// D3 sysdata.xml — the FULL button->preset->loads@levels chain (Bud: "don't skip files").
+// Keypad <Device type="Interface" Family=Keypad> contains <Signal> buttons; each button <Event>
+// (Tap 1 On, etc) -> <Preset>; each Preset <Step><Text> reads "Load, Room--> Level = X% Fade = Ys".
+function parseD3SysData(xml){
+  xml=String(xml);
+  var dec=function(t){return t.replace(/&gt;/g,">").replace(/&lt;/g,"<").replace(/&amp;/g,"&").replace(/&#?\w+;/g," ").replace(/\s+/g," ").trim();};
+  var presets={}, pre=/<Preset><ID>(\d+)<\/ID>([\s\S]*?)<\/Preset>/g, pm;
+  while((pm=pre.exec(xml))){
+    var steps=[], st=/<Step><Text>([\s\S]*?)<\/Text>/g, sm;
+    while((sm=st.exec(pm[2]))){ var txt=dec(sm[1]);
+      var lm=/^(.*?)-+>\s*Level\s*=\s*([\d.]+%?)(?:\s*Fade(?:\s*Time)?\s*=\s*([\w.]+))?/i.exec(txt);
+      steps.push(lm?{load:lm[1].trim(),level:lm[2],fade:lm[3]||"",text:txt}:{text:txt}); }
+    presets[pm[1]]=steps;
+  }
+  var keypads=[], dv=/<Device type="Interface">([\s\S]*?)<\/Device>/g, dm;
+  while((dm=dv.exec(xml))){
+    var blk=dm[1]; if(!/<Family>\s*Keypad\s*<\/Family>/i.test(blk)) continue;
+    var fld=function(t){ var m=new RegExp("<"+t+">([\\s\\S]*?)<\\/"+t+">").exec(blk); return m?dec(m[1]):""; };
+    var kp={name:fld("Name"),model:fld("Product_Name")||fld("Description"),address:fld("Address"),roomId:fld("Room_ID"),buttons:[]};
+    var prog=/<Program>([\s\S]*?)<\/Program>/.exec(blk), pg=prog?prog[1]:blk;
+    var sg=/<Signal>([\s\S]*?)<\/Signal>/g, sgm;
+    while((sgm=sg.exec(pg))){
+      var sb=sgm[1], bn=/<Name>([^<]*)<\/Name>/.exec(sb); if(!bn||!/button/i.test(bn[1])) continue;
+      var bm=/<ButtonModelName>([^<]*)<\/ButtonModelName>/.exec(sb), evs=[], ev=/<Event>([\s\S]*?)<\/Event>/g, evm;
+      while((evm=ev.exec(sb))){ var en=/<Name>([^<]*)<\/Name>/.exec(evm[1]), ep=/<Preset>(\d+)<\/Preset>/.exec(evm[1]); if(ep)evs.push({name:en?dec(en[1]):"",preset:ep[1]}); }
+      kp.buttons.push({name:dec(bn[1]),model:bm?dec(bm[1]):"",events:evs});
+    }
+    if(kp.buttons.length) keypads.push(kp);
+  }
+  return {presets:presets,keypads:keypads};
+}
 function parseD3Scenes(smw){
   var re=/\[_[A-Za-z_]*[Ss]cene\]\[([^\]]+)\]Load_(\d+)_In_Scene/g, m, map={};
   while((m=re.exec(String(smw)))){ var nm=m[1].replace(/_/g," ").trim(); (map[nm]=map[nm]||{})[+m[2]]=1; }
@@ -2067,6 +2111,15 @@ function buildD3(files, rootLower){
       if(sl.length) d3.sceneLoads=sl;
     }catch(e){} }
   }
+  var sx=files.find(function(f){ return /\/documentation\/sysdata\.xml$/i.test(f.name.replace(/\\/g,"/")) && inR(f); });
+  if(sx){ try{
+    var sd=parseD3SysData(decodeText(sx.bytes));
+    sd.keypads.forEach(function(kp){ kp.buttons.forEach(function(b){
+      var ev=b.events.filter(function(e){return sd.presets[e.preset]&&sd.presets[e.preset].length;})[0]||b.events[0]||null;
+      b.primary=ev; b.steps=(ev&&sd.presets[ev.preset])||[];
+    }); });
+    if(sd.keypads.length){ d3=d3||{}; d3.sysKeypads=sd.keypads; d3.presets=sd.presets; }
+  }catch(e){} }
   return d3;
 }
 async function loadProgram(file){
@@ -2680,7 +2733,7 @@ function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\
   });
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
