@@ -482,10 +482,10 @@
   </div>
 </div>
 
-<div id="mgGround" aria-hidden="true"><button id="mgTrigger" title="Sonny’s Quest — jump on the block!">?</button></div>
+<div id="mgGround" aria-hidden="true"><button id="mgTrigger" title="Pipe Dream — hop on the block!">?</button></div>
 <div id="mgOverlay" class="hide">
   <div class="mg-box">
-    <div class="mg-bar"><span class="mg-title">SONNY’S QUEST</span><span id="mgScore">Coins 0 / 5</span><button id="mgClose" title="Close">✕</button></div>
+    <div class="mg-bar"><span class="mg-title">PIPE DREAM</span><span id="mgScore">Coins 0 / 5</span><button id="mgClose" title="Close">✕</button></div>
     <canvas id="mgCanvas" width="720" height="380"></canvas>
     <div class="mg-help">← → move · ↑ / space jump · Esc close — grab every coin</div>
   </div>
@@ -2426,49 +2426,78 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-// ---------- Sonny’s Quest: a tiny ORIGINAL platformer (named for Bud’s grandpa Sonny; generic shapes; Plumber theme only) ----------
+// ---------- Pipe Dream: a tiny ORIGINAL speedrun platformer (generic shapes; Plumber theme only) ----------
 (function(){
   var ov=document.getElementById("mgOverlay"), cv=document.getElementById("mgCanvas"),
       trg=document.getElementById("mgTrigger"), cl=document.getElementById("mgClose"), sc=document.getElementById("mgScore");
   if(!ov||!cv||!trg)return;
-  var W=720,H=380, ctx=null, raf=0, keys={}, player, plats, coins, won;
+  var W=720,H=380, ctx=null, raf=0, keys={}, player, plats, coins, startT, finished, finishTime;
+  function getScores(){ try{ return JSON.parse(localStorage.getItem("pipedream-scores")||"[]"); }catch(e){ return []; } }
+  function saveScore(t){
+    var sxs=getScores();
+    if(sxs.length<5 || t<sxs[sxs.length-1].t){
+      var n=(prompt("Cleared in "+t.toFixed(2)+"s! Enter initials:","AAA")||"AAA").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3)||"AAA";
+      sxs.push({n:n,t:t}); sxs.sort(function(a,b){return a.t-b.t;}); sxs=sxs.slice(0,5);
+      try{ localStorage.setItem("pipedream-scores",JSON.stringify(sxs)); }catch(e){}
+    }
+    return sxs;
+  }
   function reset(){
-    player={x:40,y:H-90,w:20,h:26,vx:0,vy:0,g:false}; won=false;
+    player={x:40,y:H-94,w:20,h:30,vx:0,vy:0,g:false};
     plats=[{x:0,y:H-30,w:W,h:30},{x:150,y:H-110,w:90,h:16},{x:300,y:H-172,w:90,h:16},{x:470,y:H-122,w:110,h:16},{x:612,y:H-200,w:84,h:16}];
     coins=[{x:195,y:H-142},{x:345,y:H-204},{x:525,y:H-154},{x:652,y:H-232},{x:250,y:H-58}].map(function(c){return {x:c.x,y:c.y,got:false};});
+    startT=(typeof performance!=="undefined"?performance.now():Date.now()); finished=false; finishTime=0;
   }
+  function now(){ return (typeof performance!=="undefined"?performance.now():Date.now()); }
   function open(){ ov.classList.remove("hide"); reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
   function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} }
   function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
   function loop(){
     raf=requestAnimationFrame(loop); if(!ctx)return;
-    player.vx=0;
-    if(keys["ArrowLeft"]||keys["a"])player.vx=-3.3;
-    if(keys["ArrowRight"]||keys["d"])player.vx=3.3;
-    if((keys["ArrowUp"]||keys[" "]||keys["w"])&&player.g){player.vy=-11;player.g=false;}
-    player.vy+=0.6; if(player.vy>14)player.vy=14;
-    player.x+=player.vx; player.y+=player.vy;
-    if(player.x<0)player.x=0; if(player.x+player.w>W)player.x=W-player.w;
-    player.g=false;
-    for(var i=0;i<plats.length;i++){ var p=plats[i];
-      if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
-    if(player.y>H+80)reset();
-    var got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+10-c.x)<16&&Math.abs(player.y+13-c.y)<16)c.got=true; if(c.got)got++; });
-    won=got>=coins.length;
+    var got=0; coins.forEach(function(c){ if(c.got)got++; });
+    if(!finished){
+      player.vx=0;
+      if(keys["ArrowLeft"]||keys["a"])player.vx=-3.3;
+      if(keys["ArrowRight"]||keys["d"])player.vx=3.3;
+      if((keys["ArrowUp"]||keys[" "]||keys["w"])&&player.g){player.vy=-11;player.g=false;}
+      player.vy+=0.6; if(player.vy>14)player.vy=14;
+      player.x+=player.vx; player.y+=player.vy;
+      if(player.x<0)player.x=0; if(player.x+player.w>W)player.x=W-player.w;
+      player.g=false;
+      for(var i=0;i<plats.length;i++){ var p=plats[i];
+        if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
+      if(player.y>H+80)reset();
+      got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+10-c.x)<16&&Math.abs(player.y+15-c.y)<17)c.got=true; if(c.got)got++; });
+      if(got>=coins.length){ finished=true; finishTime=(now()-startT)/1000; saveScore(finishTime); }
+    }
     rect(0,0,W,H,"#5c94fc");
     ctx.fillStyle="rgba(255,255,255,.92)";
     [[95,58],[340,40],[565,76]].forEach(function(q){ctx.beginPath();ctx.arc(q[0],q[1],15,0,7);ctx.arc(q[0]+17,q[1],19,0,7);ctx.arc(q[0]+36,q[1],15,0,7);ctx.fill();});
-    plats.forEach(function(p,i){ rect(p.x,p.y,p.w,p.h,i===0?"#3cb043":"#c8521f"); if(i===0)rect(p.x,p.y,p.w,5,"#2a7d2f"); else { rect(p.x,p.y,p.w,2,"#e07b3a"); } });
+    plats.forEach(function(p,i){ rect(p.x,p.y,p.w,p.h,i===0?"#3cb043":"#c8521f"); if(i===0)rect(p.x,p.y,p.w,5,"#2a7d2f"); else rect(p.x,p.y,p.w,2,"#e07b3a"); });
     coins.forEach(function(c){ if(c.got)return; ctx.fillStyle="#ffcf33";ctx.beginPath();ctx.arc(c.x,c.y,7,0,7);ctx.fill();ctx.strokeStyle="#b8860b";ctx.lineWidth=2;ctx.stroke(); });
-    rect(player.x,player.y+11,player.w,player.h-11,"#1f6fd6");
-    rect(player.x,player.y,player.w,13,"#e52521");
-    rect(player.x+3,player.y-5,player.w-6,6,"#e52521");
-    rect(player.x+player.w-6,player.y+15,4,4,"#15182b");
-    sc.textContent="Coins "+got+" / "+coins.length+(won?"  \u2014  ALL CLEAR!":"");
+    var px=player.x, py=player.y, dir=player.vx<0?-1:1;
+    rect(px+1,py+26,8,4,"#6b3f1d"); rect(px+11,py+26,8,4,"#6b3f1d");
+    rect(px+2,py+13,16,14,"#1f6fd6"); rect(px+1,py+13,18,4,"#e52521");
+    rect(px+0,py+15,3,5,"#ffffff"); rect(px+17,py+15,3,5,"#ffffff");
+    rect(px+4,py+4,12,10,"#f1c08a"); rect(px+2,py,16,6,"#e52521");
+    rect(dir<0?px+11:px+0,py+5,9,2,"#e52521"); rect(dir<0?px+6:px+12,py+7,2,2,"#15182b"); rect(px+7,py+10,8,2,"#3a2410");
+    var el=finished?finishTime:(now()-startT)/1000;
+    sc.textContent="Coins "+got+" / "+coins.length+"  ·  "+el.toFixed(1)+"s";
+    if(finished){
+      ctx.fillStyle="rgba(10,12,24,.78)"; ctx.fillRect(W/2-170,40,340,290);
+      ctx.textAlign="center"; ctx.fillStyle="#ffcf33"; ctx.font="bold 22px monospace"; ctx.fillText("PIPE DREAM CLEARED",W/2,78);
+      ctx.fillStyle="#fff"; ctx.font="16px monospace"; ctx.fillText("Your time: "+finishTime.toFixed(2)+"s",W/2,104);
+      ctx.fillStyle="#9aa4bd"; ctx.font="11px monospace"; ctx.fillText("BEST TIMES",W/2,134);
+      var sxs=getScores(); ctx.font="15px monospace";
+      sxs.forEach(function(r,i){ ctx.fillStyle=(Math.abs(r.t-finishTime)<0.001?"#5bff7a":"#fff"); ctx.fillText((i+1)+".  "+r.n+"   "+r.t.toFixed(2)+"s",W/2,162+i*24); });
+      if(!sxs.length){ctx.fillStyle="#fff";ctx.fillText("— none yet —",W/2,162);}
+      ctx.fillStyle="#9aa4bd"; ctx.font="12px monospace"; ctx.fillText("R = retry   ·   Esc = close",W/2,310);
+      ctx.textAlign="left";
+    }
   }
   trg.addEventListener("click",open);
   if(cl)cl.addEventListener("click",close);
-  document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); });
+  document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); if((e.key==="r"||e.key==="R")&&finished)reset(); });
   document.addEventListener("keyup",function(e){ keys[e.key]=false; });
 })();
 if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,splitLogSystems,zipManifest,fileClass}; }
