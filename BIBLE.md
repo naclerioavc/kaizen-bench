@@ -153,6 +153,14 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
 - ✅ Graceful on bad input: empty → hero; a loaded file with no parseable signals/devices (garbage
   or compiled-only archive) → a clear "loaded, but no readable SIMPL data" message naming the file;
   non-SIMPL logs decline cleanly.
+- ✅ **Big-archive intake (memory ceiling fixed).** Program intake is **manifest-first**: `zipDir(file)`
+  reads only the central directory via `File.slice` (ZIP64-aware), then inflates **only work files**
+  (primary build per folder + sibling `.dip/.smft` + IR + D3 docs/program) on demand — compiled
+  `.zip/.lpz/.sig`/images/non-primary builds are never inflated. The whole archive never enters RAM.
+  Proven on the real **4 GB ZIP64** backup: 11 live processors loaded in ~0.5 s reading **0.27 % of the
+  file** (peak slice ~7 MB), vs the old "inflate everything" path that would OOM the tab (~10 GB).
+- ✅ **Archived folders** (`~Older` / old / archive / backup paths) are flagged, kept inspectable +
+  tagged in the Processors table, but excluded from the live System Map (drop-line notes "+N archived").
 
 ## As-Built Report (the shareable deliverable)
 - ✅ "As-Built Report (PDF)" button: prints a clean white document with a **cover page** (program,
@@ -376,7 +384,7 @@ already shown per keypad as the interim (labels readable in-tool, no D3 needed).
 
 ## Continuing this project (onboarding for a fresh session)
 This repo IS the handoff. To pick up: `git clone`, then read this BIBLE + `index.html` + `test/grade.js`.
-- Grader is the contract: `node test/grade.js` (currently 165/0). Nothing ships ungraded.
+- Grader is the contract: `node test/grade.js` (currently 198/0). Nothing ships ungraded.
 - Validate every new parser against the user's REAL files locally before shipping; commit only
   synthetic fixtures (no customer data — privacy-grep first).
 - Don't make the user open Crestron software for anything but a change or live test; if data looks
@@ -391,19 +399,33 @@ read a manual. Drop files → the tool surfaces what matters and points them at 
 feature-rich. Everything below is buildable NOW because the deterministic model is done + validated
 (no guesses) — these are render/UX layers on top of `systemSummary`, `eiscLinks`, `chooseAllPrograms`.
 
-1. **✅ BUILT — Visual System Map (headline — the "nothing else does this" demo).** A rendered topology of a
-   whole job: a node per processor, lines for the cross-processor **EISC bridges** (matched by **shared
-   IP-ID**; loopback `127.0.0.x` = same box, real IP = separate box), the D3/RSD lighting systems hanging off,
-   clickable to drill into each processor's audit. Generate deterministically from `systemGraph()` (the IP-ID
-   matcher, graded) on top of `systemSummary()` + `eiscLinks()`
-   (both done + graded). This is the visual that makes a multi-processor job finally *legible* — no
-   Crestron tool shows it. Pure SVG/canvas, no deps.
-2. **Per-processor build switcher.** Today `chooseAllPrograms` auto-picks the primary `.smw` per
-   folder and lists the rest as `versions`. Add a small "build: [v2_0_4 ▾]" override on a processor
-   with multiple builds so the user can choose which one is active (auto-pick stays the default).
-   Needs the unzipped file bytes retained so a switch can re-parse. Ties to "which build is deployed?"
-3. **Contextual "what's in this drop" line (dummy-proof onboarding, NOT a wizard).** One deterministic
-   sentence from the mined facts at the top of a drop: e.g. "This job: 2 processors (AV + Security) +
-   1 D3 lighting project, linked by 3 EISC bridges — start with the System Map." Points people at the
-   right tab with zero thinking. Deeper guidance already lives in the opt-in Triage/LLM tab — don't
-   rebuild that here; keep this a single factual line + 2-3 suggested actions.
+**✅ All three lead items shipped (graded). This cycle's work:**
+
+1. **✅ Visual System Map** — `systemGraph()` renders the whole-job topology in pure SVG: a node per live
+   processor, EISC bridges matched by **shared IP-ID** (loopback = same box, real IP = separate box),
+   D3 lighting as first-class nodes, clickable to each processor's audit. Hub-spoke layout, IP-ID hover
+   labels. The headline demo — no Crestron tool shows this.
+2. **✅ Per-processor build switcher** — multi-build folders get a `Build [vN ▾]` override; inflates the
+   chosen build on demand (lazy, via `zipReadEntry`). Auto-picks **newest-saved** (zip mtime) as an
+   honest *default*, amber-flagged: files can't prove what's *deployed* — a console confirms the
+   **processor/system** (model/hostname/fw) but **not the exact build** (no progcomments/compile in real
+   dumps). User overrides.
+3. **✅ "What's in this drop" line** — one deterministic sentence + jump chips, now with full connection
+   detail (each EISC bridge's IP-ID(s) + IP / loopback), per the completeness rule.
+
+**Also shipped this cycle:** streaming big-archive intake (see Robustness) · D3 backup **collapse** (dated
+backups of one project, grouped by connected-processor, keep newest) · **archived-folder** exclusion from
+the map · **Triage grounding**: `exportFactsForLLM` now feeds program + whole-system + a **console/log
+digest** (drops, solve-timeouts→loops, storms, recurring, model/hostname/fw, match verdict), degrading
+cleanly across all four data combos (program / log / both / neither) with honest caveats; Triage tab shows
+a live grounding-status line + 3-step instructions.
+
+**NEXT candidates (pick by real-world value):**
+- **True build confirmation** *only if* a real Info-Tool dump is found to carry the running program name +
+  compile date (progcomments/loadinfo). Then match it to a build's `.smw` save-time → turn the amber
+  build flag green. Not seen in dumps so far — don't build speculatively.
+- **Map UX polish** — group/badge cross-processor vs loopback clusters on very large jobs; optional
+  dimmed "show archived" toggle.
+- **As-Built report** could fold in the System Map + the whole-system roll-up.
+- Triage product fit: keep it opt-in, narrow it to "write up the deterministic findings as a client
+  deliverable," don't make it the headline (deterministic engine is the moat).
