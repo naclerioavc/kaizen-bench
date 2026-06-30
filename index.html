@@ -1602,7 +1602,7 @@ function renderD3(d3){
   }
   if(d3.sceneLoads && d3.sceneLoads.length){
     const slr=d3.sceneLoads.map(s=>`<tr><td class="data">${esc(s.scene)}</td><td class="num data">${s.loads.length}</td><td class="data muted" title="${esc(s.loads.join(", "))}">${esc(trim(s.loads.join(", "),96))}</td></tr>`).join("");
-    html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>.</p>`+tbl([{t:"Scene"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
+    html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>. <span class="muted">(Each load&rsquo;s dim <i>level</i> is saved live on the processor, not in the files.)</span></p>`+tbl([{t:"Scene"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
   }
   return html;
 }
@@ -2555,8 +2555,10 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     rect(px+2,py+9,2,12,"#f4f4f4"); rect(px+18,py+9,2,12,"#f4f4f4");          // white arm stripes
     rect(px+10,py+9,1,12,"#444");                                             // zipper
     rect(px+6,py+2,10,8,"#f1c08a");                                          // face
-    rect(px+6,py+8,10,3,"#1c1009");                                          // mustache (thicker so it reads)
-    rect(dir<0?px+7:px+12,py+5,2,2,"#15182b");                               // eye
+    rect(px+5,py+4,12,1,"#111"); rect(px+6,py+4,4,3,"#111"); rect(px+11,py+4,4,3,"#111"); // wayfarer frames
+    rect(px+7,py+5,2,2,"#dff1ff"); rect(px+12,py+5,2,2,"#dff1ff");           // clear lenses
+    rect(dir<0?px+7:px+12,py+5,2,2,"#1a2a3a");                               // eye behind lens
+    rect(px+6,py+8,10,3,"#1c1009");                                          // mustache
     rect(px+4,py-2,14,4,"#141414");                                          // black ball cap
     rect(dir<0?px+13:px+0,py,8,2,"#141414");                                 // cap brim (faces travel dir)
     var el=finished?finishTime:(now()-startT)/1000;

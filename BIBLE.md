@@ -343,3 +343,11 @@ Hard-won from refining the theme set + Plumber/Pipe Dream. Follow these; a new t
   or touches the tool; **local-only leaderboard** (a static app can't do a global one — top-5 times
   with initials in `localStorage`). A new franchise = palette + sprite-color reskin of the same code:
   Sonic → blue base, gold rings, green/checker; Donkey Kong → jungle browns/greens, red-tie accent.
+
+## D3 scene LEVELS are runtime, not static (don't chase them in the files)
+Verified on a real D3 program: the per-load dim **levels** are NOT in the `.smw`. The
+`Double-Precision Analog Variable Preset` modules (577 of them) carry only I/O **signal handles**
+(no `P#` params, no stored values) — they capture/replay levels at **runtime on the processor**.
+So from static files the ceiling is **scene → loads** (membership, shipped via `parseD3Scenes` +
+`loads.dat`). The actual level each load goes to needs the **live system** (desktop-agent territory).
+Don't build a "levels" view from the files — it would be fabrication.
