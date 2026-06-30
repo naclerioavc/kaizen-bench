@@ -424,6 +424,12 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   // exportFactsForLLM: no program -> clear guidance; with program -> includes as-built
   w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.units=null; state.logDigest=null;");
   has("exportFactsForLLM with nothing loaded gives clear guidance", /No program loaded/i.test(w.exportFactsForLLM()));
+  // all-angles: LOG-ONLY (no program) still grounds + caveats; grounding points to Audit
+  w.eval(`state.units=null; state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.logDigest={name:'cp4.log',model:'CP4',fw:'2.8',hostname:'CP4-LAB',appSlots:3,match:'match',recurring:[],drops:[{id:'1F',name:'',n:4}],timeouts:0,loops:0,storms:0,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
+  { const f=w.exportFactsForLLM();
+    has("log-only: console findings still feed (hostname)", /CONSOLE \/ LOG FINDINGS/.test(f) && /CP4-LAB/.test(f));
+    has("log-only: caveats that instances can't resolve without the program", /No program\/as-built loaded/.test(f));
+    has("log-only grounding: program missing -> points to Audit", /program/.test(w.trGroundHTML()) && /Audit/.test(w.trGroundHTML())); }
   // grounding: log/console findings + match verdict fed to triage when a log is loaded
   w.eval(`state.logDigest={name:'cp4.err',model:'CP4',fw:'2.8',match:'match',recurring:[{n:9,msg:'Logic could not be solved within 1500 waves',who:'LE_1',rate:'steady'}],drops:[{id:'1F',name:'NVX Zone1',n:12}],timeouts:5,loops:2,storms:1,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
   { const f=w.exportFactsForLLM();

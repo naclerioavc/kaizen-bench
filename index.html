@@ -1933,7 +1933,11 @@ function buildSwitcher(u){
   const fmt=m=>m?new Date(m).toISOString().slice(0,10):"";
   const opts=u.builds.map(b=>{ const d=fmt(b.mtime); return `<option value="${esc(b.name)}"${b.name===u.activeBuild?" selected":""}>${esc(b.name)}${d?"  \u00b7  saved "+d:""}</option>`; }).join("");
   const ab=u.builds.find(b=>b.name===u.activeBuild)||u.builds[0]; const ad=fmt(ab&&ab.mtime);
-  return `<div class="buildsw"><span class="bs-flag">\u26a0</span><label for="buildSel">Build</label><select id="buildSel">${opts}</select><span class="bs-note"><b>${u.builds.length}</b> builds here \u2014 defaulting to the <b>newest&#8209;saved</b>${ad?" ("+ad+")":""}. Which build is actually <b>deployed</b> can\u2019t be known from files alone; if it\u2019s a different one, pick it. (A loaded console/log would confirm it.)</span></div>`;
+  const L=(typeof state!=="undefined")?state.logDigest:null;
+  const conf=(L&&L.match==="match")
+    ? ` A loaded console confirms the <b>system</b> is running${L.hostname?` (<b>${esc(L.hostname)}</b>${L.fw?", fw "+esc(L.fw):""})`:""}, but it doesn\u2019t name the exact <b>build</b> \u2014 pick if you know which is deployed.`
+    : ` A console/log would confirm the system (model/hostname), though not the exact build.`;
+  return `<div class="buildsw"><span class="bs-flag">\u26a0</span><label for="buildSel">Build</label><select id="buildSel">${opts}</select><span class="bs-note"><b>${u.builds.length}</b> builds here \u2014 defaulting to the <b>newest&#8209;saved</b>${ad?" ("+ad+")":""}. Which build is actually <b>deployed</b> can\u2019t be known from files alone.${conf}</span></div>`;
 }
 function setActiveUnit(i){
   if(!state.units||!state.units[i])return;
@@ -2746,7 +2750,8 @@ function runLog(name,text){
     recurring:(a.recurring||[]).slice(0,12).map(function(t){return {n:t.n,msg:trim(t.example||t.msg||"",90),who:trim(t.who||"",30),rate:(t.rate&&t.rate.txt)||""};}),
     drops:(state.logXref&&state.logXref.drops&&state.logXref.drops.length)?state.logXref.drops.slice(0,20):(a.dropTop||[]).slice(0,20).map(function(p){return {id:String(p[0]).replace(/^IP-ID\s+/,""),name:"",n:p[1]};}),
     timeouts:(a.toRows&&a.toRows.length)||0, loops:(state.logXref&&state.logXref.loops)||0, storms:(a.storms&&a.storms.length)||0,
-    authFails:Array.isArray(a.authFails)?a.authFails.length:(a.authFails||0), missingFiles:(a.missingFiles||[]).slice(0,10), devConflicts:(a.devConflicts||[]).slice(0,10), cpu:a.cpu||a.loadavg||"" }; } else { state.logDigest=null; }
+    authFails:Array.isArray(a.authFails)?a.authFails.length:(a.authFails||0), missingFiles:(a.missingFiles||[]).slice(0,10), devConflicts:(a.devConflicts||[]).slice(0,10), cpu:a.cpu||a.loadavg||"",
+    hostname:((text.match(/Hostname\s*:\s*([^\s\r\n]+)/i)||text.match(/\n([A-Za-z0-9_-]+)\s+Cntrl Eng/)||[])[1]||""), appSlots:((text.match(/Next Application Info/gi)||[]).length||(text.match(/Application is registered/gi)||[]).length||0) }; } else { state.logDigest=null; }
   if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
 
   const worst=a.recurring[0];
@@ -3157,6 +3162,8 @@ function exportFactsForLLM(){
     if(L){
       var lg=["CONSOLE / LOG FINDINGS"+(L.name?(" ("+L.name+")"):"")+":"];
       if(L.model||L.fw) lg.push("Running: "+(L.model||"?")+(L.fw?(" firmware "+L.fw):""));
+      if(L.hostname) lg.push("Processor hostname: "+L.hostname);
+      if(L.appSlots) lg.push("Program slots running: "+L.appSlots);
       if(L.match) lg.push("Log-vs-program match: "+String(L.match).toUpperCase()+(L.match==="mismatch"?" — the log is from a DIFFERENT system; do NOT tie its events to this program.":(L.match==="match"?" — the log confirms this program/processor.":" — unconfirmed; treat correlations as best-effort.")));
       if(L.drops&&L.drops.length) lg.push("Devices dropping offline: "+L.drops.map(function(x){return (x.name||x.id)+" ("+x.n+"x)";}).join("; "));
       if(L.timeouts) lg.push("Signal-solve timeouts: "+L.timeouts+(L.loops?(" — tied to "+L.loops+" feedback loop(s) with no wave-breaker (prime suspects)"):""));
@@ -3166,6 +3173,7 @@ function exportFactsForLLM(){
       if(L.devConflicts&&L.devConflicts.length) lg.push("Device claimed by two programs: "+L.devConflicts.join(", "));
       if(L.authFails) lg.push("Failed-login events: "+L.authFails);
       if(L.cpu) lg.push("Processor load (as logged): "+L.cpu);
+      if(!facts) lg.push("(No program/as-built loaded — cannot resolve complaints to exact devices/IP-IDs; diagnose from this log + complaints, and tell the user to load the job backup in Audit for instance resolution.)");
       parts.push(lg.join("\n"));
     } else if(facts){
       parts.push("(No console/log loaded — add an Info-Tool dump in the Log Analyzer for runtime-confirmed diagnosis: which devices are actually dropping, what's timing out, and which build is deployed.)");
