@@ -351,3 +351,19 @@ Verified on a real D3 program: the per-load dim **levels** are NOT in the `.smw`
 So from static files the ceiling is **scene → loads** (membership, shipped via `parseD3Scenes` +
 `loads.dat`). The actual level each load goes to needs the **live system** (desktop-agent territory).
 Don't build a "levels" view from the files — it would be fabrication.
+
+## D3 keypad ENGRAVING LABELS — they're in the .egr files (binary Access), found
+The literal button text (e.g. "LIGHTS OFF", "PENDANTS", "CANS") is NOT in sysdata.xml (its `<Label>`
+is unrelated — scheduler names) and NOT as text in Engraving Report.htm (that's a picture). It lives
+in **`Engraving/<Room>,<Station>.egr`** files — **binary MS Access "Standard Jet DB"** databases,
+one per keypad station (filename = station). Inside, the real labels appear as a contiguous cluster
+of printable strings in the data section, AFTER all the Access schema vocabulary (MSysObjects,
+ODBCTimeout, Scripts, Reports, lf* font fields, "Crestron Sans Pro", PanelButtonNumber, TextLine1/2,
+ButtonNameInReport, etc.). To extract: pull printable strings, drop the known Access-schema/ font
+words, and the human words that remain are the engravings. Tables of interest: RequestedButton /
+PanelInfo with `PanelButtonNumber`/`PhysicalButtonNumber` + `TextLine1`/`TextLine2`.
+Status: labels are extractable (validated: Dining Hall → LIGHTS OFF / PENDANTS / CANS / KITCHEN /
+SHADES). The careful part is pairing each label to its exact button # across varied keypad models
+(button counts skip numbers, group titles vs button text). Build a dedicated .egr parser, validate
+across many stations — a WRONG label is a fail, so don't guess the pairing. The engraving IMAGE is
+already shown per keypad as the interim (labels readable in-tool, no D3 needed).
