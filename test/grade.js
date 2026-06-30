@@ -475,5 +475,17 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("system map nodes are clickable (data-unit drill)", cb.querySelectorAll('svg .sm-proc[data-unit]').length===3);
   has("system map draws bridge edges (intra+cross)", cb.querySelectorAll('svg line.sm-intra, svg line.sm-cross').length>=2);
 }
+// ===== D3 lighting wired as a real node via reciprocal EISC (not a dumb external IP) =====
+{ const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
+  const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
+  const dipOf=ps=>"[IPTable]\n"+ps.map((p,i)=>`id${i}=${p[0]}\naddr${i}=${p[1]}`).join("\n")+"\n";
+  const AV={kind:"program",name:"01-AV",folder:"01-AV",smw:proc("AV",[eisc(101,201,"03","RSD Lighting Loads")]),dip:dipOf([["03","10.0.9.201"]])};
+  const D3={kind:"d3",name:"D3 Lighting",d3:{eiscSmw:proc("D3",[eisc(301,401,"03","Remote System")]),eiscDip:dipOf([["03","10.0.9.200"]])}};
+  const G2=w.systemGraph([{kind:"system",name:"sys"},AV,D3]);
+  ck("D3 lighting becomes a graph node (kind=lighting)", G2.nodes.filter(n=>n.kind==="lighting").length, 1);
+  ck("D3 lighting: reciprocal EISC resolved => zero external nodes", G2.external.length, 0);
+  const e2=G2.edges.find(x=>/^u/.test(x.b));
+  has("AV<->D3 is a real cross-box bridge by shared IP-ID (was external before)", !!e2 && e2.kind==="cross" && e2.ipids.indexOf("03")>=0);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

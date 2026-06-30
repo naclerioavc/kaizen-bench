@@ -1687,12 +1687,15 @@ function systemSummary(units){
   return { processors:procs, totals:{ processors:procs.length, signals:sum("signals"), symbols:sum("symbols"), devices:sum("devices"), ipids:sum("ipids"), eisc:sum("eisc") } };
 }
 function systemGraph(units){
-  const progs=[]; (units||[]).forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progs.push({i,u}); });
-  const nodes=progs.map(p=>({ id:"u"+p.i, unitIndex:p.i, kind:"processor", label:(p.u.folder||p.u.name||("Unit "+p.i)), program:p.u.name||"" }));
+  const progs=[]; (units||[]).forEach((u,i)=>{
+    if(u.kind==="program"&&u.smw) progs.push({i,u,smw:u.smw,dip:u.dip,nkind:"processor"});
+    else if(u.kind==="d3"&&u.d3&&u.d3.eiscSmw) progs.push({i,u,smw:u.d3.eiscSmw,dip:u.d3.eiscDip,nkind:"lighting"});
+  });
+  const nodes=progs.map(p=>({ id:"u"+p.i, unitIndex:p.i, kind:p.nkind, label:(p.u.folder||p.u.name||("Unit "+p.i)), program:p.u.name||"" }));
   const isLoop=ip=>/^127\./.test(ip||"");
   const linksByNode={}, ipidMap={};
-  progs.forEach(p=>{ let dip=new Map(); try{ dip=p.u.dip?parseDip(p.u.dip):new Map(); }catch(e){}
-    let ls=[]; try{ ls=eiscLinks(p.u.smw,dip); }catch(e){}
+  progs.forEach(p=>{ let dip=new Map(); try{ dip=p.dip?parseDip(p.dip):new Map(); }catch(e){}
+    let ls=[]; try{ ls=eiscLinks(p.smw,dip); }catch(e){}
     linksByNode[p.i]=ls;
     ls.forEach((l,li)=>{ const id=(l.ipid||"").toUpperCase(); if(!id)return; (ipidMap[id]=ipidMap[id]||[]).push({node:p.i,ip:(l.ip||"").trim(),target:l.target||"",li}); });
   });
@@ -1727,24 +1730,30 @@ function renderSystemMap(g){
   const procs=g.nodes||[], ext=g.external||[]; if(procs.length<2) return "";
   const deg={}; g.edges.forEach(e=>{ deg[e.a]=(deg[e.a]||0)+1; deg[e.b]=(deg[e.b]||0)+1; });
   let hub=null,hd=-1; procs.forEach(p=>{ const d=deg[p.id]||0; if(d>hd){hd=d;hub=p;} });
-  const W=820, H=Math.max(380, 220+procs.length*10), cx=W/2, cy=H/2;
   const spokes=procs.filter(p=>p!==hub);
   const useHub = hub && hd>=2 && hd>=Math.ceil(spokes.length*0.6);
-  const pos={}, R=Math.min(W,H)/2-115;
-  if(useHub){ pos[hub.id]={x:cx,y:cy}; spokes.forEach((p,k)=>{ const a=-Math.PI/2+2*Math.PI*k/Math.max(spokes.length,1); pos[p.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}; }); }
-  else { procs.forEach((p,k)=>{ const a=-Math.PI/2+2*Math.PI*k/procs.length; pos[p.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}; }); }
-  const Rx=Math.min(W,H)/2-28;
-  ext.forEach((x,k)=>{ const src=(x.froms&&x.froms[0])?pos["u"+x.froms[0].node]:null; let a=src?Math.atan2(src.y-cy,src.x-cx):(-Math.PI/2+2*Math.PI*k/Math.max(ext.length,1)); a+=(k%2?0.2:-0.2); pos[x.id]={x:cx+Rx*Math.cos(a),y:cy+Rx*Math.sin(a)}; });
-  const lineSvg=e=>{ const A=pos[e.a],B=pos[e.b]; if(!A||!B)return""; const mx=(A.x+B.x)/2,my=(A.y+B.y)/2; const lbl=(e.ipids&&e.ipids.length)?("ID "+e.ipids.join(",")):"";
-    return `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" class="sm-${e.kind}"/>`+(lbl?`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" class="sm-elbl">${esc(lbl)}</text>`:""); };
-  const nodeSvg=n=>{ const p=pos[n.id]; if(!p)return""; const w=146,h=40,x=p.x-w/2,y=p.y-h/2,proc=n.kind==="processor";
-    const lab=esc((n.label||"").length>23?(n.label.slice(0,22)+"…"):(n.label||"")); const sub=proc?"processor":(n.loop?"slot not in drop":"external system");
-    return `<g class="smnode ${proc?'sm-proc':'sm-ext'}"${proc?` data-unit="${n.unitIndex}" tabindex="0" role="button"`:""}><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" rx="7" width="${w}" height="${h}"/><text x="${p.x.toFixed(1)}" y="${(p.y-2).toFixed(1)}" class="sm-nl">${lab}</text><text x="${p.x.toFixed(1)}" y="${(p.y+12).toFixed(1)}" class="sm-ns">${esc(sub)}</text></g>`; };
+  const bw=132, bh=38, gap=36;
+  const ringNodes = useHub? spokes : procs;
+  const n=Math.max(ringNodes.length,1);
+  const R=Math.max(useHub?170:140, Math.ceil(n*(bw+gap)/(2*Math.PI)));
+  const Rx=R+bw*0.85+38;
+  const pad=bw/2+48;
+  const S=Math.round(2*(Rx+pad/2)), cx=S/2, cy=S/2;
+  const pos={};
+  if(useHub) pos[hub.id]={x:cx,y:cy};
+  ringNodes.forEach((p,k)=>{ const a=-Math.PI/2+2*Math.PI*k/n; pos[p.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}; });
+  ext.forEach((x,k)=>{ const src=(x.froms&&x.froms[0])?pos["u"+x.froms[0].node]:null; let a; if(src&&!(src.x===cx&&src.y===cy)) a=Math.atan2(src.y-cy,src.x-cx); else a=-Math.PI/2+2*Math.PI*k/Math.max(ext.length,1); a+=(k%2?0.16:-0.16); pos[x.id]={x:cx+Rx*Math.cos(a),y:cy+Rx*Math.sin(a)}; });
+  const lineSvg=e=>{ const A=pos[e.a],B=pos[e.b]; if(!A||!B)return""; const t=(e.ipids&&e.ipids.length)?("IP-ID "+e.ipids.join(", ")+(e.ip?" @ "+e.ip:"")):""; return `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" class="sm-${e.kind}">${t?`<title>${esc(t)}</title>`:""}</line>`; };
+  const nodeSvg=nd=>{ const p=pos[nd.id]; if(!p)return""; const x=p.x-bw/2,y=p.y-bh/2;
+    const click=nd.kind==="processor"||nd.kind==="lighting";
+    const cls=nd.kind==="lighting"?"sm-light":(nd.kind==="processor"?"sm-proc":"sm-ext");
+    const full=nd.label||""; const lab=esc(full.length>20?(full.slice(0,19)+"…"):full);
+    const sub=nd.kind==="lighting"?"lighting":(click?(deg[nd.id]?(deg[nd.id]+" link"+(deg[nd.id]>1?"s":"")):"no EISC"):(nd.loop?"slot not in drop":"external"));
+    return `<g class="smnode ${cls}"${click?` data-unit="${nd.unitIndex}" tabindex="0" role="button"`:""}><title>${esc(full)}</title><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" rx="7" width="${bw}" height="${bh}"/><text x="${p.x.toFixed(1)}" y="${(p.y-1).toFixed(1)}" class="sm-nl">${lab}</text><text x="${p.x.toFixed(1)}" y="${(p.y+12).toFixed(1)}" class="sm-ns">${esc(sub)}</text></g>`; };
   const edgesSvg=g.edges.map(lineSvg).join(""), nodesSvg=procs.map(nodeSvg).join("")+ext.map(nodeSvg).join("");
-  const legend=`<g transform="translate(14,${H-16})"><line x1="0" y1="0" x2="22" y2="0" class="sm-intra"/><text x="28" y="4" class="sm-lg">same box (loopback)</text><line x1="172" y1="0" x2="194" y2="0" class="sm-cross"/><text x="200" y="4" class="sm-lg">separate box (IP)</text><line x1="320" y1="0" x2="342" y2="0" class="sm-external"/><text x="348" y="4" class="sm-lg">external / not in drop</text></g>`;
-  return `<div class="smwrap"><svg viewBox="0 0 ${W} ${H}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;font-family:inherit}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.sm-elbl{fill:#6b7280;font-size:9px;text-anchor:middle}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-proc{cursor:pointer}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-proc:hover rect{fill:#dbe7ff}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
+  const legend=`<g transform="translate(14,${S-14})"><line x1="0" y1="0" x2="22" y2="0" class="sm-intra"/><text x="28" y="4" class="sm-lg">same box (loopback)</text><line x1="166" y1="0" x2="188" y2="0" class="sm-cross"/><text x="194" y="4" class="sm-lg">separate box (IP)</text><rect x="312" y="-6" width="13" height="13" rx="3" class="sm-lgl"/><text x="330" y="4" class="sm-lg">lighting</text><line x1="400" y1="0" x2="422" y2="0" class="sm-external"/><text x="428" y="4" class="sm-lg">external / not in drop</text></g>`;
+  return `<div class="smwrap"><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
 }
-
 function renderWholeSystem(){
   const us=state.units||[]; const progIdx=[]; us.forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progIdx.push(i); });
   const ss=systemSummary(us), t=ss.totals;
@@ -2230,6 +2239,7 @@ function buildD3(files, rootLower){
       var rs=parseD3Scenes(decodeText(progSmw.bytes));
       var sl=rs.map(function(sc){ return { scene:sc.scene, room:sceneRoom[(sc.scene||"").toLowerCase()]||"", loads:sc.loadIds.map(function(id){return nameById[String(id)]||("Load "+id);}) }; }).filter(function(x){return x.loads.length;});
       if(sl.length) d3.sceneLoads=sl;
+      try{ d3.eiscSmw=decodeText(progSmw.bytes); var _dp=files.find(function(f){ return f.name.replace(/\.smw$/i,".dip")===progSmw.name; }); d3.eiscDip=_dp?decodeText(_dp.bytes):null; }catch(e){}
     }catch(e){} }
   }
   var sx=files.find(function(f){ return /\/documentation\/sysdata\.xml$/i.test(f.name.replace(/\\/g,"/")) && inR(f); });
