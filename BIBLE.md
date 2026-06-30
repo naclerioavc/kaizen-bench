@@ -347,7 +347,7 @@ Hard-won from refining the theme set + Plumber/Pipe Dream. Follow these; a new t
 - **Easter egg rules:** original shapes + original name only (IP-safe — no Nintendo assets/names);
   isolated full-screen overlay; **canvas `getContext` only on open** so it never runs during grading
   or touches the tool; **local-only leaderboard** (a static app can't do a global one — top-5 times
-  with initials in `localStorage`). A new franchise = palette + sprite-color reskin of the same code:
+  with initials in `localStorage`). Each easter egg is now its **own game mode**, not just a palette reskin: Plumber=`PIPE DREAM` (speedrun platformer), Monkey=`WIRE MONKEY` (`mode:"climb"` — original DK-style: zig-zag ladders, an ape tossing barrels, reach the top; player sprite unchanged), Office Fighter=`OFFICE FIGHTER` (`mode:"smash"`). The launcher button is themed (Mario `?`-block / DK barrel / fight ★). Theme menu names are trademark-safe (Synthwave→`Purple Stuff`, Matrix→`Anomaly`); `data-theme` ids are unchanged so CSS/localStorage keys stay stable. Verified headless (mock 2D ctx + manual rAF pump): 1,500 climb frames, 0 runtime errors. Older note below kept for the reskin philosophy: A new franchise = palette + sprite-color reskin of the same code:
   Sonic → blue base, gold rings, green/checker; Donkey Kong → jungle browns/greens, red-tie accent.
 
 ## D3 scene LEVELS are runtime, not static (don't chase them in the files)
