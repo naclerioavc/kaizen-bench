@@ -422,5 +422,12 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null;");
   has("exportFactsForLLM with nothing loaded gives clear guidance", /No program loaded/i.test(w.exportFactsForLLM()));
 }
+// ===== D3 scene contents: scene -> the loads it controls (button = scene = these loads) =====
+{ const prog="[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_47_In_Scene]\n[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_48_In_Scene]\n[ObjTp=Sg\nNm=[_Area_Scene][Up_All_ON]Load_47_In_Scene]";
+  const sc=w.parseD3Scenes(prog);
+  const ev=sc.find(x=>x.scene==="Evening");
+  has("D3 scene contents: scene resolves to its load IDs", !!ev && ev.loadIds.join(",")==="47,48");
+  has("D3 scene contents: underscores in scene names normalized to spaces", sc.some(x=>x.scene==="Up All ON"));
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

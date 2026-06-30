@@ -1600,6 +1600,10 @@ function renderD3(d3){
       html+=card("Lighting scenes",lt.scenes.length,`<p class="card-intro">Every lighting <b>scene</b> and its room. Scene names match the keypad engraving — the button→scene link.</p>`+tbl([{t:"Scene"},{t:"Room"}],screws,1),false);
     }
   }
+  if(d3.sceneLoads && d3.sceneLoads.length){
+    const slr=d3.sceneLoads.map(s=>`<tr><td class="data">${esc(s.scene)}</td><td class="num data">${s.loads.length}</td><td class="data muted" title="${esc(s.loads.join(", "))}">${esc(trim(s.loads.join(", "),96))}</td></tr>`).join("");
+    html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>.</p>`+tbl([{t:"Scene"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
+  }
   return html;
 }
 // Intersystem (EISC) links live as Sm symbols ("...Ethernet Intersystem Communications" / EISC),
@@ -2032,6 +2036,14 @@ function chooseAllPrograms(files){
   norm.forEach(p=>{ const m=p.match(/^(.*\/)data\/(?:areas|rooms|loads|scenes)\.dat$/i)||p.match(/^(.*\/)documentation\/loadwiring\.html?$/i); if(m&&!/\/autosave\//i.test(m[1])) d3.add(m[1]); });
   return { programs:units, d3roots:[...d3] };
 }
+// Scene -> loads it controls, straight from the D3 program .smw: scene blocks
+// [_..Scene][<Name>] expose Load_NN_In_Scene signals; NN = LoadID (resolve via loads.dat).
+// Validated against a real D3 job. (Exact per-load dim levels live in the preset modules — not here yet.)
+function parseD3Scenes(smw){
+  var re=/\[_[A-Za-z_]*[Ss]cene\]\[([^\]]+)\]Load_(\d+)_In_Scene/g, m, map={};
+  while((m=re.exec(String(smw)))){ var nm=m[1].replace(/_/g," ").trim(); (map[nm]=map[nm]||{})[+m[2]]=1; }
+  return Object.keys(map).map(function(nm){ return { scene:nm, loadIds:Object.keys(map[nm]).map(Number).sort(function(a,b){return a-b;}) }; });
+}
 function buildD3(files, rootLower){
   const inR=f=>!rootLower || f.name.replace(/\\/g,"/").toLowerCase().startsWith(rootLower);
   const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inR(f));
@@ -2045,6 +2057,15 @@ function buildD3(files, rootLower){
     if(dw){ try{ Object.assign(d3,parseD3Loadwiring(decodeText(dw.bytes))); }catch(e){} }
     if(dsch){ try{ d3.schedule=parseD3LoadSchedule(decodeText(dsch.bytes)); }catch(e){} }
     if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} } }); d3.keypads=eng; }catch(e){} }
+  }
+  if(d3 && d3.lighting && d3.lighting.loads && d3.lighting.loads.length){
+    var progSmw=files.find(function(f){ var p=f.name.replace(/\\/g,"/"); return /\/programs\/.*\.smw$/i.test(p) && inR(f) && !/\/autosave\//i.test(p); });
+    if(progSmw){ try{
+      var nameById={}; d3.lighting.loads.forEach(function(l){ nameById[String(l.id)]=l.name; });
+      var rs=parseD3Scenes(decodeText(progSmw.bytes));
+      var sl=rs.map(function(sc){ return { scene:sc.scene, loads:sc.loadIds.map(function(id){return nameById[String(id)]||("Load "+id);}) }; }).filter(function(x){return x.loads.length;});
+      if(sl.length) d3.sceneLoads=sl;
+    }catch(e){} }
   }
   return d3;
 }
@@ -2534,7 +2555,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     rect(px+2,py+9,2,12,"#f4f4f4"); rect(px+18,py+9,2,12,"#f4f4f4");          // white arm stripes
     rect(px+10,py+9,1,12,"#444");                                             // zipper
     rect(px+6,py+2,10,8,"#f1c08a");                                          // face
-    rect(px+7,py+8,8,2,"#241813");                                           // mustache
+    rect(px+6,py+8,10,3,"#1c1009");                                          // mustache (thicker so it reads)
     rect(dir<0?px+7:px+12,py+5,2,2,"#15182b");                               // eye
     rect(px+4,py-2,14,4,"#141414");                                          // black ball cap
     rect(dir<0?px+13:px+0,py,8,2,"#141414");                                 // cap brim (faces travel dir)
@@ -2657,7 +2678,7 @@ function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\
   });
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
