@@ -48,6 +48,7 @@
   .themewrap{position:relative;margin-left:auto}
   .themebtn{display:inline-flex;align-items:center;gap:8px;background:var(--panel2);color:var(--mut);border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer;transition:color .13s ease,border-color .13s ease}
   .themebtn:hover{color:var(--ink);border-color:var(--dim)}
+  .themebtn .tlbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-right:2px}
   .themebtn .tcar{font-size:9px;opacity:.7;margin-left:1px}
   .thememenu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;min-width:186px;box-shadow:0 12px 34px rgba(0,0,0,.45);max-height:min(70vh,440px);overflow:auto}
   .thememenu[hidden]{display:none}
@@ -493,7 +494,7 @@
     <button data-tab="help">Help</button>
     <div class="themewrap">
       <button class="themebtn" id="themeBtn" aria-haspopup="true" aria-expanded="false" title="Theme">
-        <span class="tdot" id="themeDot"></span><span id="themeName">Midnight</span><span class="tcar">▾</span>
+        <span class="tlbl">Theme</span><span class="tdot" id="themeDot"></span><span id="themeName">Midnight</span><span class="tcar">▾</span>
       </button>
       <div class="thememenu" id="themeMenu" role="menu" hidden></div>
     </div>
