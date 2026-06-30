@@ -213,9 +213,9 @@
   [data-theme="dk"] #mgTrigger:active{box-shadow:0 1px 0 #4a3320}
   [data-theme="dk"] #mgTrigger::before{content:"";position:absolute;left:-1px;right:-1px;top:9px;height:3px;background:#5e3414;box-shadow:0 14px 0 #5e3414}
   [data-theme="dk"] #mgTrigger::after{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:2px;margin-left:-1px;background:rgba(0,0,0,.16)}
-  [data-theme="brawler"] #mgTrigger{background:#3a3f4b;border:2px solid #e8403a;box-shadow:0 4px 0 #8a1f1c;color:transparent;position:relative}
+  [data-theme="brawler"] #mgTrigger{background:#23262e;border:2px solid #ffb02e;box-shadow:0 4px 0 #8a1f1c;color:transparent;position:relative;border-radius:6px}
   [data-theme="brawler"] #mgTrigger:active{box-shadow:0 1px 0 #8a1f1c}
-  [data-theme="brawler"] #mgTrigger::after{content:"\2605";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ffb02e;font-size:19px;font-weight:800}
+  [data-theme="brawler"] #mgTrigger::after{content:"OF";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ffd23a;font:900 italic 17px system-ui;-webkit-text-stroke:1.1px #b3231d;text-shadow:1px 1px 0 #7a1410;transform:skewX(-8deg)}
   [data-theme="brawler"] .mg-title{font-style:italic;font-weight:900;letter-spacing:1px;color:#ffd23a;-webkit-text-stroke:1.5px #b3231d;text-shadow:2px 3px 0 #7a1410;transform:skewX(-8deg)}
   #mgOverlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center}
   #mgOverlay.hide{display:none}
@@ -1298,6 +1298,8 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     else document.documentElement.removeAttribute("data-theme");
     try{localStorage.setItem("simplbench-theme",id);}catch(e){}
     cur=id;
+    var _mt=document.getElementById("mgTrigger");
+    if(_mt){ var _tt={plumber:"Pipe Dream \u2014 hit the block",dk:"Wire Monkey \u2014 climb to the top",brawler:"Office Fighter \u2014 smash the printer"}; _mt.title=_tt[id]||"Play"; }
     void document.documentElement.offsetWidth; // nudge a reflow after the theme-var change
     var t=THEMES.filter(function(x){return x.id===id;})[0]||THEMES[0];
     nameEl.textContent=t.name;
