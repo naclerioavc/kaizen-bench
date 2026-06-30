@@ -378,3 +378,25 @@ This repo IS the handoff. To pick up: `git clone`, then read this BIBLE + `index
 - Build with `git clone` into a scratch dir, edit, `node test/grade.js`, privacy-grep, commit, push
   with a fresh fine-grained token (never store the token in a file).
 (Business model, real-client validation notes, and credentials live in LOCAL docs only — never here.)
+
+## NEXT — lead build items (start here in a fresh session)
+**Design north star: zero learning curve.** The user should not have to think, learn the system, or
+read a manual. Drop files → the tool surfaces what matters and points them at it. Dummy-proof beats
+feature-rich. Everything below is buildable NOW because the deterministic model is done + validated
+(no guesses) — these are render/UX layers on top of `systemSummary`, `eiscLinks`, `chooseAllPrograms`.
+
+1. **Visual System Map (headline — the "nothing else does this" demo).** A rendered topology of a
+   whole job: a node per processor, lines for the cross-processor **EISC bridges** (`127.0.0.N` =
+   slot N same box; real IP = separate system), the D3/RSD lighting systems hanging off, clickable to
+   drill into each processor's audit. Generate deterministically from `systemSummary()` + `eiscLinks()`
+   (both done + graded). This is the visual that makes a multi-processor job finally *legible* — no
+   Crestron tool shows it. Pure SVG/canvas, no deps.
+2. **Per-processor build switcher.** Today `chooseAllPrograms` auto-picks the primary `.smw` per
+   folder and lists the rest as `versions`. Add a small "build: [v2_0_4 ▾]" override on a processor
+   with multiple builds so the user can choose which one is active (auto-pick stays the default).
+   Needs the unzipped file bytes retained so a switch can re-parse. Ties to "which build is deployed?"
+3. **Contextual "what's in this drop" line (dummy-proof onboarding, NOT a wizard).** One deterministic
+   sentence from the mined facts at the top of a drop: e.g. "This job: 2 processors (AV + Security) +
+   1 D3 lighting project, linked by 3 EISC bridges — start with the System Map." Points people at the
+   right tab with zero thinking. Deeper guidance already lives in the opt-in Triage/LLM tab — don't
+   rebuild that here; keep this a single factual line + 2-3 suggested actions.
