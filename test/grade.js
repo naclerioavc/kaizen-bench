@@ -437,5 +437,12 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("sysdata: button event resolves to its preset", sd.keypads[0].buttons[0].events[0].preset==="307");
   ck("sysdata: preset step -> load + level + fade", [sd.presets["307"][0].load,sd.presets["307"][0].level,sd.presets["307"][0].fade], ["Demo Room, Wall Sconces","70%","2s"]);
 }
+// ===== D3 .egr engraving labels (binary Access) — the literal button text =====
+{ // build a tiny fake .egr byte run: 0x06 0x40 LABEL <repeated artifact>
+  function cam(label){ var a=[0x06,0x40]; for(var k=0;k<label.length;k++)a.push(label.charCodeAt(k)); a.push(0x7b,0x7b,0x7b,0x71); return a; }
+  var bytes=[].concat(cam("LIGHTS OFF"),[0,0,0],cam("PENDANTS"),[0,0],cam("CANS"));
+  var labs=w.parseD3Egr(new Uint8Array(bytes));
+  ck("parseD3Egr extracts engraved labels in order, artifact stripped", labs, ["LIGHTS OFF","PENDANTS","CANS"]);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
