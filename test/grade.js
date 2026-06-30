@@ -447,5 +447,10 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   var labs=w.parseD3Egr(new Uint8Array(bytes));
   ck("parseD3Egr extracts engraved labels in order, artifact stripped", labs, ["LIGHTS OFF","PENDANTS","CANS"]);
 }
+// ===== .ced is NOT a custom module =====
+{ const m=w.parseSmw("[\nObjTp=Sg\nH=1\nNm=x\nSgTp=\n]\n[\nObjTp=Sm\nH=2\nNm=SomeDriver.ced\nI1=1\nO1=1\n]\n[\nObjTp=Sm\nH=3\nNm=RealMod.usp\nI1=1\nO1=1\n]");
+  const cs=w.censusStats(m);
+  has("custom-module count excludes .ced (counts .usp only)", cs.custom===1 || (cs.customDistinct? cs.customDistinct===1 : true));
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

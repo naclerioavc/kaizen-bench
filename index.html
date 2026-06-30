@@ -1145,7 +1145,7 @@ function runDiff(){
 
 /* ---------- Program Structure (census + wire-map analysis) ---------- */
 function isReservedSig(nm){ return !nm || nm==="?" || nm.charAt(0)==="/" ; }
-const CUSTOM_RE=/\.(usp|ush|umc|cmc|clz|ced|smw)$/i;
+const CUSTOM_RE=/\.(usp|ush|umc|cmc|clz)$/i;
 function censusStats(s){
   const withIO=s.syms.filter(x=>x.ins.length||x.outs.length);
   let D=0,A=0,Ser=0;
@@ -1635,15 +1635,15 @@ function renderD3(d3){
     }
   }
   if(d3.sceneLoads && d3.sceneLoads.length){
-    const slr=d3.sceneLoads.map(s=>`<tr><td class="data">${esc(s.scene)}</td><td class="num data">${s.loads.length}</td><td class="data muted" title="${esc(s.loads.join(", "))}">${esc(trim(s.loads.join(", "),96))}</td></tr>`).join("");
+    const slr=d3.sceneLoads.map(s=>`<tr><td class="data">${esc(s.scene)}</td><td class="data muted">${esc(s.room||"—")}</td><td class="num data">${s.loads.length}</td><td class="data muted" title="${esc(s.loads.join(", "))}">${esc(trim(s.loads.join(", "),96))}</td></tr>`).join("");
   if(d3.sysKeypads && d3.sysKeypads.length){
     const rows=[]; d3.sysKeypads.forEach(kp=>kp.buttons.forEach(b=>{
       const rec=b.steps&&b.steps.length ? b.steps.slice(0,5).map(st=>esc(st.load)+(st.level?(" <b>"+esc(st.level)+"</b>"):"")).join(", ")+(b.steps.length>5?(" <span class=\"muted\">+"+(b.steps.length-5)+"</span>"):"") : '<span class="muted">—</span>';
-      rows.push(`<tr><td class="data">${esc(kp.name||"")}</td><td class="data muted">${esc(kp.address||"")}</td><td class="data">${esc(b.name||"")}${b.model?` <span class="muted">${esc(b.model)}</span>`:""}</td><td class="data muted">${esc(b.primary?b.primary.name:"")}</td><td class="data">${rec}</td></tr>`);
+      rows.push(`<tr><td class="data muted">${esc(kp.roomName||"—")}</td><td class="data">${esc(kp.name||"")}</td><td class="data muted">${esc(kp.address||"")}</td><td class="data">${esc(b.name||"")}${b.model?` <span class="muted">${esc(b.model)}</span>`:""}</td><td class="data muted">${esc(b.primary?b.primary.name:"")}</td><td class="data">${rec}</td></tr>`);
     }));
-    html+=card("Keypad buttons — what each does",rows.length,`<p class="card-intro">Every keypad button and <b>exactly what it recalls</b> — the loads and their <b>levels</b>, from the D3 project (<code>sysdata.xml</code>). Answers &ldquo;what does this button do?&rdquo; on the phone, no D3.</p>`+tbl([{t:"Keypad"},{t:"Net-ID"},{t:"Button"},{t:"Press"},{t:"Recalls (load @ level)"}],rows.join(""),1),false);
+    html+=card("Keypad buttons — what each does",rows.length,`<p class="card-intro">Every keypad button and <b>exactly what it recalls</b> — the loads and their <b>levels</b>, from the D3 project (<code>sysdata.xml</code>). Answers &ldquo;what does this button do?&rdquo; on the phone, no D3.</p>`+tbl([{t:"Room"},{t:"Keypad"},{t:"Net-ID"},{t:"Button"},{t:"Press"},{t:"Recalls (load @ level)"}],rows.join(""),1),false);
   }
-    html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>. <span class="muted">(Each load&rsquo;s dim <i>level</i> is saved live on the processor, not in the files.)</span></p>`+tbl([{t:"Scene"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
+    html+=card("Scene contents",d3.sceneLoads.length,`<p class="card-intro">What each <b>scene</b> actually controls — the exact loads it recalls, from the D3 program. The keypad button engraved with the scene name does <b>this</b>. <span class="muted">(Each load&rsquo;s dim <i>level</i> is saved live on the processor, not in the files.)</span></p>`+tbl([{t:"Scene"},{t:"Room"},{t:"Loads",num:1},{t:"Controls (loads)"}],slr,1),false);
   }
   return html;
 }
@@ -1897,7 +1897,7 @@ function runAudit(){
       html+=`<div class="section-label">Checks</div>`+card("Worth a quick look",actionN,b,true,"attn");
     }
   }
-  if(pr.d3 && ((pr.d3.loads&&pr.d3.loads.length)||pr.d3.lighting||pr.d3.schedule||pr.d3.keypads)){ html+=`<div class="section-label">Lighting (D3 Pro)</div>`+renderD3(pr.d3); }
+  if(pr.d3 && ((pr.d3.loads&&pr.d3.loads.length)||pr.d3.lighting||pr.d3.schedule||pr.d3.keypads)){ html+=`<div class="section-label">Lighting (D3 Pro)${(pr.d3.meta&&pr.d3.meta.project)?(" &mdash; "+esc(pr.d3.meta.project)):(pr.name?(" &mdash; "+esc(pr.name)):"")}</div>`+renderD3(pr.d3); }
   if(m && state.logXref){ const lx=state.logXref;
     const total=lx.drops.length+(lx.loops&&lx.waveTimeouts?1:0)+lx.missingFiles.length+lx.devConflicts.length;
     if(total){ let lb=`<p class="card-intro">Pulled from the error log you loaded, tied back to this program &mdash; click to dig in.</p>`;
@@ -2158,15 +2158,18 @@ function buildD3(files, rootLower){
     var progSmw=files.find(function(f){ var p=f.name.replace(/\\/g,"/"); return /\/programs\/.*\.smw$/i.test(p) && inR(f) && !/\/autosave\//i.test(p); });
     if(progSmw){ try{
       var nameById={}; d3.lighting.loads.forEach(function(l){ nameById[String(l.id)]=l.name; });
+      var roomById={}; (d3.lighting.rooms||[]).forEach(function(r){ roomById[String(r.id)]=r.name; });
+      var sceneRoom={}; (d3.lighting.scenes||[]).forEach(function(x){ sceneRoom[(x.name||"").toLowerCase()]=roomById[String(x.roomId)]||""; });
       var rs=parseD3Scenes(decodeText(progSmw.bytes));
-      var sl=rs.map(function(sc){ return { scene:sc.scene, loads:sc.loadIds.map(function(id){return nameById[String(id)]||("Load "+id);}) }; }).filter(function(x){return x.loads.length;});
+      var sl=rs.map(function(sc){ return { scene:sc.scene, room:sceneRoom[(sc.scene||"").toLowerCase()]||"", loads:sc.loadIds.map(function(id){return nameById[String(id)]||("Load "+id);}) }; }).filter(function(x){return x.loads.length;});
       if(sl.length) d3.sceneLoads=sl;
     }catch(e){} }
   }
   var sx=files.find(function(f){ return /\/documentation\/sysdata\.xml$/i.test(f.name.replace(/\\/g,"/")) && inR(f); });
   if(sx){ try{
     var sd=parseD3SysData(decodeText(sx.bytes));
-    sd.keypads.forEach(function(kp){ kp.buttons.forEach(function(b){
+    var kpRoom={}; (d3.lighting&&d3.lighting.rooms||[]).forEach(function(r){ kpRoom[String(r.id)]=r.name; });
+    sd.keypads.forEach(function(kp){ kp.roomName=kpRoom[String(kp.roomId)]||""; kp.buttons.forEach(function(b){
       var ev=b.events.filter(function(e){return sd.presets[e.preset]&&sd.presets[e.preset].length;})[0]||b.events[0]||null;
       b.primary=ev; b.steps=(ev&&sd.presets[ev.preset])||[];
     }); });
