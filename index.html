@@ -18,17 +18,30 @@
   [data-theme="daylight"]{--bg:#f5f7fa;--panel:#ffffff;--panel2:#eef2f7;--line:#d9e0e8;--ink:#1b2733;--mut:#586675;--dim:#93a1b0;--stripe:#2f6df6;--trace:#2f6df6;--ok:#0f9d68;--warn:#b8690a;--bad:#d8384f;}
   /* Plumber -- Mario overworld: sky-blue page, white cloud cards, DARK navy text (readable), brick-red / coin-gold / pipe-green accents */
   [data-theme="plumber"]{--bg:#5c94fc;--panel:#ffffff;--panel2:#eaf1ff;--line:#b3c9ee;--ink:#15233f;--mut:#33507e;--dim:#294573;--stripe:#e52521;--trace:#1f9e3a;--ok:#1f9e3a;--warn:#e09100;--bad:#e52521;}
+  /* Sonic -- blue speed + gold rings */
+  [data-theme="sonic"]{--bg:#2aa8e8;--panel:#ffffff;--panel2:#e6f3fc;--line:#b6dcf2;--ink:#0f273d;--mut:#3a5e7a;--dim:#2b4a64;--stripe:#f2a800;--trace:#1f86c8;--ok:#2ba84a;--warn:#e08a00;--bad:#e0414a;}
+  /* Donkey -- jungle browns/greens + banana gold */
+  [data-theme="dk"]{--bg:#3a9a5c;--panel:#ffffff;--panel2:#e7f2e7;--line:#bcd9bc;--ink:#16280f;--mut:#3c5a30;--dim:#2e4824;--stripe:#d8541f;--trace:#7a4a1f;--ok:#2f9e3a;--warn:#c07a00;--bad:#d8541f;}
   main,footer{position:relative;z-index:1}
   header{position:relative;z-index:40}
   /* Daylight (light theme): keep branding + signal-mark legible on the pale base */
   [data-theme="daylight"] .lockup .logo{color:#1b2733}
   [data-theme="daylight"] .lockup .logo.light{color:#586675}
   [data-theme="daylight"] .mark rect[fill="#e9e9ee"]{fill:#1b2733}
+  [data-theme="sonic"] .lockup .logo{color:#0f273d} [data-theme="sonic"] .lockup .logo.light{color:#3a5e7a} [data-theme="sonic"] .mark rect[fill="#e9e9ee"]{fill:#0f273d}
+  [data-theme="dk"] .lockup .logo{color:#16280f} [data-theme="dk"] .lockup .logo.light{color:#3c5a30} [data-theme="dk"] .mark rect[fill="#e9e9ee"]{fill:#16280f}
   [data-theme="plumber"] .lockup .logo{color:#15233f}
   [data-theme="plumber"] .lockup .logo.light{color:#33507e}
   [data-theme="plumber"] .mark rect[fill="#e9e9ee"]{fill:#15233f}
-  [data-theme="plumber"] .card,[data-theme="plumber"] .panel{box-shadow:0 3px 0 rgba(20,35,63,.18)}
+  [data-theme="plumber"] .card,[data-theme="plumber"] .panel,[data-theme="sonic"] .card,[data-theme="sonic"] .panel,[data-theme="dk"] .card,[data-theme="dk"] .panel{box-shadow:0 3px 0 rgba(20,35,63,.16)}
+  [data-theme="plumber"] html{background:#3cb043}
+  [data-theme="sonic"] html{background:#45b048}
+  [data-theme="dk"] html{background:#5a3a1a}
   [data-theme="plumber"] footer{background:#3cb043;border-top:4px solid #2a7d2f;color:#0c2a08}
+  [data-theme="sonic"] footer{background:#45b048;border-top:4px solid #2f7d2f;color:#0c2a08}
+  [data-theme="sonic"] footer .cta,[data-theme="sonic"] footer .cta a{color:#0c2a08;border-bottom-color:#0c2a08}
+  [data-theme="dk"] footer{background:#5a3a1a;border-top:4px solid #3a2410;color:#f3e9d8}
+  [data-theme="dk"] footer .cta,[data-theme="dk"] footer .cta a{color:#f3e9d8;border-bottom-color:#f3e9d8}
   [data-theme="plumber"] footer .cta{color:#0c2a08}
   [data-theme="plumber"] footer .cta a{color:#0c2a08;border-bottom-color:#0c2a08}
   /* lock Kaizen Logic branding -- theme-independent */
@@ -195,7 +208,7 @@
   .unitpill.on{background:var(--trace);border-color:var(--trace);color:#fff}
   /* Plumber Quest easter egg (Plumber theme only) */
   #mgGround{display:none}
-  [data-theme="plumber"] #mgGround{display:flex;justify-content:center;margin-bottom:-6px;position:relative;z-index:2}
+  [data-theme="plumber"] #mgGround,[data-theme="sonic"] #mgGround,[data-theme="dk"] #mgGround{display:flex;justify-content:center;margin-bottom:-6px;position:relative;z-index:2}
   #mgTrigger{width:40px;height:40px;border-radius:7px;background:#fbc02d;border:2px solid #c8960c;color:#7a4a00;font-weight:800;font-size:20px;cursor:pointer;box-shadow:0 4px 0 #2a7d2f;font-family:inherit;line-height:1}
   #mgTrigger:hover{filter:brightness(1.06)}
   #mgTrigger:active{transform:translateY(3px);box-shadow:0 1px 0 #2a7d2f}
@@ -242,8 +255,10 @@
   .tr-chip button{background:none;border:0;color:var(--mut);cursor:pointer;font-size:14px;padding:0;line-height:1}
   /* light themes: form fields need a white surface + readable placeholder (sky-blue/grey bg washed them out) */
   [data-theme="plumber"] input,[data-theme="plumber"] select,[data-theme="plumber"] textarea,
+  [data-theme="sonic"] input,[data-theme="sonic"] select,[data-theme="sonic"] textarea,
+  [data-theme="dk"] input,[data-theme="dk"] select,[data-theme="dk"] textarea,
   [data-theme="daylight"] input,[data-theme="daylight"] select,[data-theme="daylight"] textarea{background:#ffffff;color:var(--ink)}
-  [data-theme="plumber"] ::placeholder,[data-theme="daylight"] ::placeholder{color:#7d8794;opacity:1}
+  [data-theme="plumber"] ::placeholder,[data-theme="sonic"] ::placeholder,[data-theme="dk"] ::placeholder,[data-theme="daylight"] ::placeholder{color:#7d8794;opacity:1}
   [data-theme="plumber"] .tr-row label,[data-theme="daylight"] .tr-row label,
   [data-theme="plumber"] .tr-lbl,[data-theme="daylight"] .tr-lbl{color:var(--mut)}
   #censusBody.gsearch .card.gs-empty{display:none}
@@ -1246,7 +1261,9 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
     {id:"daylight",name:"Dayman",sw:["#2f6df6","#0f9d68","#1b2733"]},
     {id:"synthwave",name:"Synthwave",sw:["#ff5dcd","#36e0ff","#ffd24a"]},
     {id:"matrix",name:"Matrix",sw:["#39ff14","#c8ff4a","#9dff9d"]},
-    {id:"plumber",name:"Plumber",sw:["#e52521","#3aa83a","#fbc02d"]}
+    {id:"plumber",name:"Plumber",sw:["#e52521","#3aa83a","#fbc02d"]},
+    {id:"sonic",name:"Sonic",sw:["#2ec4f0","#ffd21f","#3fcf6a"]},
+    {id:"dk",name:"Donkey",sw:["#7cc24a","#ffcf33","#e0504a"]}
   ];
   var btn=document.getElementById("themeBtn"), menu=document.getElementById("themeMenu"),
       nameEl=document.getElementById("themeName");
@@ -2586,14 +2603,19 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
   var ov=document.getElementById("mgOverlay"), cv=document.getElementById("mgCanvas"),
       trg=document.getElementById("mgTrigger"), cl=document.getElementById("mgClose"), sc=document.getElementById("mgScore");
   if(!ov||!cv||!trg)return;
-  var W=720,H=380, ctx=null, raf=0, keys={}, player, plats, coins, startT, finished, finishTime;
-  function getScores(){ try{ return JSON.parse(localStorage.getItem("pipedream-scores")||"[]"); }catch(e){ return []; } }
+  var W=720,H=380, ctx=null, raf=0, keys={}, player, plats, coins, startT, finished, finishTime, sk;
+  var SKINS={
+    plumber:{name:"PIPE DREAM",sky:"#5c94fc",ground:"#3cb043",groundTop:"#2a7d2f",plat:"#c8521f",platTop:"#e07b3a",brick:true,coin:"#ffcf33",coinType:"coin",clouds:true},
+    sonic:{name:"CASINO RUN",sky:"#35b9f2",ground:"#45b048",groundTop:"#2f7d2f",plat:"#8a5a2b",platTop:"#aa7a45",brick:false,coin:"#ffd21f",coinType:"coin",clouds:true},
+    dk:{name:"WIRE MONKEY",sky:"#2f7fb0",ground:"#5a3a1a",groundTop:"#7a5024",plat:"#6b4423",platTop:"#8a5a2f",brick:false,coin:"#ffe23a",coinType:"banana",clouds:true}
+  };
+  function getScores(){ try{ return JSON.parse(localStorage.getItem("pipedream-"+((sk&&sk.name)||"x"))||"[]"); }catch(e){ return []; } }
   function saveScore(t){
     var sxs=getScores();
     if(sxs.length<5 || t<sxs[sxs.length-1].t){
       var n=(prompt("Cleared in "+t.toFixed(2)+"s! Enter initials:","AAA")||"AAA").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3)||"AAA";
       sxs.push({n:n,t:t}); sxs.sort(function(a,b){return a.t-b.t;}); sxs=sxs.slice(0,5);
-      try{ localStorage.setItem("pipedream-scores",JSON.stringify(sxs)); }catch(e){}
+      try{ localStorage.setItem("pipedream-"+((sk&&sk.name)||"x"),JSON.stringify(sxs)); }catch(e){}
     }
     return sxs;
   }
@@ -2604,7 +2626,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     startT=(typeof performance!=="undefined"?performance.now():Date.now()); finished=false; finishTime=0;
   }
   function now(){ return (typeof performance!=="undefined"?performance.now():Date.now()); }
-  function open(){ ov.classList.remove("hide"); reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
+  function open(){ ov.classList.remove("hide"); sk=SKINS[document.documentElement.getAttribute("data-theme")||""]||SKINS.plumber; var tt=document.querySelector(".mg-title"); if(tt)tt.textContent=sk.name; reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
   function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} }
   function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
   function loop(){
@@ -2625,19 +2647,21 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
       got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+11-c.x)<17&&Math.abs(player.y+17-c.y)<19)c.got=true; if(c.got)got++; });
       if(got>=coins.length){ finished=true; finishTime=(now()-startT)/1000; saveScore(finishTime); }
     }
-    rect(0,0,W,H,"#5c94fc");
-    ctx.fillStyle="rgba(255,255,255,.92)";
-    [[95,58],[340,40],[565,76]].forEach(function(q){ctx.beginPath();ctx.arc(q[0],q[1],15,0,7);ctx.arc(q[0]+17,q[1],19,0,7);ctx.arc(q[0]+36,q[1],15,0,7);ctx.fill();});
+    rect(0,0,W,H,sk.sky);
+    if(sk.clouds){ ctx.fillStyle="rgba(255,255,255,.92)"; [[95,58],[340,40],[565,76]].forEach(function(q){ctx.beginPath();ctx.arc(q[0],q[1],15,0,7);ctx.arc(q[0]+17,q[1],19,0,7);ctx.arc(q[0]+36,q[1],15,0,7);ctx.fill();}); }
     plats.forEach(function(p,i){
-      if(i===0){ rect(p.x,p.y,p.w,p.h,"#3cb043"); rect(p.x,p.y,p.w,5,"#2a7d2f"); return; }
-      rect(p.x,p.y,p.w,p.h,"#c8521f");                          // brick base
-      ctx.fillStyle="#8f3415"; var mid=Math.floor(p.h/2);       // mortar (darker)
-      ctx.fillRect(p.x,p.y+mid,p.w,1);                          // mid horizontal
-      for(var bx=p.x+18;bx<p.x+p.w;bx+=24)ctx.fillRect(bx,p.y,1,mid);          // top-row verticals
-      for(var bx2=p.x+6;bx2<p.x+p.w;bx2+=24)ctx.fillRect(bx2,p.y+mid,1,p.h-mid); // bottom-row offset
-      rect(p.x,p.y,p.w,2,"#e07b3a");                            // top highlight
+      if(i===0){ rect(p.x,p.y,p.w,p.h,sk.ground); rect(p.x,p.y,p.w,5,sk.groundTop); return; }
+      rect(p.x,p.y,p.w,p.h,sk.plat);
+      if(sk.brick){ ctx.fillStyle="#8f3415"; var mid=Math.floor(p.h/2); ctx.fillRect(p.x,p.y+mid,p.w,1);
+        for(var bx=p.x+18;bx<p.x+p.w;bx+=24)ctx.fillRect(bx,p.y,1,mid);
+        for(var bx2=p.x+6;bx2<p.x+p.w;bx2+=24)ctx.fillRect(bx2,p.y+mid,1,p.h-mid); }
+      rect(p.x,p.y,p.w,2,sk.platTop);
     });
-    coins.forEach(function(c){ if(c.got)return; ctx.fillStyle="#ffcf33";ctx.beginPath();ctx.arc(c.x,c.y,7,0,7);ctx.fill();ctx.strokeStyle="#b8860b";ctx.lineWidth=2;ctx.stroke(); });
+    coins.forEach(function(c){ if(c.got)return;
+      if(sk.coinType==="ring"){ ctx.strokeStyle=sk.coin; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(c.x,c.y,7,0,7); ctx.stroke(); }
+      else if(sk.coinType==="banana"){ ctx.strokeStyle=sk.coin; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(c.x,c.y,8,0.5,3.7); ctx.stroke(); }
+      else { ctx.fillStyle=sk.coin; ctx.beginPath(); ctx.arc(c.x,c.y,7,0,7); ctx.fill(); ctx.strokeStyle="#b8860b"; ctx.lineWidth=2; ctx.stroke(); }
+    });
     var px=player.x, py=player.y, dir=player.vx<0?-1:1;
     rect(px+2,py+31,8,3,"#f4f4f4"); rect(px+12,py+31,8,3,"#f4f4f4");          // white sneakers
     rect(px+3,py+20,7,11,"#141414"); rect(px+12,py+20,7,11,"#141414");        // black track pants
