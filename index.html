@@ -533,19 +533,25 @@
   <section id="tab-help" class="hide">
     <div class="panel">
       <h3>What this is</h3>
-      <p class="verdict">Drop a Crestron program, project archive, or processor log — see what changed, what's heavy, and what's failing, down to the exact device, IP-ID, and signal. Read-only; your files never leave your machine.</p>
+      <p class="verdict">Drop a Crestron program, a whole project archive, or a processor log — see the entire system down to the exact device, IP-ID, signal, keypad button and dim level, <b>without opening Crestron software</b>. Read-only; nothing leaves your machine.</p>
       <dl class="help">
-        <dt>Version Diff <span class="muted">— two .smw</span></dt>
-        <dd>The one thing Git can't do for an <code>.smw</code>: see what changed between two builds. <b>Detects</b> signals added / removed / renamed, signal type changes (kept name, D↔A↔S), and per-module instance counts. <b>Also detects</b> parameter changes on symbols whose wiring is unchanged (the silent &ldquo;programming may be lost&rdquo; edits). <b>Does not detect</b> rewiring of existing signals or constant edits inside compiled modules. Renames are inferred from identical wiring and labeled as candidates. "Copy as text" drops the whole diff into a PR or change ticket.</dd>
+        <dt>Version Diff <span class="muted">— two .smw / .zip</span></dt>
+        <dd>What changed between two builds: signals added / removed / renamed, type changes (D↔A↔S), module instance counts, and <b>parameter changes</b> on unchanged wiring (the silent &ldquo;lost programming&rdquo; edits). Drop two archives to compare a whole project. The one thing Git can&rsquo;t do for an <code>.smw</code>.</dd>
         <dt>Audit <span class="muted">— program .zip / .smw / .smft / .dip</span></dt>
-        <dd>The whole program at a glance, without opening any Crestron software: device list (model, IP-ID / Cresnet ID, IP), the full IP-ID table, third-party IP gear with what each address is <i>for</i>, custom-module inventory, the full signal list, and a checks pass (feedback loops, signals driven by multiple sources, unconnected signals). Collapsible cards; copy-to-table export.</dd>
+        <dd>The whole as-built at a glance: every device + IP-ID + the port it lands on, the full IP-ID table, third-party IP gear, serial / IR / relay, touchpanels, signals, custom modules, and a checks pass (loops, contention, unconnected). <b>Search everything</b> up top; export any table.</dd>
+        <dt>Whole-system map <span class="muted">— drop the whole job folder</span></dt>
+        <dd>Drop a multi-processor backup and Bench parses <b>every</b> processor + D3 project on its own (never mixing them), then shows the system: totals, each processor, and the <b>cross-processor EISC links</b> — how the programs actually talk to each other (<code>127.0.0.N</code> = program slot N on the same box). A view no Crestron tool gives you. Click any processor for its full audit.</dd>
+        <dt>Lighting (D3 Pro) <span class="muted">— the D3 project folder</span></dt>
+        <dd>Zip the D3 <b>project folder</b> (the one containing <code>data</code> + <code>Documentation</code>) and drop it — not a <code>.d3a</code>. Every load → its module / output / feed / enclosure; every room and scene; and the big one: each <b>keypad button → what it recalls → the loads at their exact levels</b>, plus the engraved label. Answer &ldquo;what does this button do?&rdquo; on the phone, no D3.</dd>
         <dt>Log Analyzer <span class="muted">— .err / Info-Tool dump / .zip</span></dt>
-        <dd>Leads with a <b>triage summary</b> — log time span, error/warning counts, and the worst recurring issue. Then recurring errors with a <b>rate</b> (a burst right after boot reads very differently from a steady background hum), signal-solve-timeout vs restart correlation, processor load exactly as logged (no assumptions about which processor), and device socket drops.</dd>
+        <dd>Leads with a triage summary, then recurring errors by <b>rate</b> (a boot burst reads differently from a steady hum), solve-timeout vs restart correlation, processor load as logged, and socket drops. Load the program in Audit too and the log cross-references it — naming the dropping devices.</dd>
+        <dt>Triage <span class="muted">— opt-in AI, your key</span></dt>
+        <dd>Paste messy job intake (and/or drop files); AI turns it into a clean issue list, then resolves each against this program&rsquo;s facts and drafts a go-list. <b>Off by default</b>, your key (Anthropic / OpenAI / local Ollama / LM&nbsp;Studio) — the one feature that sends data off your machine. Output is an <b>AI draft — verify on site</b>.</dd>
       </dl>
     </div>
     <div class="panel" style="margin-top:14px">
       <h3>How to read a result</h3>
-      <p class="verdict muted">Facts are read straight from the file. Anything inferred (a rename, a likely cause) is labeled as such. Static analysis sees structure and what the box already wrote down — not runtime values or the inside of compiled <code>.umc/.clz</code> modules. The Bench narrows the search; the live SIMPL debugger or a <code>cpuload</code> capture confirms it.</p>
+      <p class="verdict muted">Everything is read straight from the files — no guessing. Anything inferred (a rename, a likely cause) is labeled. Static analysis sees structure and what the box wrote down, not live runtime values or the inside of compiled <code>.umc/.clz</code> modules. Open the real software only to <b>change</b> something or run a <b>live test</b> — never just to look.</p>
     </div>
   </section>
 </main>
