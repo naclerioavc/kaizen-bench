@@ -404,6 +404,9 @@
   .buildsw select{background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:13px;padding:6px 10px;border-radius:7px;cursor:pointer}
   .buildsw select:focus{outline:none;border-color:var(--stripe)}
   .buildsw .bs-note{font-size:11.5px;color:var(--mut)}
+  .buildsw.confirmed{border-left-color:var(--ok)}
+  .bs-switch{margin-left:6px;border:1px solid var(--ok);background:transparent;color:var(--ok);border-radius:6px;padding:2px 9px;font:inherit;font-size:11.5px;cursor:pointer}
+  .bs-switch:hover{filter:brightness(1.12)}
   @media print{ .buildsw{display:none!important} }
   .panel.attn-stat{border-color:var(--warn)} .panel.attn-stat .data{color:var(--warn)}
   .card.attn{border-left:3px solid var(--warn)} .card.attn>.card-head .card-title{color:var(--warn)}
@@ -1300,6 +1303,7 @@ wireDrop($("#dropC"),$("#fileC"),f=>{
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 $("#censusBody").addEventListener("click",e=>{
+  const sw=e.target.closest("[data-switchbuild]"); if(sw){ e.stopPropagation(); switchBuild(sw.dataset.switchbuild); return; }
   const up=e.target.closest("[data-unit]");
   if(up){ setActiveUnit(+up.dataset.unit); return; }
   const d=e.target.closest("[data-drill]");
@@ -1937,10 +1941,22 @@ function buildSwitcher(u){
   const opts=u.builds.map(b=>{ const d=fmt(b.mtime); return `<option value="${esc(b.name)}"${b.name===u.activeBuild?" selected":""}>${esc(b.name)}${d?"  \u00b7  saved "+d:""}</option>`; }).join("");
   const ab=u.builds.find(b=>b.name===u.activeBuild)||u.builds[0]; const ad=fmt(ab&&ab.mtime);
   const L=(typeof state!=="undefined")?state.logDigest:null;
-  const conf=(L&&L.match==="match")
-    ? ` A loaded console confirms the <b>system</b> is running${L.hostname?` (<b>${esc(L.hostname)}</b>${L.fw?", fw "+esc(L.fw):""})`:""}, but it doesn\u2019t name the exact <b>build</b> \u2014 pick if you know which is deployed.`
-    : ` A console/log would confirm the system (model/hostname), though not the exact build.`;
-  return `<div class="buildsw"><span class="bs-flag">\u26a0</span><label for="buildSel">Build</label><select id="buildSel">${opts}</select><span class="bs-note"><b>${u.builds.length}</b> builds here \u2014 defaulting to the <b>newest&#8209;saved</b>${ad?" ("+ad+")":""}. Which build is actually <b>deployed</b> can\u2019t be known from files alone.${conf}</span></div>`;
+  const dep=deployedBuildFor(u);
+  const opts2=u.builds.map(b=>{ const d=fmt(b.mtime); const isDep=dep&&b.name===dep; return `<option value="${esc(b.name)}"${b.name===u.activeBuild?" selected":""}>${esc(b.name)}${d?"  \u00b7  saved "+d:""}${isDep?"  \u00b7  \u2713 DEPLOYED":""}</option>`; }).join("");
+  let cls, flag, note;
+  if(dep){
+    cls=" confirmed"; flag=`<span class="bs-flag" style="color:var(--ok)">\u2713</span>`;
+    note = (dep===u.activeBuild)
+      ? `<b>Deployed build confirmed by the console:</b> ${esc(dep)} \u2014 this is what\u2019s actually running.`
+      : `The console says <b>${esc(dep)}</b> is the <b>deployed</b> build; you\u2019re viewing <b>${esc(u.activeBuild)}</b>. <button class="bs-switch" data-switchbuild="${esc(dep)}">Show the deployed build</button>`;
+  } else {
+    cls=""; flag=`<span class="bs-flag">\u26a0</span>`;
+    const conf=(L&&L.match==="match")
+      ? ` A loaded console confirms the <b>system</b>${L.hostname?` (<b>${esc(L.hostname)}</b>)`:""} but doesn\u2019t name the build \u2014 pick if you know which is deployed.`
+      : ` A console/log that names the loaded program would confirm the exact build.`;
+    note=`<b>${u.builds.length}</b> builds here \u2014 defaulting to the <b>newest&#8209;saved</b>${ad?" ("+ad+")":""}. Which is actually <b>deployed</b> can\u2019t be known from the program files alone.${conf}`;
+  }
+  return `<div class="buildsw${cls}">${flag}<label for="buildSel">Build</label><select id="buildSel">${opts2}</select><span class="bs-note">${note}</span></div>`;
 }
 function setActiveUnit(i){
   if(!state.units||!state.units[i])return;
@@ -2750,7 +2766,7 @@ function runLog(name,text){
       state.logXref={ drops:namedDrops, waveTimeouts:a.toRows.length, loops:(sa?sa.oscCandidates:0), missingFiles:a.missingFiles||[], devConflicts:a.devConflicts||[] };
     } else { state.logXref=null; }
   }catch(e){ state.logXref=null; }
-  if(a.compatible){ state.logDigest={ name:name, model:a.bootModel||"", fw:a.bootFw||"",
+  if(a.compatible){ state.logDigest={ name:name, deployed:parseDeployedBuilds(text), model:a.bootModel||"", fw:a.bootFw||"",
     match:(state.logMatch&&state.logMatch.status)||"",
     recurring:(a.recurring||[]).slice(0,12).map(function(t){return {n:t.n,msg:trim(t.example||t.msg||"",90),who:trim(t.who||"",30),rate:(t.rate&&t.rate.txt)||""};}),
     drops:(state.logXref&&state.logXref.drops&&state.logXref.drops.length)?state.logXref.drops.slice(0,20):(a.dropTop||[]).slice(0,20).map(function(p){return {id:String(p[0]).replace(/^IP-ID\s+/,""),name:"",n:p[1]};}),
@@ -3134,6 +3150,17 @@ async function trCall(cfg, system, user){
   if(cfg.provider==="anthropic") return (d.content&&d.content[0]&&d.content[0].text)||"";
   return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
 }
+function parseDeployedBuilds(text){
+  var re=/Loading Program\s+\/simpl\/app(\d+)\/([^\s\/]+?)\.(?:bin|lpz)\b/gi, m, bySlot={};
+  while((m=re.exec(String(text)))){ bySlot[m[1]]={slot:m[1], name:m[2]}; }     // chronological -> latest load per slot wins
+  return Object.keys(bySlot).sort().map(function(k){return bySlot[k];});
+}
+function deployedBuildFor(unit){
+  if(!unit||!unit.builds||typeof state==="undefined"||!state.logDigest||!state.logDigest.deployed) return null;
+  var deps=state.logDigest.deployed.map(function(d){return (d.name||"").toLowerCase();});
+  for(var i=0;i<unit.builds.length;i++){ var bn=unit.builds[i].name.replace(/\.(smw|umc|chd)$/i,"").toLowerCase(); if(deps.indexOf(bn)>=0) return unit.builds[i].name; }
+  return null;
+}
 function trGroundHTML(){
   var progs=(state.units?state.units.filter(function(u){return u.kind==="program"&&u.smw;}).length:0); if(!progs&&state.prog&&state.prog.smw)progs=1;
   var L=state.logDigest, hasLog=!!L;
@@ -3169,6 +3196,7 @@ function exportFactsForLLM(){
       if(L.model||L.fw) lg.push("Running: "+(L.model||"?")+(L.fw?(" firmware "+L.fw):""));
       if(L.hostname) lg.push("Processor hostname: "+L.hostname);
       if(L.appSlots) lg.push("Program slots running: "+L.appSlots);
+      if(L.deployed&&L.deployed.length) lg.push("Deployed builds (named by the console): "+L.deployed.map(function(d){return "slot "+d.slot+" = "+d.name;}).join(", "));
       if(L.match) lg.push("Log-vs-program match: "+String(L.match).toUpperCase()+(L.match==="mismatch"?" — the log is from a DIFFERENT system; do NOT tie its events to this program.":(L.match==="match"?" — the log confirms this program/processor.":" — unconfirmed; treat correlations as best-effort.")));
       if(L.drops&&L.drops.length) lg.push("Devices dropping offline: "+L.drops.map(function(x){return (x.name||x.id)+" ("+x.n+"x)";}).join("; "));
       if(L.timeouts) lg.push("Signal-solve timeouts: "+L.timeouts+(L.loops?(" — tied to "+L.loops+" feedback loop(s) with no wave-breaker (prime suspects)"):""));
@@ -3276,7 +3304,7 @@ var TR_PRESETS={
   });
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,parseDeployedBuilds,deployedBuildFor,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

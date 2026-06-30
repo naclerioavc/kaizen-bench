@@ -521,6 +521,16 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
   has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
+// ===== deployed-build confirmation from a console (Loading Program /simpl/appNN/<build>.bin) =====
+{ const log="Ok: LE1 # t # Loading Program /simpl/app01/01_CP4_Main_v9_13.bin.\nOk: LE1 # t # Loading Program /simpl/app01/01_CP4_Main_v9_16.bin.\nOk: LE2 # t # Loading Program /simpl/app02/02_Lighting_v1_2.bin.";
+  const dep=w.parseDeployedBuilds(log);
+  ck("parseDeployedBuilds: latest load per slot wins", (dep.find(d=>d.slot==="01")||{}).name, "01_CP4_Main_v9_16");
+  ck("parseDeployedBuilds: one entry per slot", dep.length, 2);
+  w.eval(`state.logDigest={deployed:[{slot:"01",name:"01_CP4_Main_v9_16"}]};`);
+  const unit={kind:"program",builds:[{name:"01_CP4_Main_v9_18.smw"},{name:"01_CP4_Main_v9_16.smw"}],activeBuild:"01_CP4_Main_v9_18.smw"};
+  ck("deployedBuildFor returns the DEPLOYED build, not newest-saved", w.deployedBuildFor(unit), "01_CP4_Main_v9_16.smw");
+  has("deployedBuildFor is null when the deployed build isn't in the archive", w.deployedBuildFor({kind:"program",builds:[{name:"X_v1.smw"}]})===null);
+}
 // ===== archived (~Older) folders excluded from the live map, counted separately =====
 { const mk=nm=>"[\nObjTp=Hd\nPgmNm="+nm+"\n]";
   const units=[{kind:"system",name:"sys"},
