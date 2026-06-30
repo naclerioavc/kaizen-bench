@@ -231,6 +231,12 @@
   .tr-cfgwrap{margin:2px 0 14px}
   .tr-ground{font-size:12.5px;color:var(--mut);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin:2px 0 10px}
   .tr-ground .tr-glbl{color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin-right:6px}
+  .tr-srchead{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);font-weight:700;margin-bottom:7px}
+  .tr-src{display:flex;align-items:center;gap:9px;padding:4px 0;font-size:12.5px}
+  .tr-src .tr-srcchk{cursor:pointer;margin:0}
+  .tr-src .tr-srcn{color:var(--ink);font-weight:600;min-width:120px}
+  .tr-src .tr-srct{color:var(--mut);font-size:11.5px}
+  .tr-src .tr-srcrev,.tr-src .tr-srcbuild{background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12px;padding:3px 8px;border-radius:6px;cursor:pointer}
   .tr-ground code{font-size:11px}
   .tr-gmiss{color:var(--warn);margin-top:6px}
   .tr-gok{color:var(--ok);margin-top:6px}
@@ -1820,18 +1826,12 @@ function systemGraph(units){
   // Collapse duplicate lighting backups: lighting units that bridge to the SAME processor(s) are
   // versions of one job's lighting system (dated backups). Group by the set of processors each
   // connects to, keep the newest saved. (Truly "deployed" still needs a console — see the flag.)
-  const loadsOf=p=>{ const d=p.u&&p.u.d3; if(!d)return 0; return (d.loads&&d.loads.length)||(d.lighting&&d.lighting.loads&&d.lighting.loads.length)||0; };
-  const mtimeOf=p=>(p.u&&p.u.d3&&p.u.d3._mtime)||0;
-  const procByIpid={};
-  progs.forEach(p=>{ if(p.nkind!=="processor")return; (linksByNode[p.i]||[]).forEach(l=>{ const id=(l.ipid||"").toUpperCase(); if(!id)return; (procByIpid[id]=procByIpid[id]||new Set()).add(p.i); }); });
-  const connSig=p=>{ const ps=new Set(); (linksByNode[p.i]||[]).forEach(l=>{ (procByIpid[(l.ipid||"").toUpperCase()]||[]).forEach(x=>ps.add(x)); }); return [...ps].sort((a,b)=>a-b).join(","); };
-  const keep=new Map();
-  progs.forEach(p=>{ if(p.nkind!=="lighting")return; const sg=connSig(p); if(!sg)return;
-    if(!keep.has(sg)) keep.set(sg,p.i);
-    else { const cur=progs.find(q=>q.i===keep.get(sg)); const better=mtimeOf(p)>mtimeOf(cur)||(mtimeOf(p)===mtimeOf(cur)&&loadsOf(p)>loadsOf(cur)); if(better) keep.set(sg,p.i); } });
-  const dropped=new Set();
-  progs.forEach(p=>{ if(p.nkind!=="lighting")return; const sg=connSig(p); if(sg && keep.get(sg)!==p.i) dropped.add(p.i); });
-  const active=progs.filter(p=>!dropped.has(p.i));
+  // collapse dated lighting backups to ONE per project; keep the user-picked revision (or newest)
+  const lgroups={};
+  progs.forEach(p=>{ if(p.nkind!=="lighting")return; (lgroups[d3Sig(p.u)]=lgroups[d3Sig(p.u)]||[]).push(p.i); });
+  const keepSet=new Set();
+  Object.keys(lgroups).forEach(key=>{ keepSet.add(d3PickIdx(units, lgroups[key])); });
+  const active=progs.filter(p=>p.nkind!=="lighting" || keepSet.has(p.i));
   const nodes=active.map(p=>{
     let build=null;
     if(p.nkind==="processor"&&p.u.builds&&p.u.builds.length){
@@ -1978,14 +1978,15 @@ function renderWholeSystem(){
   const cp=$("#auditCopy"),pr=$("#auditPrint"),ea=document.getElementById("auditExportAll");
   if(cp)cp.disabled=true; if(pr)pr.disabled=false; if(ea)ea.disabled=false;
 }
-async function switchBuild(name){
-  const u=state.units&&state.units[state.unitIndex]; if(!u||!u.builds)return;
-  const b=u.builds.find(x=>x.name===name); if(!b)return;
+async function setUnitBuild(idx,name){
+  const u=state.units&&state.units[idx]; if(!u||!u.builds)return false;
+  const b=u.builds.find(x=>x.name===name); if(!b)return false;
   const get=async x=>{ if(!x)return null; if(x.lhOff!==undefined && u._file) return await zipReadEntry(u._file,x); return x; };
   const sb=await get(b.smw), db=await get(b.dip), fb=await get(b.smft);
   u.smw=sb?decodeText(sb):null; u.dip=db?decodeText(db):null; u.smft=fb?decodeText(fb):null; u.activeBuild=name;
-  setActiveUnit(state.unitIndex);
+  return true;
 }
+async function switchBuild(name){ if(await setUnitBuild(state.unitIndex,name)) setActiveUnit(state.unitIndex); }
 function buildSwitcher(u){
   if(!u||!u.builds||u.builds.length<2) return "";
   const fmt=m=>m?new Date(m).toISOString().slice(0,10):"";
@@ -3212,16 +3213,28 @@ function deployedBuildFor(unit){
   for(var i=0;i<unit.builds.length;i++){ var bn=unit.builds[i].name.replace(/\.(smw|umc|chd)$/i,"").toLowerCase(); if(deps.indexOf(bn)>=0) return unit.builds[i].name; }
   return null;
 }
+function d3Sig(u){ var d=(u&&u.d3)||{}; return "ls:"+(((d.loads&&d.loads.length)||0)+":"+((d.lighting&&d.lighting.rooms&&d.lighting.rooms.length)||0)); }
+function d3Groups(units){ var g={}; (units||[]).forEach(function(u,i){ if(u&&u.kind==="d3"&&u.d3&&u.d3.eiscSmw!==undefined||u&&u.kind==="d3"&&u.d3){ (g[d3Sig(u)]=g[d3Sig(u)]||[]).push(i); } }); return g; }
+function d3PickIdx(units, idxs){ var da=(typeof state!=="undefined"&&state.d3Active)||{}; var key=d3Sig(units[idxs[0]]); if(da[key]!==undefined && idxs.indexOf(da[key])>=0) return da[key]; return idxs.reduce(function(b,i){ return ((units[i].d3&&units[i].d3._mtime)||0)>((units[b].d3&&units[b].d3._mtime)||0)?i:b; }, idxs[0]); }
+function triageOff(i){ var t=(typeof state!=="undefined"&&state.triageOff)||{}; return !!t[i]; }
 function brandGet(){ try{ return JSON.parse(localStorage.getItem("simplbench-brand")||"null")||{}; }catch(e){ return {}; } }
 function rcBrandHtml(){ var b=brandGet(); if(b.company||b.logo){ return (b.logo?'<img class="rc-logo" src="'+b.logo+'" alt="">':"")+'<div class="rc-co">'+esc(b.company||"")+'</div>'+(b.contact?'<div class="rc-contact">'+esc(b.contact)+'</div>':""); } return 'kaizen<span class="rc-light">Logic</span>'; }
 function trGroundHTML(){
-  var progs=(state.units?state.units.filter(function(u){return u.kind==="program"&&u.smw;}).length:0); if(!progs&&state.prog&&state.prog.smw)progs=1;
-  var L=state.logDigest, hasLog=!!L;
-  var b1=(progs?"✓":"✗")+" program"+(progs>1?(" ("+progs+" processors)"):"");
-  var b2=(hasLog?"✓":"✗")+" console log"+(hasLog&&L.match?(" · "+esc(L.match)):"");
-  var miss=[]; if(!progs)miss.push("drop the job backup <code>.zip</code> in <b>Audit</b>"); if(!hasLog)miss.push("drop an Info-Tool / console dump in <b>Log Analyzer</b>");
-  var tail = miss.length ? ('<div class="tr-gmiss">⚠ For sharper, runtime-confirmed triage: '+miss.join("; ")+'.</div>') : '<div class="tr-gok">✓ Fully grounded — program + console.</div>';
-  return '<span class="tr-glbl">Triage will use</span> <b>'+b1+'</b> &nbsp; <b>'+b2+'</b>'+tail;
+  var us=state.units||[]; var rows=[];
+  us.forEach(function(u,i){ if(u.kind==="program"&&u.smw&&!u.archived){
+    var bp=""; if(u.builds&&u.builds.length>1){ var dep=deployedBuildFor(u);
+      bp='<select class="tr-srcbuild" data-uidx="'+i+'">'+u.builds.map(function(b){ return '<option value="'+esc(b.name)+'"'+(b.name===u.activeBuild?" selected":"")+'>'+esc(b.name.replace(/\.smw$/i,""))+(dep===b.name?" \u2713deployed":"")+'</option>'; }).join("")+'</select>'; }
+    rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-toff="'+i+'"'+(triageOff(i)?"":" checked")+'><span class="tr-srcn">\u25A3 '+esc(u.folder||u.name)+'</span>'+(bp||('<span class="tr-srct">processor'+(u.activeBuild?(" \u00b7 "+esc(u.activeBuild.replace(/\.smw$/i,""))):"")+'</span>'))+(u.builds&&u.builds.length>1?'<span class="tr-srct">'+u.builds.length+' builds</span>':"")+'</div>'); } });
+  if(!rows.length && state.prog && state.prog.smw) rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" checked disabled><span class="tr-srcn">\u25A3 program</span><span class="tr-srct">loaded</span></div>');
+  var dg=d3Groups(us); var multi=false;
+  Object.keys(dg).forEach(function(key){ var idxs=dg[key]; var active=d3PickIdx(us, idxs); var u=us[active];
+    var picker = idxs.length>1 ? (multi=true, '<select class="tr-srcrev" data-d3sig="'+esc(key)+'">'+idxs.map(function(i){ return '<option value="'+i+'"'+(i===active?" selected":"")+'>'+esc(us[i].folder||us[i].name)+((us[i].d3&&us[i].d3._mtime)?(" \u00b7 "+new Date(us[i].d3._mtime).toISOString().slice(0,10)):"")+'</option>'; }).join("")+'</select>') : '<span class="tr-srct">'+esc(u.folder||u.name)+'</span>';
+    rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-toff="'+active+'"'+(triageOff(active)?"":" checked")+'><span class="tr-srcn">\u25D0 lighting</span>'+picker+(idxs.length>1?'<span class="tr-srct">'+idxs.length+' revisions</span>':"")+'</div>'); });
+  var L=state.logDigest;
+  rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-logoff="1"'+(L?(state.logOff?"":" checked"):" disabled")+'><span class="tr-srcn">\u25C8 console log</span><span class="tr-srct">'+(L?esc((L.hostname||L.name||"loaded")+(L.match?(" \u00b7 "+L.match):"")):"none loaded \u2014 add in Log Analyzer")+'</span></div>');
+  var nP=us.filter(function(u){return u.kind==="program"&&u.smw&&!u.archived;}).length; var miss=[];
+  if(!nP && !(state.prog&&state.prog.smw))miss.push("drop the job backup in <b>Audit</b>"); if(!L)miss.push("drop a console dump in <b>Log Analyzer</b>");
+  return '<div class="tr-srchead">Triage uses these \u2014 untick to exclude'+(multi?", pick the live revision":"")+':</div>'+rows.join("")+(miss.length?'<div class="tr-gmiss">\u26a0 For sharper triage: '+miss.join("; ")+'.</div>':'<div class="tr-gok">\u2713 Fully grounded \u2014 program + console.</div>');
 }
 function unitFacts(u){
   if(!u||!u.smw) return "";
@@ -3252,24 +3265,22 @@ function exportFactsForLLM(){
     }
   }catch(e){}
   // EVERY loaded processor's as-built — auto-collected, no tab/unit selection needed
-  var pus=(state.units||[]).filter(function(u){return u.kind==="program"&&u.smw&&!u.archived;});
+  var pus=[]; (state.units||[]).forEach(function(u,i){ if(u.kind==="program"&&u.smw&&!u.archived&&!triageOff(i)) pus.push(u); });
   if(pus.length){ var blocks=pus.map(unitFacts).filter(Boolean);
     if(blocks.length){ hasProgram=true; parts.push("AS-BUILT — EVERY loaded processor (devices, IP-IDs, signals, EISC):\n\n"+blocks.join("\n\n")); } }
   else { var facts=""; try{ facts=(typeof auditToText==="function")?auditToText():""; }catch(e){} if(facts){ hasProgram=true; parts.push("AS-BUILT (devices, IP-IDs, signals):\n"+facts); } }
   // EVERY D3 lighting unit
-  var d3all=(state.units||[]).filter(function(u){return u.kind==="d3"&&u.d3;});
-  if(!d3all.length && pr&&pr.d3) d3all=[{folder:"D3 lighting",d3:pr.d3}];
-  var d3by={};   // dedup dated backups of one project; default to the NEWEST saved (user can override later)
-  d3all.forEach(function(u){ var d=u.d3||{}; var sig=((d.loads&&d.loads.length)||0)+":"+((d.lighting&&d.lighting.rooms&&d.lighting.rooms.length)||0);
-    var score=(d._mtime||0);
-    if(!d3by[sig]||score>d3by[sig].score) d3by[sig]={u:u,score:score}; });
-  Object.keys(d3by).forEach(function(k){ var u=d3by[k].u, d=u.d3, tag=(u.folder||u.name||"D3");
+  var d3units=[];
+  if((state.units||[]).some(function(u){return u.kind==="d3"&&u.d3;})){ var dg=d3Groups(state.units);
+    Object.keys(dg).forEach(function(k){ var i=d3PickIdx(state.units, dg[k]); if(!triageOff(i)) d3units.push(state.units[i]); }); }
+  else if(pr&&pr.d3){ d3units=[{folder:"D3 lighting",d3:pr.d3}]; }
+  d3units.forEach(function(u){ var d=u.d3, tag=(u.folder||u.name||"D3");
     if(d.lighting&&d.lighting.rooms&&d.lighting.rooms.length) parts.push("LIGHTING ROOMS ("+tag+"): "+d.lighting.rooms.map(function(r){return r.name;}).join(", "));
     if(d.loads&&d.loads.length) parts.push("LIGHTING LOADS ("+tag+") load -> module/output/feed/area:\n"+d.loads.slice(0,250).map(function(l){return l.load+" -> "+(l.modType||"")+" mod "+(l.modNum||"")+" out "+(l.out||"")+(l.feed?(" feed "+l.feed):"")+(l.area?(" ["+l.area+"]"):"");}).join("\n"));
     if(d.sceneLoads&&d.sceneLoads.length) parts.push("LIGHTING SCENES -> loads ("+tag+", legacy):\n"+d.sceneLoads.slice(0,80).map(function(sc){return sc.scene+(sc.room?(" ["+sc.room+"]"):"")+": "+sc.loads.join(", ");}).join("\n"));
     if(d.sysKeypads&&d.sysKeypads.length) parts.push("KEYPADS -> button -> loads@levels ("+tag+"):\n"+d.sysKeypads.slice(0,40).map(function(kp){ return (kp.name||"keypad")+(kp.roomName?(" ["+kp.roomName+"]"):"")+": "+(kp.buttons||[]).slice(0,14).map(function(b){ var st=(b.steps||[]).slice(0,16).map(function(x){return (x.load||x.text||"")+(x.level?("@"+x.level):"");}).filter(Boolean).join(", "); return (b.name||"btn")+(st?(" {"+st+"}"):""); }).join(" | "); }).join("\n")); });
   // runtime evidence from a loaded console/log (digested, capped)
-  try{ var L=state.logDigest;
+  try{ var L=(typeof state!=="undefined"&&state.logOff)?null:state.logDigest;
     if(L){
       var lg=["CONSOLE / LOG FINDINGS"+(L.name?(" ("+L.name+")"):"")+":"];
       if(L.model||L.fw) lg.push("Running: "+(L.model||"?")+(L.fw?(" firmware "+L.fw):""));
@@ -3354,6 +3365,12 @@ var TR_PRESETS={
   save.addEventListener("click",function(){ var p=TR_PRESETS[prov.value]||TR_PRESETS.anthropic; var mdl=(modelSel&&modelSel.value&&modelSel.value!=="__custom__")?modelSel.value:((model&&model.value.trim())||p.model); var c={choice:prov.value,provider:p.type,base:base.value.trim()||p.base,model:mdl,key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
   clear.addEventListener("click",function(){ try{localStorage.removeItem("simplbench-triage");}catch(e){} key.value=""; refresh(); });
   window.__trRefresh=refresh;
+  var groundEl=$id("trGround");
+  if(groundEl)groundEl.addEventListener("change",function(e){ var t=e.target; state.triageOff=state.triageOff||{}; state.d3Active=state.d3Active||{};
+    if(t.classList&&t.classList.contains("tr-srcchk")){ if(t.dataset.toff!==undefined)state.triageOff[+t.dataset.toff]=!t.checked; else if(t.dataset.logoff!==undefined)state.logOff=!t.checked; }
+    else if(t.classList&&t.classList.contains("tr-srcrev")){ state.d3Active[t.dataset.d3sig]=+t.value; }
+    else if(t.classList&&t.classList.contains("tr-srcbuild")){ setUnitBuild(+t.dataset.uidx, t.value).then(refresh); return; }
+    refresh(); });
   intake.addEventListener("input",refresh);
   function readDrop(fl){ [].slice.call(fl).forEach(function(file){ var rd=new FileReader(); rd.onload=function(){ attached.push({name:file.name,text:String(rd.result||"").slice(0,200000)}); renderChips(); refresh(); }; rd.readAsText(file); }); }
   ["dragenter","dragover"].forEach(function(ev){ intake.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); intake.classList.add("tr-drag"); }); });

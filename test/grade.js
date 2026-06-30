@@ -429,7 +429,7 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   { const f=w.exportFactsForLLM();
     has("log-only: console findings still feed (hostname)", /CONSOLE \/ LOG FINDINGS/.test(f) && /CP4-LAB/.test(f));
     has("log-only: caveats that instances can't resolve without the program", /No program\/as-built loaded/.test(f));
-    has("log-only grounding: program missing -> points to Audit", /program/.test(w.trGroundHTML()) && /Audit/.test(w.trGroundHTML())); }
+    has("log-only grounding: program missing -> points to Audit", /Audit/.test(w.trGroundHTML()) && /console log/.test(w.trGroundHTML())); }
   // grounding: log/console findings + match verdict fed to triage when a log is loaded
   w.eval(`state.logDigest={name:'cp4.err',model:'CP4',fw:'2.8',match:'match',recurring:[{n:9,msg:'Logic could not be solved within 1500 waves',who:'LE_1',rate:'steady'}],drops:[{id:'1F',name:'NVX Zone1',n:12}],timeouts:5,loops:2,storms:1,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
   { const f=w.exportFactsForLLM();
