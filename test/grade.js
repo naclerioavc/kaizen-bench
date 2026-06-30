@@ -540,6 +540,18 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("deployedBuildFor returns the DEPLOYED build, not newest-saved", w.deployedBuildFor(unit), "01_CP4_Main_v9_16.smw");
   has("deployedBuildFor is null when the deployed build isn't in the archive", w.deployedBuildFor({kind:"program",builds:[{name:"X_v1.smw"}]})===null);
 }
+// ===== multiple PROGRAM archives accumulate across drops (not last-wins) =====
+{ w.eval("state.units=null;");
+  const A='{name:"jobA.zip", units:[{kind:"program",name:"AV",folder:"01-AV",smw:"[\\nObjTp=Hd\\nPgmNm=A\\n]"}]}';
+  const B='{name:"jobB.zip", units:[{kind:"program",name:"Sec",folder:"02-Sec",smw:"[\\nObjTp=Hd\\nPgmNm=B\\n]"}]}';
+  w.eval("mergeDrop("+A+")");
+  w.eval("mergeDrop("+B+")");
+  ck("two archives accumulate their units", w.eval("state.units.filter(u=>u.kind!=='system').length"), 2);
+  w.eval("mergeDrop("+A+")");  // re-drop A
+  ck("re-dropping the same archive doesn't duplicate", w.eval("state.units.filter(u=>u.kind!=='system').length"), 2);
+  has("System overview re-inserted once >=2 programs loaded", w.eval("state.units.some(u=>u.kind==='system')")===true);
+  w.eval("state.units=null;");
+}
 // ===== multiple logs accumulate (separate drops): evidence merges, deployedBuildFor scans all =====
 { w.eval(`state.units=null; state.prog={smw:null}; state.audit=null; state.triageOff={}; state.logTriageOff={};
   state.logDigests=[

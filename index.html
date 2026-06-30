@@ -1321,7 +1321,7 @@ function structAnalysis(model){
 }
 wireDrop($("#dropC"),$("#fileC"),f=>{
   $("#censusBody").innerHTML=`<div class="working"><span class="stripe"></span>Reading ${esc(f.name)}…</div>`;
-  loadProgram(f).then(out=>{ state.unitName=out.name; state.units=(out.units&&out.units.length)?out.units:[{kind:"program",name:out.name,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,d3:out.d3}]; setActiveUnit(0); updateDiffLoaded(); })
+  loadProgram(f).then(out=>{ mergeDrop(out); setActiveUnit(0); updateDiffLoaded(); })
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 $("#censusBody").addEventListener("click",e=>{
@@ -2029,7 +2029,8 @@ function setActiveUnit(i){
 }
 function renderUnitSelector(){
   const us=state.units, ai=state.unitIndex;
-  const pills=us.map((u,i)=>`<button class="unitpill${i===ai?' on':''}" data-unit="${i}">${u.kind==="d3"?"◐":u.kind==="system"?"◈":"▣"} ${esc(u.name||("Unit "+(i+1)))}</button>`).join("");
+  const _archs={}; us.forEach(u=>{if(u._arch)_archs[u._arch]=1;}); const _multiArch=Object.keys(_archs).length>1;
+  const pills=us.map((u,i)=>`<button class="unitpill${i===ai?' on':''}" data-unit="${i}">${u.kind==="d3"?"◐":u.kind==="system"?"◈":"▣"} ${esc((_multiArch&&u._arch?(u._arch.replace(/\.[^.]+$/,"")+" › "):"")+(u.folder||u.name||("Unit "+(i+1))))}</button>`).join("");
   const np=us.filter(u=>u.kind==="program").length, nd=us.filter(u=>u.kind==="d3").length;
   const lbl=[np?`${np} processor program${np>1?"s":""}`:"", nd?`${nd} lighting project${nd>1?"s":""}`:""].filter(Boolean).join(" + ");
   return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl}. Pick one:</div><div class="unitsel">${pills}</div></div>`;
@@ -2515,6 +2516,20 @@ function buildD3(files, rootLower){
     });
   }
   return d3;
+}
+function mergeDrop(out){
+  var fresh=(out.units&&out.units.length)?out.units.slice():[{kind:"program",name:out.name,smw:out.smw,smft:out.smft,dip:out.dip,ir:out.ir,d3:out.d3}];
+  fresh.forEach(function(u){ if(u.kind!=="system"&&!u._arch)u._arch=out.name; });
+  var prev=(state.units||[]).filter(function(u){return u.kind!=="system";});
+  var sig=function(u){ return u.kind+"|"+(u._arch||"")+"|"+(u.folder||u.name||"")+"|"+((u.smw||"").length||(u.d3?1:0)); };
+  var seen={}; prev.forEach(function(u){seen[sig(u)]=1;});
+  var merged=prev.slice();
+  fresh.forEach(function(u){ if(u.kind==="system")return; var k=sig(u); if(!seen[k]){seen[k]=1; merged.push(u);} });
+  var nprog=merged.filter(function(u){return u.kind==="program"&&u.smw;}).length;
+  if(nprog>=2) merged=[{kind:"system",name:"System overview"}].concat(merged);
+  state.units=merged;
+  var archs={}; merged.forEach(function(u){ if(u._arch)archs[u._arch]=1; });
+  var an=Object.keys(archs); state.unitName = an.length>1 ? (an.length+" archives") : (an[0]||out.name||"");
 }
 async function loadProgram(file){
   const out={smft:null,dip:null,smw:null,ir:[],d3:null,name:file.name};
