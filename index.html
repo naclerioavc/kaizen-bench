@@ -213,9 +213,10 @@
   [data-theme="dk"] #mgTrigger:active{box-shadow:0 1px 0 #4a3320}
   [data-theme="dk"] #mgTrigger::before{content:"";position:absolute;left:-1px;right:-1px;top:9px;height:3px;background:#5e3414;box-shadow:0 14px 0 #5e3414}
   [data-theme="dk"] #mgTrigger::after{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:2px;margin-left:-1px;background:rgba(0,0,0,.16)}
-  [data-theme="brawler"] #mgTrigger{background:#23262e;border:2px solid #ffb02e;box-shadow:0 4px 0 #8a1f1c;color:transparent;position:relative;border-radius:6px}
+  [data-theme="brawler"] #mgTrigger{width:auto;min-width:60px;padding:0 9px;background:#23262e;border:2px solid #ffb02e;box-shadow:0 4px 0 #8a1f1c;color:transparent;font-size:0;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;transform:skewX(-7deg);overflow:visible}
   [data-theme="brawler"] #mgTrigger:active{box-shadow:0 1px 0 #8a1f1c}
-  [data-theme="brawler"] #mgTrigger::after{content:"OF";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ffd23a;font:900 italic 17px system-ui;-webkit-text-stroke:1.1px #b3231d;text-shadow:1px 1px 0 #7a1410;transform:skewX(-8deg)}
+  [data-theme="brawler"] #mgTrigger::before{content:"OFFICE";color:#fff;font:800 italic 8px/1 system-ui;letter-spacing:1.5px;-webkit-text-stroke:.3px #b3231d}
+  [data-theme="brawler"] #mgTrigger::after{content:"FIGHTER";color:#ffd23a;font:900 italic 13px/1 system-ui;letter-spacing:.5px;-webkit-text-stroke:1px #b3231d;text-shadow:1px 1px 0 #7a1410;margin-top:1px}
   [data-theme="brawler"] .mg-title{font-style:italic;font-weight:900;letter-spacing:1px;color:#ffd23a;-webkit-text-stroke:1.5px #b3231d;text-shadow:2px 3px 0 #7a1410;transform:skewX(-8deg)}
   #mgOverlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center}
   #mgOverlay.hide{display:none}
@@ -389,6 +390,12 @@
   .dl-more{color:var(--mut);font-style:italic}
   .dropchip{border:1px solid var(--stripe);background:transparent;color:var(--stripe);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .dropchip:hover{filter:brightness(1.15)}
+  .buildsw{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin:2px 0 14px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+  .buildsw label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700}
+  .buildsw select{background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:13px;padding:6px 10px;border-radius:7px;cursor:pointer}
+  .buildsw select:focus{outline:none;border-color:var(--stripe)}
+  .buildsw .bs-note{font-size:11.5px;color:var(--mut)}
+  @media print{ .buildsw{display:none!important} }
   .panel.attn-stat{border-color:var(--warn)} .panel.attn-stat .data{color:var(--warn)}
   .card.attn{border-left:3px solid var(--warn)} .card.attn>.card-head .card-title{color:var(--warn)}
   .hero-empty{text-align:center;padding:60px 24px}
@@ -1265,6 +1272,7 @@ let mHist=[],mPos=-1;
 function openModal(title,body){ $("#modalTitle").innerHTML=title; $("#modalBody").innerHTML=body; $("#modal").classList.remove("hide"); updateModalNav(); }
 function closeModal(){ $("#modal").classList.add("hide"); mHist=[]; mPos=-1; }
 function updateModalNav(){ const bk=document.getElementById("modalBack"),fw=document.getElementById("modalFwd"),nv=document.querySelector(".modal-nav"); if(!bk)return; const show=mHist.length>1; if(nv)nv.style.display=show?"":"none"; bk.disabled=mPos<=0; fw.disabled=mPos>=mHist.length-1; }
+$("#censusBody").addEventListener("change",e=>{ const bs=e.target.closest("#buildSel"); if(bs) switchBuild(bs.value); });
 $("#censusBody").addEventListener("input",e=>{
   if(e.target.id==="auditSearch"){ globalSearch(e.target.value); return; }
   if(e.target.classList&&e.target.classList.contains("sigfilter")){ const tb=document.getElementById("sigBody"); if(tb)tb.innerHTML=signalRows(e.target.value); return; }
@@ -1837,6 +1845,17 @@ function renderWholeSystem(){
   const cp=$("#auditCopy"),pr=$("#auditPrint"),ea=document.getElementById("auditExportAll");
   if(cp)cp.disabled=true; if(pr)pr.disabled=true; if(ea)ea.disabled=false;
 }
+function switchBuild(name){
+  const u=state.units&&state.units[state.unitIndex]; if(!u||!u.builds)return;
+  const b=u.builds.find(x=>x.name===name); if(!b)return;
+  u.smw=b.smw?decodeText(b.smw):null; u.dip=b.dip?decodeText(b.dip):null; u.smft=b.smft?decodeText(b.smft):null; u.activeBuild=name;
+  setActiveUnit(state.unitIndex);
+}
+function buildSwitcher(u){
+  if(!u||!u.builds||u.builds.length<2) return "";
+  const opts=u.builds.map(b=>`<option value="${esc(b.name)}"${b.name===u.activeBuild?" selected":""}>${esc(b.name)}</option>`).join("");
+  return `<div class="buildsw"><label for="buildSel">Build</label><select id="buildSel">${opts}</select><span class="bs-note"><b>${u.builds.length}</b> builds in this folder &mdash; auto-picked the primary; override to inspect another.</span></div>`;
+}
 function setActiveUnit(i){
   if(!state.units||!state.units[i])return;
   state.unitIndex=i; const u=state.units[i];
@@ -1917,6 +1936,7 @@ function runAudit(){
   const hasData=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length)||(pr.d3&&((pr.d3.loads&&pr.d3.loads.length)||pr.d3.schedule||pr.d3.keypads)));
   const hasProg=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
   if(state.units && state.units.length>1){ html+=renderUnitSelector(); }
+  { const _au=state.units&&state.units[state.unitIndex]; if(_au&&_au.builds&&_au.builds.length>1) html+=buildSwitcher(_au); }
   if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   if(hasProg) html+=card("Overview",null,ov,true);
@@ -2216,8 +2236,10 @@ function chooseAllPrograms(files){
     const pick=list[0];
     const sib=ext=>{ const re=new RegExp("\\."+ext+"$","i"); return norm.findIndex(p=>re.test(p)&&p.toLowerCase().startsWith(d)); };
     const ir=[]; norm.forEach((p,k)=>{ if(/\.ir$/i.test(p)&&p.toLowerCase().startsWith(d)) ir.push(k); });
+    const sibOf=(i,ext)=>{ const nm=norm[i].replace(/\.smw$/i,"."+ext).toLowerCase(); return norm.findIndex(p=>p.toLowerCase()===nm); };
+    const builds=list.map(i=>({ name:norm[i].replace(/.*\//,""), smw:i, dip:sibOf(i,"dip"), smft:sibOf(i,"smft") }));
     return { smw:pick, smft:sib("smft"), dip:sib("dip"), ir, name:norm[pick].replace(/.*\//,""),
-      folder:(norm[pick].replace(/\/[^/]*$/,"").replace(/.*\//,"")||""), versions:list.slice(1).map(i=>norm[i].replace(/.*\//,"")) };
+      folder:(norm[pick].replace(/\/[^/]*$/,"").replace(/.*\//,"")||""), versions:list.slice(1).map(i=>norm[i].replace(/.*\//,"")), builds };
   }).sort((a,b)=>sz(b.smw)-sz(a.smw));
   const d3=new Set();
   norm.forEach(p=>{ const m=p.match(/^(.*\/)data\/(?:areas|rooms|loads|scenes)\.dat$/i)||p.match(/^(.*\/)documentation\/loadwiring\.html?$/i); if(m&&!/\/autosave\//i.test(m[1])) d3.add(m[1]); });
@@ -2334,7 +2356,11 @@ async function loadProgram(file){
     const all=chooseAllPrograms(files);
     const dec=i=>i>=0?decodeText(files[i].bytes):null;
     const base=r=>(r||"").replace(/[\\/]$/,"").replace(/.*[\\/]/,"");
-    const progUnits=all.programs.map(u=>({ kind:"program", name:u.name, folder:u.folder, versions:u.versions||[], smw:dec(u.smw), smft:dec(u.smft), dip:dec(u.dip), ir:u.ir.map(k=>files[k].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,"")) }));
+    const progUnits=all.programs.map(u=>{
+      const o={ kind:"program", name:u.name, folder:u.folder, versions:u.versions||[], smw:dec(u.smw), smft:dec(u.smft), dip:dec(u.dip), ir:u.ir.map(k=>files[k].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,"")) };
+      if(u.builds && u.builds.length>1){ o.builds=u.builds.map(b=>({ name:b.name, smw:files[b.smw].bytes, dip:b.dip>=0?files[b.dip].bytes:null, smft:b.smft>=0?files[b.smft].bytes:null })); o.activeBuild=u.builds[0].name; }
+      return o;
+    });
     let d3Units=all.d3roots.map(root=>{ const d3=buildD3(files, root.replace(/\\/g,"/").toLowerCase()); return d3?{ kind:"d3", name:base(root)||"D3 lighting", d3 }:null; }).filter(Boolean);
     if(!d3Units.length){ const d3=buildD3(files, ""); if(d3) d3Units=[{ kind:"d3", name:"D3 lighting", d3 }]; }
     out.units=progUnits.concat(d3Units);

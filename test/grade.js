@@ -507,5 +507,22 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
   has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
+// ===== per-processor build switcher: override the auto-picked .smw and re-parse =====
+{ const mk=n=>{ let x="[\nObjTp=Hd\nPgmNm=P\n]"; for(let i=1;i<=n;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=S"+i+"\nSgTp=\n]"; return x; };
+  const A=mk(2), B=mk(5);
+  w.eval(`
+    var _A=new TextEncoder().encode(${JSON.stringify(A)});
+    var _B=new TextEncoder().encode(${JSON.stringify(B)});
+    state.units=[{kind:"program",name:"P.smw",folder:"P",smw:decodeText(_A),activeBuild:"P_vA.smw",
+      builds:[{name:"P_vA.smw",smw:_A,dip:null,smft:null},{name:"P_vB.smw",smw:_B,dip:null,smft:null}]}];
+    state.unitName=""; state.unitIndex=0; setActiveUnit(0);
+  `);
+  has("build switcher UI renders for a multi-build folder", w.document.querySelector('#buildSel')!=null);
+  has("build switcher lists every build", w.document.querySelectorAll('#buildSel option').length===2);
+  const sigA=w.eval("censusStats(parseSmw(state.units[0].smw)).sigTot");
+  w.eval("switchBuild('P_vB.smw');");
+  const sigB=w.eval("censusStats(parseSmw(state.units[0].smw)).sigTot");
+  ck("build switch re-parses to the chosen build (signal count changes)", [sigA,sigB], [2,5]);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
