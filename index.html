@@ -214,6 +214,11 @@
   .tr-cfgbtn:hover{color:var(--ink);border-color:var(--dim)}
   .tr-cfg{margin-top:10px;padding:14px 15px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
   .tr-cfg.hide{display:none}
+  .tr-help{font-size:12.5px;color:var(--mut);margin:2px 0 12px;line-height:1.5}
+  .tr-help a{color:var(--trace)}
+  .tr-adv{margin:4px 0 10px}
+  .tr-adv summary{cursor:pointer;font-size:12px;color:var(--dim);user-select:none}
+  .tr-adv[open] summary{color:var(--mut);margin-bottom:8px}
   .tr-warn{font-size:12.5px;color:var(--warn);background:rgba(245,177,76,.08);border:1px solid var(--warn);border-radius:8px;padding:9px 11px;margin:0 0 12px;line-height:1.5}
   .tr-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap}
   .tr-row label{font-size:12px;color:var(--mut);width:74px;flex:none}
@@ -231,6 +236,10 @@
   .tr-md th{background:var(--panel2);color:var(--mut);font-weight:600}
   .tr-md code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
   .tr-out-actions{display:flex;gap:9px;margin:12px 0}
+  .tr-attach{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px}
+  .tr-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .tr-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;color:var(--ink)}
+  .tr-chip button{background:none;border:0;color:var(--mut);cursor:pointer;font-size:14px;padding:0;line-height:1}
   /* light themes: form fields need a white surface + readable placeholder (sky-blue/grey bg washed them out) */
   [data-theme="plumber"] input,[data-theme="plumber"] select,[data-theme="plumber"] textarea,
   [data-theme="daylight"] input,[data-theme="daylight"] select,[data-theme="daylight"] textarea{background:#ffffff;color:var(--ink)}
@@ -490,15 +499,19 @@
       <button class="tr-cfgbtn" id="trCfgBtn">&#9881; AI settings <b id="trState" class="muted">&mdash; off</b></button>
       <div class="tr-cfg hide" id="trCfg">
         <p class="tr-warn">&#9888; This tab sends your pasted text + the loaded program&rsquo;s facts to the provider you pick. Everything else in Bench stays on your machine. Use <b>local Ollama / LM Studio</b> for sensitive jobs.</p>
-        <div class="tr-row"><label>Provider</label><select id="trProvider"><option value="anthropic">Anthropic &mdash; Claude (direct)</option><option value="openai">OpenAI-compatible &mdash; OpenAI / OpenRouter / local Ollama / LM Studio</option></select></div>
-        <div class="tr-row"><label>Base URL</label><input id="trBase" placeholder="blank = provider default"></div>
-        <div class="tr-row"><label>Model</label><input id="trModel" placeholder="claude-… / gpt-… / llama3.1"></div>
-        <div class="tr-row"><label>API key</label><input id="trKey" type="password" placeholder="stored in this browser only"></div>
+        <div class="tr-row"><label>Connect to</label><select id="trProvider"><option value="anthropic">Anthropic &mdash; Claude (recommended)</option><option value="openai">OpenAI &mdash; GPT</option><option value="openrouter">OpenRouter &mdash; many models, one key</option><option value="ollama">Local &mdash; Ollama (private, no key)</option><option value="lmstudio">Local &mdash; LM Studio (private, no key)</option></select></div>
+        <p class="tr-help" id="trProvHelp"></p>
+        <div class="tr-row"><label>API key</label><input id="trKey" type="password" placeholder="paste your key — stored in this browser only"></div>
+        <details class="tr-adv"><summary>Advanced — model &amp; URL (pre-filled, usually leave as-is)</summary>
+          <div class="tr-row"><label>Model</label><input id="trModel"></div>
+          <div class="tr-row"><label>Base URL</label><input id="trBase"></div>
+        </details>
         <div class="tr-row"><button class="btn" id="trSaveCfg">Save</button><button class="btn ghost" id="trClearCfg">Turn off</button></div>
       </div>
     </div>
     <label class="tr-lbl">Paste the job intake &mdash; emails, texts, punch list, site notes</label>
     <textarea id="trIntake" class="tr-text" rows="7" placeholder="e.g. Master bath cans don't turn on… the All-Off button does nothing… panels froze last night, had to pull power"></textarea>
+    <div class="tr-attach"><label class="btn ghost" for="trFiles">+ Attach files</label><input type="file" id="trFiles" multiple class="hide" accept=".txt,.md,.csv,.log,.json,.eml,.html,.htm,.rtf,.tsv"><span class="muted" style="font-size:12px">paste and/or attach — both go in together (text files)</span><span id="trChips" class="tr-chips"></span></div>
     <div class="tr-actions"><button class="btn hero" id="trBuild" disabled>Build issue list &rarr;</button><span class="muted" id="trHint">Turn on AI settings to start.</span></div>
     <div id="trBody"></div>
   </section>
@@ -2635,7 +2648,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 })();
 /* ---------- Triage (opt-in BYO-LLM; the only feature that leaves the machine) ---------- */
 function trGetCfg(){ try{ return JSON.parse(localStorage.getItem("simplbench-triage")||"null")||{provider:"anthropic",base:"",model:"",key:""}; }catch(e){ return {provider:"anthropic",base:"",model:"",key:""}; } }
-function trReady(c){ c=c||trGetCfg(); return !!(c.key) || /localhost|127\.0\.0|ollama|11434|lm[\s-]?studio|:1234/i.test(c.base||""); }
+function trReady(c){ c=c||trGetCfg(); return !!(c.key) || /localhost|127\.0\.0|ollama|11434|:1234/i.test(c.base||""); }
 function trBuildRequest(cfg, system, user){
   if(cfg.provider==="anthropic"){
     return { url:(cfg.base||"https://api.anthropic.com/v1").replace(/\/$/,"")+"/messages",
@@ -2688,30 +2701,46 @@ var TR_SYS="You are a senior AV / Crestron service-triage assistant. Be concise 
 function trPrompt1(intake){ return "Extract a clean, DEDUPLICATED issue list from this messy job intake. One issue per row in the reporter's own concrete terms (keep their room/location words). Merge duplicates (note if several reported it). Separate a reported FACT from a REQUEST, labeled. Flag contradictions/ambiguity. Invent nothing.\n\nOutput a markdown table: # | Issue | fact/request | reported by | notes. Then one line: \"Confirm or edit above, then Resolve + diagnose.\"\n\nINTAKE:\n"+intake; }
 function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
 
+var TR_PRESETS={
+  anthropic:{type:"anthropic",base:"",model:"claude-3-5-sonnet-latest",local:false,help:'Paste your <b>Anthropic</b> key (get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys). Model &amp; URL are pre-filled — nothing else to enter.'},
+  openai:{type:"openai",base:"https://api.openai.com/v1",model:"gpt-4o-mini",local:false,help:'Paste your <b>OpenAI</b> key (<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> → API keys).'},
+  openrouter:{type:"openai",base:"https://openrouter.ai/api/v1",model:"anthropic/claude-3.5-sonnet",local:false,help:'Paste your <b>OpenRouter</b> key (<a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>) — one key, hundreds of models. Change the model under Advanced.'},
+  ollama:{type:"openai",base:"http://localhost:11434/v1",model:"llama3.1",local:true,help:'<b>No key needed.</b> Install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>, run <code>ollama serve</code>, and <code>ollama pull llama3.1</code> (or set your model under Advanced). 100% on your machine.'},
+  lmstudio:{type:"openai",base:"http://localhost:1234/v1",model:"local-model",local:true,help:'<b>No key needed.</b> In <a href="https://lmstudio.ai" target="_blank" rel="noopener">LM Studio</a>, load a model and start the local server. 100% on your machine.'}
+};
 (function(){
   var $id=function(x){return document.getElementById(x);};
   var btn=$id("trCfgBtn"), panel=$id("trCfg"), st=$id("trState"), prov=$id("trProvider"), base=$id("trBase"), model=$id("trModel"), key=$id("trKey"),
-      save=$id("trSaveCfg"), clear=$id("trClearCfg"), intake=$id("trIntake"), build=$id("trBuild"), hint=$id("trHint"), body=$id("trBody");
+      save=$id("trSaveCfg"), clear=$id("trClearCfg"), intake=$id("trIntake"), build=$id("trBuild"), hint=$id("trHint"), body=$id("trBody"),
+      files=$id("trFiles"), chips=$id("trChips");
+  var attached=[];
+  function renderChips(){ if(!chips)return; chips.innerHTML=attached.map(function(a,i){return '<span class="tr-chip">'+esc(a.name)+' <button data-i="'+i+'" title="remove">\u00d7</button></span>';}).join(""); }
+  function trFullIntake(){ var t=intake.value.trim(); attached.forEach(function(a){ t+="\n\n--- ATTACHED FILE: "+a.name+" ---\n"+a.text; }); return t.trim(); }
   if(!btn||!build) return;
   function refresh(){
     var c=trGetCfg(); var ready=trReady(c);
-    st.textContent = ready ? ("— on · "+(c.provider==="anthropic"?"Claude":(c.model||"OpenAI-compatible"))) : "— off";
+    st.textContent = ready ? ("— on · "+({anthropic:"Claude",openai:"OpenAI",openrouter:"OpenRouter",ollama:"Ollama (local)",lmstudio:"LM Studio (local)"}[c.choice]||"AI")) : "— off";
     st.className = ready ? "" : "muted";
-    build.disabled = !ready || !(intake.value.trim());
+    build.disabled = !ready || !(intake.value.trim() || attached.length);
     hint.textContent = ready ? "Reads the program loaded in Audit for instance resolution." : "Turn on AI settings to start.";
   }
-  function loadForm(){ var c=trGetCfg(); prov.value=c.provider||"anthropic"; base.value=c.base||""; model.value=c.model||""; key.value=c.key||""; }
+  var provHelp=$id("trProvHelp");
+  function applyPreset(name,keepEdits){ var p=TR_PRESETS[name]||TR_PRESETS.anthropic; if(!keepEdits){ base.value=p.base; model.value=p.model; } if(provHelp)provHelp.innerHTML=p.help; key.parentNode.style.display=p.local?"none":""; }
+  function loadForm(){ var c=trGetCfg(); prov.value=c.choice||"anthropic"; key.value=c.key||""; applyPreset(prov.value,false); if(c.base)base.value=c.base; if(c.model)model.value=c.model; }
+  prov.addEventListener("change",function(){ applyPreset(prov.value,false); });
   btn.addEventListener("click",function(){ panel.classList.toggle("hide"); if(!panel.classList.contains("hide"))loadForm(); });
-  save.addEventListener("click",function(){ var c={provider:prov.value,base:base.value.trim(),model:model.value.trim(),key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
+  save.addEventListener("click",function(){ var p=TR_PRESETS[prov.value]||TR_PRESETS.anthropic; var c={choice:prov.value,provider:p.type,base:base.value.trim()||p.base,model:model.value.trim()||p.model,key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
   clear.addEventListener("click",function(){ try{localStorage.removeItem("simplbench-triage");}catch(e){} key.value=""; refresh(); });
   intake.addEventListener("input",refresh);
+  if(files)files.addEventListener("change",function(){ var fl=[].slice.call(files.files); var left=fl.length; if(!left)return; fl.forEach(function(file){ var rd=new FileReader(); rd.onload=function(){ attached.push({name:file.name,text:String(rd.result||"").slice(0,200000)}); if(--left===0){ files.value=""; renderChips(); refresh(); } }; rd.onerror=function(){ if(--left===0){files.value=""; renderChips(); refresh();} }; rd.readAsText(file); }); });
+  if(chips)chips.addEventListener("click",function(e){ var b=e.target.closest("button[data-i]"); if(!b)return; attached.splice(+b.dataset.i,1); renderChips(); refresh(); });
   function busy(msg){ body.innerHTML='<div class="working"><span class="stripe"></span>'+esc(msg)+'</div>'; }
   function err(m){ body.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(m)+'</div>'; }
   function outActions(md){
     return '<div class="tr-out-actions"><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExport">Export .md</button></div>';
   }
   build.addEventListener("click",function(){
-    var c=trGetCfg(); var text=intake.value.trim(); if(!text)return;
+    var c=trGetCfg(); var text=trFullIntake(); if(!text)return;
     busy("Building the issue list…");
     trCall(c,TR_SYS,trPrompt1(text)).then(function(md){
       body.innerHTML='<span class="tr-aibadge">AI draft — verify</span><div class="tr-md">'+mdToHtml(md)+'</div>'
