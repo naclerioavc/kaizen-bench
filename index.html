@@ -209,6 +209,28 @@
   .mg-help{margin-top:9px;color:#9aa4bd;font-size:12px;text-align:center}
   @media print{ #mgGround,#mgOverlay{display:none!important} }
   @media print{ .unitbar{display:none!important} }
+  .tr-cfgwrap{margin:2px 0 14px}
+  .tr-cfgbtn{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:12.5px;padding:7px 12px;border-radius:8px;cursor:pointer}
+  .tr-cfgbtn:hover{color:var(--ink);border-color:var(--dim)}
+  .tr-cfg{margin-top:10px;padding:14px 15px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  .tr-cfg.hide{display:none}
+  .tr-warn{font-size:12.5px;color:var(--warn);background:rgba(245,177,76,.08);border:1px solid var(--warn);border-radius:8px;padding:9px 11px;margin:0 0 12px;line-height:1.5}
+  .tr-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap}
+  .tr-row label{font-size:12px;color:var(--mut);width:74px;flex:none}
+  .tr-row select,.tr-row input{flex:1;min-width:200px;background:var(--bg);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:13px;padding:7px 10px;border-radius:7px}
+  .tr-lbl{display:block;font-size:12px;color:var(--mut);margin:4px 0 7px;letter-spacing:.02em}
+  .tr-text{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);font:inherit;font-size:13.5px;line-height:1.5;padding:12px 14px;border-radius:9px;resize:vertical}
+  .tr-text:focus{outline:none;border-color:var(--stripe)}
+  .tr-actions{display:flex;align-items:center;gap:14px;margin:12px 0}
+  #trBody{margin-top:6px}
+  .tr-aibadge{display:inline-block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#000;background:var(--warn);padding:2px 7px;border-radius:4px;font-weight:700;margin-bottom:10px}
+  .tr-md{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-size:13.5px;line-height:1.6;color:var(--ink)}
+  .tr-md h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:14px 0 8px}
+  .tr-md table{border-collapse:collapse;width:100%;margin:8px 0;font-size:12.5px}
+  .tr-md th,.tr-md td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  .tr-md th{background:var(--panel2);color:var(--mut);font-weight:600}
+  .tr-md code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+  .tr-out-actions{display:flex;gap:9px;margin:12px 0}
   #censusBody.gsearch .card.gs-empty{display:none}
   #censusBody.gsearch tbody tr:not(.gs-hit){display:none!important}
   mark.gs-mark{background:var(--stripe);color:var(--bg);border-radius:2px;padding:0 1px;font-weight:600}
@@ -386,6 +408,7 @@
     <button class="on hero" data-tab="diff">Version Diff</button>
     <button data-tab="census">Audit</button>
     <button data-tab="log">Log Analyzer</button>
+    <button data-tab="triage">Triage</button>
     <button data-tab="help">Help</button>
     <div class="themewrap">
       <button class="themebtn" id="themeBtn" aria-haspopup="true" aria-expanded="false" title="Theme">
@@ -454,6 +477,26 @@
     <div id="logBody"></div>
   </section>
 
+  <!-- TRIAGE -->
+  <section id="tab-triage" class="hide">
+    <details class="tabhelp"><summary>How Triage works</summary><div>Paste messy job intake (emails, texts, punch list). AI extracts a clean issue list (you confirm), then resolves each against this program&rsquo;s facts from the <b>Audit</b> tab and drafts a go-list. <b>Opt-in, your key, off by default</b> &mdash; the one feature that sends data off your machine. Output is an <b>AI draft &mdash; verify on site.</b></div></details>
+    <div class="tr-cfgwrap">
+      <button class="tr-cfgbtn" id="trCfgBtn">&#9881; AI settings <b id="trState" class="muted">&mdash; off</b></button>
+      <div class="tr-cfg hide" id="trCfg">
+        <p class="tr-warn">&#9888; This tab sends your pasted text + the loaded program&rsquo;s facts to the provider you pick. Everything else in Bench stays on your machine. Use <b>local Ollama / LM Studio</b> for sensitive jobs.</p>
+        <div class="tr-row"><label>Provider</label><select id="trProvider"><option value="anthropic">Anthropic &mdash; Claude (direct)</option><option value="openai">OpenAI-compatible &mdash; OpenAI / OpenRouter / local Ollama / LM Studio</option></select></div>
+        <div class="tr-row"><label>Base URL</label><input id="trBase" placeholder="blank = provider default"></div>
+        <div class="tr-row"><label>Model</label><input id="trModel" placeholder="claude-… / gpt-… / llama3.1"></div>
+        <div class="tr-row"><label>API key</label><input id="trKey" type="password" placeholder="stored in this browser only"></div>
+        <div class="tr-row"><button class="btn" id="trSaveCfg">Save</button><button class="btn ghost" id="trClearCfg">Turn off</button></div>
+      </div>
+    </div>
+    <label class="tr-lbl">Paste the job intake &mdash; emails, texts, punch list, site notes</label>
+    <textarea id="trIntake" class="tr-text" rows="7" placeholder="e.g. Master bath cans don't turn on… the All-Off button does nothing… panels froze last night, had to pull power"></textarea>
+    <div class="tr-actions"><button class="btn hero" id="trBuild" disabled>Build issue list &rarr;</button><span class="muted" id="trHint">Turn on AI settings to start.</span></div>
+    <div id="trBody"></div>
+  </section>
+
   <!-- HELP -->
   <section id="tab-help" class="hide">
     <div class="panel">
@@ -498,7 +541,7 @@
 <script>
 "use strict";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const TABS=["diff","census","log","help"];
+const TABS=["diff","census","log","triage","help"];
 const state={ diffA:null, diffB:null, diffAname:null, diffBname:null, arcA:null, arcB:null, arcResult:null, arcActive:false, census:null, censusName:null, lastDiff:null, signals:null, logMulti:null, units:null, unitIndex:0, unitName:null, prog:{name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false} };
 
 /* ---------- tabs ---------- */
@@ -2426,7 +2469,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;","
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
-// ---------- Pipe Dream: a tiny ORIGINAL speedrun platformer (generic shapes; Plumber theme only) ----------
+// ---------- Pipe Dream: tiny ORIGINAL speedrun platformer. Character = the user (black tracksuit + white stripes, mustache, black ball cap) — stays the SAME across any future theme reskin; only the world changes. Plumber theme only for now. ----------
 (function(){
   var ov=document.getElementById("mgOverlay"), cv=document.getElementById("mgCanvas"),
       trg=document.getElementById("mgTrigger"), cl=document.getElementById("mgClose"), sc=document.getElementById("mgScore");
@@ -2443,7 +2486,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     return sxs;
   }
   function reset(){
-    player={x:40,y:H-94,w:20,h:30,vx:0,vy:0,g:false};
+    player={x:40,y:H-98,w:22,h:34,vx:0,vy:0,g:false};
     plats=[{x:0,y:H-30,w:W,h:30},{x:150,y:H-110,w:90,h:16},{x:300,y:H-172,w:90,h:16},{x:470,y:H-122,w:110,h:16},{x:612,y:H-200,w:84,h:16}];
     coins=[{x:195,y:H-142},{x:345,y:H-204},{x:525,y:H-154},{x:652,y:H-232},{x:250,y:H-58}].map(function(c){return {x:c.x,y:c.y,got:false};});
     startT=(typeof performance!=="undefined"?performance.now():Date.now()); finished=false; finishTime=0;
@@ -2467,20 +2510,34 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
       for(var i=0;i<plats.length;i++){ var p=plats[i];
         if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
       if(player.y>H+80)reset();
-      got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+10-c.x)<16&&Math.abs(player.y+15-c.y)<17)c.got=true; if(c.got)got++; });
+      got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+11-c.x)<17&&Math.abs(player.y+17-c.y)<19)c.got=true; if(c.got)got++; });
       if(got>=coins.length){ finished=true; finishTime=(now()-startT)/1000; saveScore(finishTime); }
     }
     rect(0,0,W,H,"#5c94fc");
     ctx.fillStyle="rgba(255,255,255,.92)";
     [[95,58],[340,40],[565,76]].forEach(function(q){ctx.beginPath();ctx.arc(q[0],q[1],15,0,7);ctx.arc(q[0]+17,q[1],19,0,7);ctx.arc(q[0]+36,q[1],15,0,7);ctx.fill();});
-    plats.forEach(function(p,i){ rect(p.x,p.y,p.w,p.h,i===0?"#3cb043":"#c8521f"); if(i===0)rect(p.x,p.y,p.w,5,"#2a7d2f"); else rect(p.x,p.y,p.w,2,"#e07b3a"); });
+    plats.forEach(function(p,i){
+      if(i===0){ rect(p.x,p.y,p.w,p.h,"#3cb043"); rect(p.x,p.y,p.w,5,"#2a7d2f"); return; }
+      rect(p.x,p.y,p.w,p.h,"#c8521f");                          // brick base
+      ctx.fillStyle="#8f3415"; var mid=Math.floor(p.h/2);       // mortar (darker)
+      ctx.fillRect(p.x,p.y+mid,p.w,1);                          // mid horizontal
+      for(var bx=p.x+18;bx<p.x+p.w;bx+=24)ctx.fillRect(bx,p.y,1,mid);          // top-row verticals
+      for(var bx2=p.x+6;bx2<p.x+p.w;bx2+=24)ctx.fillRect(bx2,p.y+mid,1,p.h-mid); // bottom-row offset
+      rect(p.x,p.y,p.w,2,"#e07b3a");                            // top highlight
+    });
     coins.forEach(function(c){ if(c.got)return; ctx.fillStyle="#ffcf33";ctx.beginPath();ctx.arc(c.x,c.y,7,0,7);ctx.fill();ctx.strokeStyle="#b8860b";ctx.lineWidth=2;ctx.stroke(); });
     var px=player.x, py=player.y, dir=player.vx<0?-1:1;
-    rect(px+1,py+26,8,4,"#6b3f1d"); rect(px+11,py+26,8,4,"#6b3f1d");
-    rect(px+2,py+13,16,14,"#1f6fd6"); rect(px+1,py+13,18,4,"#e52521");
-    rect(px+0,py+15,3,5,"#ffffff"); rect(px+17,py+15,3,5,"#ffffff");
-    rect(px+4,py+4,12,10,"#f1c08a"); rect(px+2,py,16,6,"#e52521");
-    rect(dir<0?px+11:px+0,py+5,9,2,"#e52521"); rect(dir<0?px+6:px+12,py+7,2,2,"#15182b"); rect(px+7,py+10,8,2,"#3a2410");
+    rect(px+2,py+31,8,3,"#f4f4f4"); rect(px+12,py+31,8,3,"#f4f4f4");          // white sneakers
+    rect(px+3,py+20,7,11,"#141414"); rect(px+12,py+20,7,11,"#141414");        // black track pants
+    rect(px+3,py+20,2,11,"#f4f4f4"); rect(px+17,py+20,2,11,"#f4f4f4");        // white leg stripes
+    rect(px+2,py+9,18,12,"#141414");                                          // black jacket
+    rect(px+2,py+9,2,12,"#f4f4f4"); rect(px+18,py+9,2,12,"#f4f4f4");          // white arm stripes
+    rect(px+10,py+9,1,12,"#444");                                             // zipper
+    rect(px+6,py+2,10,8,"#f1c08a");                                          // face
+    rect(px+7,py+8,8,2,"#241813");                                           // mustache
+    rect(dir<0?px+7:px+12,py+5,2,2,"#15182b");                               // eye
+    rect(px+4,py-2,14,4,"#141414");                                          // black ball cap
+    rect(dir<0?px+13:px+0,py,8,2,"#141414");                                 // cap brim (faces travel dir)
     var el=finished?finishTime:(now()-startT)/1000;
     sc.textContent="Coins "+got+" / "+coins.length+"  ·  "+el.toFixed(1)+"s";
     if(finished){
@@ -2500,7 +2557,107 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
   document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); if((e.key==="r"||e.key==="R")&&finished)reset(); });
   document.addEventListener("keyup",function(e){ keys[e.key]=false; });
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,splitLogSystems,zipManifest,fileClass}; }
+/* ---------- Triage (opt-in BYO-LLM; the only feature that leaves the machine) ---------- */
+function trGetCfg(){ try{ return JSON.parse(localStorage.getItem("simplbench-triage")||"null")||{provider:"anthropic",base:"",model:"",key:""}; }catch(e){ return {provider:"anthropic",base:"",model:"",key:""}; } }
+function trReady(c){ c=c||trGetCfg(); return !!(c.key) || /localhost|127\.0\.0|ollama|11434|lm[\s-]?studio|:1234/i.test(c.base||""); }
+function trBuildRequest(cfg, system, user){
+  if(cfg.provider==="anthropic"){
+    return { url:(cfg.base||"https://api.anthropic.com/v1").replace(/\/$/,"")+"/messages",
+      headers:{ "content-type":"application/json", "x-api-key":cfg.key||"", "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+      body:{ model:cfg.model||"claude-3-5-sonnet-latest", max_tokens:2800, system:system, messages:[{role:"user",content:user}] } };
+  }
+  return { url:(cfg.base||"https://api.openai.com/v1").replace(/\/$/,"")+"/chat/completions",
+    headers:{ "content-type":"application/json", "authorization":"Bearer "+(cfg.key||"") },
+    body:{ model:cfg.model||"gpt-4o-mini", messages:[{role:"system",content:system},{role:"user",content:user}] } };
+}
+async function trCall(cfg, system, user){
+  var req=trBuildRequest(cfg,system,user);
+  var r=await fetch(req.url,{method:"POST",headers:req.headers,body:JSON.stringify(req.body)});
+  if(!r.ok){ var t=""; try{t=await r.text();}catch(e){} throw new Error("AI provider returned "+r.status+". "+t.slice(0,180)); }
+  var d=await r.json();
+  if(cfg.provider==="anthropic") return (d.content&&d.content[0]&&d.content[0].text)||"";
+  return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
+}
+function exportFactsForLLM(){
+  var parts=[], pr=state.prog;
+  var facts=(typeof auditToText==="function")?auditToText():"";
+  if(facts) parts.push("AS-BUILT (devices, IP-IDs, signals, checks):\n"+facts);
+  if(pr&&pr.d3){
+    var d=pr.d3;
+    if(d.lighting){ if(d.lighting.rooms&&d.lighting.rooms.length)parts.push("LIGHTING ROOMS: "+d.lighting.rooms.map(function(r){return r.name;}).join(", ")); if(d.lighting.scenes&&d.lighting.scenes.length)parts.push("LIGHTING SCENES: "+d.lighting.scenes.map(function(x){return x.name;}).join(", ")); }
+    if(d.loads&&d.loads.length)parts.push("LIGHTING LOADS (load -> module/output/feed):\n"+d.loads.slice(0,250).map(function(l){return l.load+" -> "+l.modType+" mod "+l.modNum+" out "+l.out+(l.feed?(" feed "+l.feed):"");}).join("\n"));
+  }
+  if(!parts.length) return "(No program loaded in the Audit tab. Load one there first so issues resolve to exact devices/loads/IP-IDs.)";
+  return parts.join("\n\n");
+}
+function mdToHtml(md){
+  md=String(md||""); var lines=md.split(/\r?\n/), out=[], i=0;
+  var e=function(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");};
+  var inl=function(t){return e(t).replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/`([^`]+)`/g,"<code>$1</code>");};
+  while(i<lines.length){
+    var ln=lines[i];
+    if(/^\s*\|(.+)\|\s*$/.test(ln) && i+1<lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1])){
+      var head=ln.trim().replace(/^\||\|$/g,"").split("|").map(function(c){return inl(c.trim());}); i+=2; var rows=[];
+      while(i<lines.length && /^\s*\|(.+)\|\s*$/.test(lines[i])){ rows.push(lines[i].trim().replace(/^\||\|$/g,"").split("|").map(function(c){return inl(c.trim());})); i++; }
+      out.push("<table><thead><tr>"+head.map(function(h){return "<th>"+h+"</th>";}).join("")+"</tr></thead><tbody>"+rows.map(function(r){return "<tr>"+r.map(function(c){return "<td>"+c+"</td>";}).join("")+"</tr>";}).join("")+"</tbody></table>"); continue;
+    }
+    if(/^\s*#{1,6}\s+/.test(ln)){ out.push("<h2>"+inl(ln.replace(/^\s*#{1,6}\s+/,""))+"</h2>"); i++; continue; }
+    if(/^\s*[-*]\s+/.test(ln)){ var it=[]; while(i<lines.length&&/^\s*[-*]\s+/.test(lines[i])){ it.push("<li>"+inl(lines[i].replace(/^\s*[-*]\s+/,""))+"</li>"); i++; } out.push("<ul>"+it.join("")+"</ul>"); continue; }
+    if(ln.trim()===""){ i++; continue; }
+    out.push("<p>"+inl(ln)+"</p>"); i++;
+  }
+  return out.join("");
+}
+var TR_SYS="You are a senior AV / Crestron service-triage assistant. Be concise and practical. Never invent devices, loads, IP-IDs, modules, or facts that aren't given.";
+function trPrompt1(intake){ return "Extract a clean, DEDUPLICATED issue list from this messy job intake. One issue per row in the reporter's own concrete terms (keep their room/location words). Merge duplicates (note if several reported it). Separate a reported FACT from a REQUEST, labeled. Flag contradictions/ambiguity. Invent nothing.\n\nOutput a markdown table: # | Issue | fact/request | reported by | notes. Then one line: \"Confirm or edit above, then Resolve + diagnose.\"\n\nINTAKE:\n"+intake; }
+function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
+
+(function(){
+  var $id=function(x){return document.getElementById(x);};
+  var btn=$id("trCfgBtn"), panel=$id("trCfg"), st=$id("trState"), prov=$id("trProvider"), base=$id("trBase"), model=$id("trModel"), key=$id("trKey"),
+      save=$id("trSaveCfg"), clear=$id("trClearCfg"), intake=$id("trIntake"), build=$id("trBuild"), hint=$id("trHint"), body=$id("trBody");
+  if(!btn||!build) return;
+  function refresh(){
+    var c=trGetCfg(); var ready=trReady(c);
+    st.textContent = ready ? ("— on · "+(c.provider==="anthropic"?"Claude":(c.model||"OpenAI-compatible"))) : "— off";
+    st.className = ready ? "" : "muted";
+    build.disabled = !ready || !(intake.value.trim());
+    hint.textContent = ready ? "Reads the program loaded in Audit for instance resolution." : "Turn on AI settings to start.";
+  }
+  function loadForm(){ var c=trGetCfg(); prov.value=c.provider||"anthropic"; base.value=c.base||""; model.value=c.model||""; key.value=c.key||""; }
+  btn.addEventListener("click",function(){ panel.classList.toggle("hide"); if(!panel.classList.contains("hide"))loadForm(); });
+  save.addEventListener("click",function(){ var c={provider:prov.value,base:base.value.trim(),model:model.value.trim(),key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
+  clear.addEventListener("click",function(){ try{localStorage.removeItem("simplbench-triage");}catch(e){} key.value=""; refresh(); });
+  intake.addEventListener("input",refresh);
+  function busy(msg){ body.innerHTML='<div class="working"><span class="stripe"></span>'+esc(msg)+'</div>'; }
+  function err(m){ body.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(m)+'</div>'; }
+  function outActions(md){
+    return '<div class="tr-out-actions"><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExport">Export .md</button></div>';
+  }
+  build.addEventListener("click",function(){
+    var c=trGetCfg(); var text=intake.value.trim(); if(!text)return;
+    busy("Building the issue list…");
+    trCall(c,TR_SYS,trPrompt1(text)).then(function(md){
+      body.innerHTML='<span class="tr-aibadge">AI draft — verify</span><div class="tr-md">'+mdToHtml(md)+'</div>'
+        +'<label class="tr-lbl" style="margin-top:14px">Edit the issue list if needed, then resolve against the program facts:</label>'
+        +'<textarea id="trIssues" class="tr-text" rows="7"></textarea>'
+        +'<div class="tr-actions"><button class="btn hero" id="trResolve">Resolve + diagnose →</button><span class="muted">Pulls facts from the Audit tab automatically.</span></div>'
+        +'<div id="trBody2"></div>';
+      $id("trIssues").value=md;
+      $id("trResolve").addEventListener("click",function(){
+        var issues=$id("trIssues").value.trim(); var facts=exportFactsForLLM();
+        var b2=$id("trBody2"); b2.innerHTML='<div class="working"><span class="stripe"></span>Resolving to instances + diagnosing…</div>';
+        trCall(c,TR_SYS,trPrompt2(issues,facts)).then(function(go){
+          b2.innerHTML='<span class="tr-aibadge">AI draft — verify on site</span><div class="tr-md" id="trGo">'+mdToHtml(go)+'</div>'+outActions(go);
+          $id("trCopy").addEventListener("click",function(){ navigator.clipboard&&navigator.clipboard.writeText(go); var x=$id("trCopy"),o=x.textContent;x.textContent="Copied ✓";setTimeout(function(){x.textContent=o;},1400); });
+          $id("trExport").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_go-list.md",go); });
+        }).catch(function(e){ b2.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(e.message)+'</div>'; });
+      });
+    }).catch(function(e){ err(e.message); });
+  });
+  refresh();
+})();
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

@@ -409,5 +409,18 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   ck("eiscLinks resolves target name from the linked Dv", links[0].target, "02_Security");
   ck("eiscLinks resolves target IP via the .dip", links[0].ip, "127.0.0.2");
 }
+// ===== Triage deterministic helpers (the LLM call itself is network; these are gradeable) =====
+{ const a=w.trBuildRequest({provider:"anthropic",key:"sk-x",model:"claude-3-5-sonnet-latest"},"SYS","USER");
+  has("triage req (Anthropic): /messages + direct-browser header + system/messages body",
+    /\/messages$/.test(a.url) && a.headers["x-api-key"]==="sk-x" && a.headers["anthropic-dangerous-direct-browser-access"]==="true" && a.body.system==="SYS" && a.body.messages[0].content==="USER");
+  const o=w.trBuildRequest({provider:"openai",base:"http://localhost:11434/v1",model:"llama3.1",key:""},"SYS","USER");
+  has("triage req (OpenAI-compatible): base URL honored (local Ollama) + bearer + chat/completions",
+    o.url==="http://localhost:11434/v1/chat/completions" && /^Bearer /.test(o.headers.authorization) && o.body.messages[0].role==="system" && o.body.messages[1].content==="USER");
+  const html=w.mdToHtml("# Go-list\n\n| # | Issue | Domain |\n|---|---|---|\n| 1 | bath cans dead | **electrical** |\n");
+  has("triage mdToHtml renders a markdown table with header + row", /<table>/.test(html) && /<th>Issue<\/th>/.test(html) && /<td>bath cans dead<\/td>/.test(html) && /<b>electrical<\/b>/.test(html));
+  // exportFactsForLLM: no program -> clear guidance; with program -> includes as-built
+  w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null;");
+  has("exportFactsForLLM with nothing loaded gives clear guidance", /No program loaded/i.test(w.exportFactsForLLM()));
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);
