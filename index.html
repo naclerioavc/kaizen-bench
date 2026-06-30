@@ -3030,6 +3030,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     rect(0,0,W,H,"#c2b9a6");                                   // office wall (beige)
     rect(0,H-94,W,4,"#a89c84");                                // chair rail
     rect(0,H-58,W,58,"#59636f"); rect(0,H-58,W,3,"#46505b");   // grey carpet
+    drawCrowd(smashShake>0 || (finished && smashHP<=0));   // office mob watching the smash
     var dmg=1-Math.max(0,smashHP)/100;
     var sx=(smashShake>0?(Math.random()*2-1)*smashShake:0), dead=smashHP<=0;
     if(dead){
@@ -3068,6 +3069,22 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
       var sxs=getScores(); ctx.font="15px monospace";
       sxs.forEach(function(r,i){ ctx.fillStyle=(Math.abs(r.t-finishTime)<0.001?"#5bff7a":"#fff"); ctx.fillText((i+1)+".  "+r.n+"   "+r.t.toFixed(2)+"s",W/2,170+i*22); });
       ctx.fillStyle="#9aa4bd"; ctx.font="12px monospace"; ctx.fillText("SPACE / click = punch · R = retry · Esc = close",W/2,298); ctx.textAlign="left";
+    }
+  }
+  function drawCrowd(hit){
+    var shirts=["#3a5a8a","#7a3a3a","#3a7a4a","#5a5a5a","#8a6a3a","#4a4a6a","#7a4a7a","#2f6d6a"];
+    var skins=["#e8c39a","#c69a6a","#9a6a4a","#f0d0b0"];
+    var n=14, baseY=H-66;
+    for(var i=0;i<n;i++){
+      var x=16+i*((W-32)/(n-1));
+      var bob=hit?(Math.sin(i*1.7+now()/80)*3):0; var y=baseY-bob-(i%2?2:0);
+      var sh=shirts[i%shirts.length], sk=skins[(i*3)%skins.length];
+      rect(x-9,y-1,18,15,sh);                                  // shoulders/torso
+      ctx.fillStyle=sk; ctx.beginPath(); ctx.arc(x,y-7,5.5,0,7); ctx.fill();   // head
+      if(i%3) rect(x-5,y-12,10,4,"#241c14");                   // hair
+      if(i%5===0) rect(x-1,y,2,9,"#c0392b");                   // tie
+      if(i%4===0){ rect(x+5,y-15,4,8,"#141414"); rect(x+5.7,y-14,2.6,4.5,"#86d6ff"); }  // phone filming
+      if(hit && i%6===2){ rect(x-10,y-12,3,8,sk); rect(x+7,y-12,3,8,sk); }    // arms up cheering
     }
   }
   function drawApe(x,y,toss){
