@@ -3186,25 +3186,45 @@ function trGroundHTML(){
   var tail = miss.length ? ('<div class="tr-gmiss">⚠ For sharper, runtime-confirmed triage: '+miss.join("; ")+'.</div>') : '<div class="tr-gok">✓ Fully grounded — program + console.</div>';
   return '<span class="tr-glbl">Triage will use</span> <b>'+b1+'</b> &nbsp; <b>'+b2+'</b>'+tail;
 }
+function unitFacts(u){
+  if(!u||!u.smw) return "";
+  var m=null; try{ m=parseSmw(u.smw); }catch(e){}
+  var dip=u.dip?parseDip(u.dip):new Map();
+  var devs=u.smft?parseSmft(u.smft):[];
+  var cs=m?censusStats(m):null;
+  var eisc=(typeof eiscLinks==="function")?eiscLinks(u.smw,dip):[];
+  var L=["### "+(u.folder||u.name)+(u.activeBuild?(" — build "+u.activeBuild.replace(/\.smw$/i,"")):"")];
+  if(cs) L.push("Signals "+cs.sigTot+" (D/A/S "+cs.D+"/"+cs.A+"/"+cs.Ser+"), symbols "+cs.symActive+", devices "+devs.length);
+  if(devs.length){ L.push("Devices (net / IP-ID / model / name / ip):");
+    devs.slice(0,70).forEach(function(d){ var ip=d.net==="Ethernet"?(dip.get((d.id||"").toUpperCase())||""):""; L.push("  "+[d.net,d.id,d.model,d.name,ip].filter(Boolean).join(" / ")); });
+    if(devs.length>70) L.push("  …+"+(devs.length-70)+" more devices"); }
+  if(dip.size){ var ids=[...dip.entries()].slice(0,60).map(function(e){return e[0]+(e[1]?("="+e[1]):"");}); L.push("IP-IDs: "+ids.join(", ")+(dip.size>60?" …":"")); }
+  if(eisc.length) L.push("EISC links: "+eisc.map(function(l){return l.ipid+(l.ip?("@"+l.ip):"")+"->"+(l.target||"?");}).join("; "));
+  return L.join("\n");
+}
 function exportFactsForLLM(){
-  var parts=[], pr=state.prog;
-  // whole-system context for multi-processor jobs (so cross-processor complaints resolve)
+  var parts=[], pr=state.prog, hasProgram=false;
+  // whole-system context (multi-processor jobs)
   try{
-    var pu=(state.units||[]).filter(function(u){return u.kind==="program"&&u.smw;});
-    if(pu.length>1){
+    var pu0=(state.units||[]).filter(function(u){return u.kind==="program"&&u.smw&&!u.archived;});
+    if(pu0.length>1){
       var ss=systemSummary(state.units), g=systemGraph(state.units);
       var pl=ss.processors.map(function(p){return "- "+(p.folder||p.name)+": "+p.signals+" signals, "+p.devices+" devices, "+p.ipids+" IP-IDs"+(p.eisc&&p.eisc.length?(", "+p.eisc.length+" EISC links"):"");});
       var br=g.edges.filter(function(e){return /^u/.test(e.b);}).map(function(e){var A=(g.nodes.find(function(n){return n.id===e.a;})||{}).label,B=(g.nodes.find(function(n){return n.id===e.b;})||{}).label;return "- "+A+" <-> "+B+" ("+e.kind+", IP-ID "+(e.ipids||[]).join(",")+")";});
       parts.push("WHOLE SYSTEM ("+ss.totals.processors+" processors):\n"+pl.join("\n")+(br.length?("\nEISC BRIDGES:\n"+br.join("\n")):""));
     }
   }catch(e){}
-  var facts=""; try{ facts=(typeof auditToText==="function")?auditToText():""; }catch(e){}
-  if(facts) parts.push("AS-BUILT of the active processor"+(pr&&pr.name?(" ("+pr.name+")"):"")+" — devices, IP-IDs, signals, checks:\n"+facts);
-  if(pr&&pr.d3){
-    var d=pr.d3;
-    if(d.lighting){ if(d.lighting.rooms&&d.lighting.rooms.length)parts.push("LIGHTING ROOMS: "+d.lighting.rooms.map(function(r){return r.name;}).join(", ")); if(d.lighting.scenes&&d.lighting.scenes.length)parts.push("LIGHTING SCENES: "+d.lighting.scenes.map(function(x){return x.name;}).join(", ")); }
-    if(d.loads&&d.loads.length)parts.push("LIGHTING LOADS (load -> module/output/feed):\n"+d.loads.slice(0,250).map(function(l){return l.load+" -> "+l.modType+" mod "+l.modNum+" out "+l.out+(l.feed?(" feed "+l.feed):"");}).join("\n"));
-  }
+  // EVERY loaded processor's as-built — auto-collected, no tab/unit selection needed
+  var pus=(state.units||[]).filter(function(u){return u.kind==="program"&&u.smw&&!u.archived;});
+  if(pus.length){ var blocks=pus.map(unitFacts).filter(Boolean);
+    if(blocks.length){ hasProgram=true; parts.push("AS-BUILT — EVERY loaded processor (devices, IP-IDs, signals, EISC):\n\n"+blocks.join("\n\n")); } }
+  else { var facts=""; try{ facts=(typeof auditToText==="function")?auditToText():""; }catch(e){} if(facts){ hasProgram=true; parts.push("AS-BUILT (devices, IP-IDs, signals):\n"+facts); } }
+  // EVERY D3 lighting unit
+  var d3s=(state.units||[]).filter(function(u){return u.kind==="d3"&&u.d3;});
+  if(!d3s.length && pr&&pr.d3) d3s=[{folder:"D3 lighting",d3:pr.d3}];
+  d3s.forEach(function(u){ var d=u.d3, tag=(u.folder||u.name||"D3");
+    if(d.lighting&&d.lighting.rooms&&d.lighting.rooms.length) parts.push("LIGHTING ROOMS ("+tag+"): "+d.lighting.rooms.map(function(r){return r.name;}).join(", "));
+    if(d.loads&&d.loads.length) parts.push("LIGHTING LOADS ("+tag+") load -> module/output/feed:\n"+d.loads.slice(0,200).map(function(l){return l.load+" -> "+l.modType+" mod "+l.modNum+" out "+l.out+(l.feed?(" feed "+l.feed):"");}).join("\n")); });
   // runtime evidence from a loaded console/log (digested, capped)
   try{ var L=state.logDigest;
     if(L){
@@ -3222,9 +3242,9 @@ function exportFactsForLLM(){
       if(L.devConflicts&&L.devConflicts.length) lg.push("Device claimed by two programs: "+L.devConflicts.join(", "));
       if(L.authFails) lg.push("Failed-login events: "+L.authFails);
       if(L.cpu) lg.push("Processor load (as logged): "+L.cpu);
-      if(!facts) lg.push("(No program/as-built loaded — cannot resolve complaints to exact devices/IP-IDs; diagnose from this log + complaints, and tell the user to load the job backup in Audit for instance resolution.)");
+      if(!hasProgram) lg.push("(No program/as-built loaded — cannot resolve complaints to exact devices/IP-IDs; diagnose from this log + complaints, and tell the user to load the job backup in Audit for instance resolution.)");
       parts.push(lg.join("\n"));
-    } else if(facts){
+    } else if(hasProgram){
       parts.push("(No console/log loaded — add an Info-Tool dump in the Log Analyzer for runtime-confirmed diagnosis: which devices are actually dropping, what's timing out, and which build is deployed.)");
     }
   }catch(e){}
@@ -3320,7 +3340,7 @@ var TR_PRESETS={
   });
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,parseDeployedBuilds,deployedBuildFor,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

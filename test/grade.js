@@ -521,6 +521,13 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
   has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
+// ===== Triage auto-collects EVERY loaded processor (no manual unit selection) =====
+{ const mk=(nm,sig)=>{ let x="[\nObjTp=Hd\nPgmNm="+nm+"\n]"; for(let i=1;i<=sig;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=S"+i+"\nSgTp=\n]"; return x; };
+  w.eval(`state.units=[{kind:"system",name:"sys"},{kind:"program",name:"A",folder:"01-A",smw:${JSON.stringify(mk("A",2))}},{kind:"program",name:"B",folder:"02-B",smw:${JSON.stringify(mk("B",3))}}]; state.unitIndex=0; state.prog={name:"Whole system",smw:null}; state.logDigest=null;`);
+  const f=w.exportFactsForLLM();
+  ck("Triage collects every processor's as-built, not just the active unit", (f.match(/^### /gm)||[]).length, 2);
+  has("Triage facts name each processor folder", /01-A/.test(f) && /02-B/.test(f));
+}
 // ===== deployed-build confirmation from a console (Loading Program /simpl/appNN/<build>.bin) =====
 { const log="Ok: LE1 # t # Loading Program /simpl/app01/01_CP4_Main_v9_13.bin.\nOk: LE1 # t # Loading Program /simpl/app01/01_CP4_Main_v9_16.bin.\nOk: LE2 # t # Loading Program /simpl/app02/02_Lighting_v1_2.bin.";
   const dep=w.parseDeployedBuilds(log);
