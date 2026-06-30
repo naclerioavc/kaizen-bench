@@ -521,6 +521,17 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
   has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
+// ===== archived (~Older) folders excluded from the live map, counted separately =====
+{ const mk=nm=>"[\nObjTp=Hd\nPgmNm="+nm+"\n]";
+  const units=[{kind:"system",name:"sys"},
+    {kind:"program",name:"Live.smw",folder:"01-Live",smw:mk("Live")},
+    {kind:"program",name:"Old.smw",folder:"Old",smw:mk("Old"),archived:true}];
+  const G=w.systemGraph(units);
+  ck("archived processor excluded from the live map", G.nodes.filter(n=>n.kind==="processor").length, 1);
+  const F=w.dropFacts(units);
+  ck("dropFacts counts only live processors", F.nProc, 1);
+  ck("dropFacts reports the archived count", F.nArchived, 1);
+}
 // ===== multiple D3 backups collapse to one lighting node (newest), bridge resolves =====
 { const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
   const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
