@@ -2875,6 +2875,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     rect(x-11,y-8,22,16,"#a4632f"); rect(x-11,y-8,22,3,"#7a4520"); rect(x-11,y+5,22,3,"#7a4520");
     rect(x-11,y-2,22,2,"#8a4f24"); rect(x-2,y-8,2,16,"#7a4520");
     var o=((Math.floor(spin)%5)+5)%5; rect(x-9+o*3,y-6,2,12,"rgba(0,0,0,.16)");
+    ctx.fillStyle="#2c1c0d"; ctx.font="700 7px monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("WM",x,y-1); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
   }
   function climbFinish(){
     ctx.fillStyle="rgba(10,8,6,.80)"; ctx.fillRect(W/2-170,40,340,290); ctx.textAlign="center";
