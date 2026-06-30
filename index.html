@@ -2458,7 +2458,7 @@ function parseD3Scenes(smw){
   return Object.keys(map).map(function(nm){ return { scene:nm, loadIds:Object.keys(map[nm]).map(Number).sort(function(a,b){return a-b;}) }; });
 }
 function buildD3(files, rootLower){
-  const inR=f=>!rootLower || f.name.replace(/\\/g,"/").toLowerCase().startsWith(rootLower);
+  const inR=f=>{ var p=f.name.replace(/\\/g,"/"); if(/\/autosave\//i.test(p))return false; return !rootLower || p.toLowerCase().startsWith(rootLower); };
   const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inR(f));
   const dsch=files.find(f=>/loadschedule\w*\.html?$/i.test(f.name)&&inR(f));
   const deng=files.find(f=>/engraving[^/]*\.html?$/i.test(f.name)&&inR(f));
@@ -3257,11 +3257,17 @@ function exportFactsForLLM(){
     if(blocks.length){ hasProgram=true; parts.push("AS-BUILT — EVERY loaded processor (devices, IP-IDs, signals, EISC):\n\n"+blocks.join("\n\n")); } }
   else { var facts=""; try{ facts=(typeof auditToText==="function")?auditToText():""; }catch(e){} if(facts){ hasProgram=true; parts.push("AS-BUILT (devices, IP-IDs, signals):\n"+facts); } }
   // EVERY D3 lighting unit
-  var d3s=(state.units||[]).filter(function(u){return u.kind==="d3"&&u.d3;});
-  if(!d3s.length && pr&&pr.d3) d3s=[{folder:"D3 lighting",d3:pr.d3}];
-  d3s.forEach(function(u){ var d=u.d3, tag=(u.folder||u.name||"D3");
+  var d3all=(state.units||[]).filter(function(u){return u.kind==="d3"&&u.d3;});
+  if(!d3all.length && pr&&pr.d3) d3all=[{folder:"D3 lighting",d3:pr.d3}];
+  var d3by={};   // dedup dated backups of one project; default to the NEWEST saved (user can override later)
+  d3all.forEach(function(u){ var d=u.d3||{}; var sig=((d.loads&&d.loads.length)||0)+":"+((d.lighting&&d.lighting.rooms&&d.lighting.rooms.length)||0);
+    var score=(d._mtime||0);
+    if(!d3by[sig]||score>d3by[sig].score) d3by[sig]={u:u,score:score}; });
+  Object.keys(d3by).forEach(function(k){ var u=d3by[k].u, d=u.d3, tag=(u.folder||u.name||"D3");
     if(d.lighting&&d.lighting.rooms&&d.lighting.rooms.length) parts.push("LIGHTING ROOMS ("+tag+"): "+d.lighting.rooms.map(function(r){return r.name;}).join(", "));
-    if(d.loads&&d.loads.length) parts.push("LIGHTING LOADS ("+tag+") load -> module/output/feed:\n"+d.loads.slice(0,200).map(function(l){return l.load+" -> "+l.modType+" mod "+l.modNum+" out "+l.out+(l.feed?(" feed "+l.feed):"");}).join("\n")); });
+    if(d.loads&&d.loads.length) parts.push("LIGHTING LOADS ("+tag+") load -> module/output/feed/area:\n"+d.loads.slice(0,250).map(function(l){return l.load+" -> "+(l.modType||"")+" mod "+(l.modNum||"")+" out "+(l.out||"")+(l.feed?(" feed "+l.feed):"")+(l.area?(" ["+l.area+"]"):"");}).join("\n"));
+    if(d.sceneLoads&&d.sceneLoads.length) parts.push("LIGHTING SCENES -> loads ("+tag+", legacy):\n"+d.sceneLoads.slice(0,80).map(function(sc){return sc.scene+(sc.room?(" ["+sc.room+"]"):"")+": "+sc.loads.join(", ");}).join("\n"));
+    if(d.sysKeypads&&d.sysKeypads.length) parts.push("KEYPADS -> button -> loads@levels ("+tag+"):\n"+d.sysKeypads.slice(0,40).map(function(kp){ return (kp.name||"keypad")+(kp.roomName?(" ["+kp.roomName+"]"):"")+": "+(kp.buttons||[]).slice(0,14).map(function(b){ var st=(b.steps||[]).slice(0,16).map(function(x){return (x.load||x.text||"")+(x.level?("@"+x.level):"");}).filter(Boolean).join(", "); return (b.name||"btn")+(st?(" {"+st+"}"):""); }).join(" | "); }).join("\n")); });
   // runtime evidence from a loaded console/log (digested, capped)
   try{ var L=state.logDigest;
     if(L){
