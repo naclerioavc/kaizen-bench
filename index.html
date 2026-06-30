@@ -2696,7 +2696,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     startT=(typeof performance!=="undefined"?performance.now():Date.now()); finished=false; finishTime=0;
   }
   function now(){ return (typeof performance!=="undefined"?performance.now():Date.now()); }
-  function open(){ ov.classList.remove("hide"); sk=SKINS[document.documentElement.getAttribute("data-theme")||""]||SKINS.plumber; var tt=document.querySelector(".mg-title"); if(tt)tt.textContent=sk.name; var hh=document.querySelector(".mg-help"); if(hh)hh.textContent=(sk.mode==="smash")?"MASH SPACE or click to smash the printer · R retry · Esc close":"← → move · ↑ / space jump · Esc close — grab every coin"; reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
+  function open(){ keys={}; ov.classList.remove("hide"); sk=SKINS[document.documentElement.getAttribute("data-theme")||""]||SKINS.plumber; var tt=document.querySelector(".mg-title"); if(tt)tt.textContent=sk.name; var hh=document.querySelector(".mg-help"); if(hh)hh.textContent=(sk.mode==="smash")?"MASH SPACE or click to smash the printer · R retry · Esc close":"← → move · ↑ / space jump · Esc close — grab every coin"; reset(); ctx=cv.getContext("2d"); if(!raf)loop(); }
   function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} }
   function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
   function loop(){
@@ -2707,7 +2707,6 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
       player.vx=0;
       if(keys["ArrowLeft"]||keys["a"])player.vx=-3.3;
       if(keys["ArrowRight"]||keys["d"])player.vx=3.3;
-      if((keys["ArrowUp"]||keys[" "]||keys["w"])&&player.g){player.vy=-11;player.g=false;}
       player.vy+=0.6; if(player.vy>14)player.vy=14;
       player.x+=player.vx; player.y+=player.vy;
       if(player.x<0)player.x=0; if(player.x+player.w>W)player.x=W-player.w;
@@ -2750,7 +2749,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
   }
   trg.addEventListener("click",open);
   if(cl)cl.addEventListener("click",close);
-  document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); if((e.key==="r"||e.key==="R")&&finished)reset(); if(e.key===" "&&sk&&sk.mode==="smash")smashHit(); });
+  document.addEventListener("keydown",function(e){ if(ov.classList.contains("hide"))return; keys[e.key]=true; if(["ArrowLeft","ArrowRight","ArrowUp"," "].indexOf(e.key)>=0)e.preventDefault(); if(e.key==="Escape")close(); if((e.key==="r"||e.key==="R")&&finished)reset(); if(e.key===" "&&sk&&sk.mode==="smash")smashHit(); if((e.key==="ArrowUp"||e.key===" "||e.key==="w")&&sk&&sk.mode!=="smash"&&player&&player.g){player.vy=-11;player.g=false;} });
   cv.addEventListener("click",function(){ if(!ov.classList.contains("hide")&&sk&&sk.mode==="smash")smashHit(); });
   document.addEventListener("keyup",function(e){ keys[e.key]=false; });
 })();
