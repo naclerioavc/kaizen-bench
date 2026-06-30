@@ -321,3 +321,25 @@ D3 is SIMPL under the hood + generated docs. Parse the generated text, not the b
 - `**/AUTOSAVE/**` = editor snapshots (dedupe; don't count as separate projects).
 - Multiple D3 project folders may be dated versions of one residence — list distinct non-AUTOSAVE roots.
 - The **System overview** rolls these up: per-processor counts + the cross-processor EISC map.
+
+## Theming & easter-egg principles (don't relearn this)
+Hard-won from refining the theme set + Plumber/Pipe Dream. Follow these; a new theme/game is then quick.
+- **Name themes by color-mood** (Nightman/Dayman/Synthwave/Matrix) or a clearly-evocative-but-
+  trademark-safe word. Object/character names ("Cookie") invite "that doesn't look like X" — avoid.
+- **Readability first (we design UIs for a living).** Never one flat color across header+body+footer.
+  A light theme needs dark text. Pick a readable base, then let **iconic ACCENT colors pop**. Avoid
+  low-contrast pairs (red text on sky-blue vibrates — use dark navy for labels instead).
+- **No cheap CSS textures** (noise/sprinkles look bad and caused a real repaint bug). Convey a vibe
+  with **palette + region color-blocking** instead — e.g. Mario = sky-blue body + white "cloud"
+  cards + brick/coin/pipe accents + a **green "ground" footer**. Reads as a level, stays legible.
+- **Lock the brand** (logo wordmark + signal mark) theme-independent. Pin accent chrome (BETA pill,
+  footer underline) to a fixed brand color so only body-text legibility adapts per theme.
+- **Theme picker** lives in the nav, **names only** (swatch dots were noise, removed).
+- **Repaint gotcha:** the theme menu is inside `<nav>`; the nav's delegated click handler must ignore
+  buttons without `data-tab`, or selecting a theme calls `show(undefined)` and hides every tab (THE
+  real "content disappears on theme switch" bug — not sticky headers).
+- **Easter egg rules:** original shapes + original name only (IP-safe — no Nintendo assets/names);
+  isolated full-screen overlay; **canvas `getContext` only on open** so it never runs during grading
+  or touches the tool; **local-only leaderboard** (a static app can't do a global one — top-5 times
+  with initials in `localStorage`). A new franchise = palette + sprite-color reskin of the same code:
+  Sonic → blue base, gold rings, green/checker; Donkey Kong → jungle browns/greens, red-tie accent.
