@@ -360,13 +360,16 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
     {name:"Job/01-CP4 AV/AV.smw", bytes:B(2000)},
     {name:"Job/01-CP4 AV/AV.smft", bytes:B(10)},
     {name:"Job/01-CP4 AV/AV.dip", bytes:B(10)},
+    {name:"Job/01-CP4 AV/test.smw", bytes:B(1900)},
+    {name:"Job/01-CP4 AV/AV_old.smw", bytes:B(1500)},
     {name:"Job/01-CP4 AV/SPlsWork/x.smw", bytes:B(99999)},
     {name:"Job/02-CP4 Security/Sec.smw", bytes:B(1000)},
     {name:"Job/02-CP4 Security/Sec.smft", bytes:B(10)},
     {name:"Job/D3/ResidenceA/data/rooms.dat", bytes:B(10)}
   ];
   const a=w.chooseAllPrograms(fl);
-  ck("all-programs: two processor units", a.programs.length, 2);
+  ck("all-programs: versions/test in a folder collapse to ONE processor (still 2 total)", a.programs.length, 2);
+  has("all-programs: AV folder picks the real build, lists test/old as versions", a.programs[0].name==="AV.smw" && a.programs[0].versions.length===2);
   ck("all-programs: largest first, junk SPlsWork excluded", a.programs[0].name, "AV.smw");
   ck("all-programs: unit 0 keeps its own .smft", fl[a.programs[0].smft].name, "Job/01-CP4 AV/AV.smft");
   ck("all-programs: unit 1 (Security) has no .dip of its own", a.programs[1].dip, -1);
