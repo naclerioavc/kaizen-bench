@@ -1807,7 +1807,16 @@ function systemGraph(units){
   const dropped=new Set();
   progs.forEach(p=>{ if(p.nkind!=="lighting")return; const sg=connSig(p); if(sg && keep.get(sg)!==p.i) dropped.add(p.i); });
   const active=progs.filter(p=>!dropped.has(p.i));
-  const nodes=active.map(p=>({ id:"u"+p.i, unitIndex:p.i, kind:p.nkind, label:(p.u.folder||p.u.name||("Unit "+p.i)), program:p.u.name||"" }));
+  const nodes=active.map(p=>{
+    let build=null;
+    if(p.nkind==="processor"&&p.u.builds&&p.u.builds.length){
+      const dep=(typeof deployedBuildFor==="function")?deployedBuildFor(p.u):null;
+      const nm=dep||p.u.activeBuild||"";
+      const ver=(nm.match(/_(v[\d][\d._]*)\.(?:smw|umc|chd)$/i)||nm.match(/_(v[\d][\d._]*)$/i)||[])[1]||"";
+      build={ver, confirmed:!!dep};
+    }
+    return { id:"u"+p.i, unitIndex:p.i, kind:p.nkind, label:(p.u.folder||p.u.name||("Unit "+p.i)), program:p.u.name||"", build };
+  });
   const ipidMap={};
   active.forEach(p=>{ (linksByNode[p.i]||[]).forEach((l,li)=>{ const id=(l.ipid||"").toUpperCase(); if(!id)return; (ipidMap[id]=ipidMap[id]||[]).push({node:p.i,ip:(l.ip||"").trim(),target:l.target||"",li}); }); });
   // BRIDGE KEY: a shared EISC IP-ID between two programs is a bridge. Loopback ip => same box; real ip => separate box.
@@ -1857,11 +1866,18 @@ function renderSystemMap(g){
     const click=nd.kind==="processor"||nd.kind==="lighting";
     const cls=nd.kind==="lighting"?"sm-light":(nd.kind==="processor"?"sm-proc":"sm-ext");
     const full=nd.label||""; const lab=esc(full.length>20?(full.slice(0,19)+"…"):full);
-    const sub=nd.kind==="lighting"?"lighting":(click?(deg[nd.id]?(deg[nd.id]+" link"+(deg[nd.id]>1?"s":"")):"no EISC"):(nd.loop?"slot not in drop":"external"));
-    return `<g class="smnode ${cls}"${click?` data-unit="${nd.unitIndex}" tabindex="0" role="button"`:""}><title>${esc(full)}</title><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" rx="7" width="${bw}" height="${bh}"/><text x="${p.x.toFixed(1)}" y="${(p.y-1).toFixed(1)}" class="sm-nl">${lab}</text><text x="${p.x.toFixed(1)}" y="${(p.y+12).toFixed(1)}" class="sm-ns">${esc(sub)}</text></g>`; };
+    const sub=nd.kind==="lighting"?"lighting":((nd.build&&nd.build.ver)?(nd.build.ver+(nd.build.confirmed?" \u2713":"")):(click?(deg[nd.id]?(deg[nd.id]+" link"+(deg[nd.id]>1?"s":"")):"no EISC"):(nd.loop?"slot not in drop":"external")));
+    const subCls=(nd.build&&nd.build.confirmed)?"sm-ns sm-okt":"sm-ns";
+    return `<g class="smnode ${cls}"${click?` data-unit="${nd.unitIndex}" tabindex="0" role="button"`:""}><title>${esc(full)}</title><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" rx="7" width="${bw}" height="${bh}"/><text x="${p.x.toFixed(1)}" y="${(p.y-1).toFixed(1)}" class="sm-nl">${lab}</text><text x="${p.x.toFixed(1)}" y="${(p.y+12).toFixed(1)}" class="${subCls}">${esc(sub)}</text></g>`; };
   const edgesSvg=g.edges.map(lineSvg).join(""), nodesSvg=procs.map(nodeSvg).join("")+ext.map(nodeSvg).join("");
   const legend=`<g transform="translate(14,${S-14})"><line x1="0" y1="0" x2="22" y2="0" class="sm-intra"/><text x="28" y="4" class="sm-lg">same box (loopback)</text><line x1="166" y1="0" x2="188" y2="0" class="sm-cross"/><text x="194" y="4" class="sm-lg">separate box (IP)</text><rect x="312" y="-6" width="13" height="13" rx="3" class="sm-lgl"/><text x="330" y="4" class="sm-lg">lighting</text><line x1="400" y1="0" x2="422" y2="0" class="sm-external"/><text x="428" y="4" class="sm-lg">external / not in drop</text></g>`;
-  return `<div class="smwrap"><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
+  const pnodes=procs.filter(n=>n.kind==="processor");
+  const par={}; pnodes.forEach(n=>par[n.id]=n.id);
+  const find=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  g.edges.forEach(e=>{ if(e.kind==="intra"&&par[e.a]!==undefined&&par[e.b]!==undefined) par[find(e.a)]=find(e.b); });
+  const boxes=new Set(pnodes.map(n=>find(n.id))).size, nP=pnodes.length, nL=procs.filter(n=>n.kind==="lighting").length;
+  const cap=`${nP} processor${nP!==1?"s":""} \u00b7 ${boxes} physical box${boxes!==1?"es":""}`+(nL?` \u00b7 ${nL} lighting`:"");
+  return `<div class="smwrap"><div class="sm-cap">${cap}</div><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sm-cap{font-size:12px;color:#6b7280;margin:0 0 8px;font-weight:600}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-okt{fill:#1e9e5a;font-weight:700}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
 }
 function dropFacts(units){
   const us=units||[];
