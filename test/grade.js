@@ -488,6 +488,8 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("system map renders an SVG in the whole-system view", cb.querySelector('svg.sysmap')!=null);
   has("system map nodes are clickable (data-unit drill)", cb.querySelectorAll('svg .sm-proc[data-unit]').length===3);
   has("system map draws bridge edges (intra+cross)", cb.querySelectorAll('svg line.sm-intra, svg line.sm-cross').length>=2);
+  has("whole-job As-Built cover present (printable deliverable)", cb.querySelector('.report-cover')!=null);
+  has("As-Built print button enabled on the whole-system view", !w.document.getElementById('auditPrint').disabled);
 }
 // ===== D3 lighting wired as a real node via reciprocal EISC (not a dumb external IP) =====
 { const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
