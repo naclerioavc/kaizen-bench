@@ -5,7 +5,7 @@
 //   npm install && npm test    (no client data; fixtures are hand-built)
 const fs=require("fs"), path=require("path");
 const { JSDOM }=require("jsdom");
-const w=new JSDOM(fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8"),{runScripts:"dangerously"}).window;
+const w=new JSDOM(fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8"),{runScripts:"dangerously",url:"https://simplbench.local/"}).window;
 { const u=require("util"); w.TextDecoder=w.TextDecoder||u.TextDecoder; w.TextEncoder=w.TextEncoder||u.TextEncoder; }
 
 let pass=0, fail=0;
@@ -562,6 +562,13 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("kept lighting is the newest-saved backup", (G.nodes.find(n=>n.kind==="lighting")||{}).label==="D3_new");
   has("processor<->lighting bridge resolves after collapse", G.edges.some(e=>e.kind==="cross"&&/^u/.test(e.b)));
   ck("no external endpoints after collapse", G.external.length, 0);
+}
+// ===== report/punchlist branding (user's company on deliverables) =====
+{ w.localStorage.setItem("simplbench-brand", JSON.stringify({company:"Acme AV Integration", contact:"555-1212"}));
+  const bh=w.rcBrandHtml();
+  has("branding: deliverables use the user's company when set", /Acme AV Integration/.test(bh) && !/kaizen/i.test(bh));
+  w.localStorage.removeItem("simplbench-brand");
+  has("branding: falls back to Kaizen Logic when unset", /kaizen/i.test(w.rcBrandHtml()));
 }
 // ===== streaming zip reader over Blob.slice (STORED fixture; never loads whole file) =====
 function buildStoredZip(items){
