@@ -504,6 +504,8 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line renders atop the whole-system view", dl!=null);
   has("drop line states the facts (procs + lighting + bridges)", !!dl && /1 processor/.test(dl.textContent) && /D3 lighting/.test(dl.textContent) && /EISC bridge/.test(dl.textContent));
   has("drop line offers a jump chip (data-unit)", cb.querySelectorAll('.dropline .dropchip[data-unit]').length>=1);
+  has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
+  has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

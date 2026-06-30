@@ -369,10 +369,16 @@
   .actionbar:hover{background:rgba(245,177,76,.16)}
   .actionbar .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 0 3px rgba(245,177,76,.25)}
   .actionbar .ab-go{margin-left:auto;color:var(--warn);font-weight:600;white-space:nowrap}
-  .dropline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 14px;padding:11px 15px;border:1px solid var(--line);border-left:3px solid var(--stripe);border-radius:9px;background:var(--panel2);font-size:13.5px;color:var(--ink)}
+  .dropline{display:flex;flex-direction:column;gap:9px;margin:2px 0 14px;padding:11px 15px;border:1px solid var(--line);border-left:3px solid var(--stripe);border-radius:9px;background:var(--panel2);font-size:13.5px;color:var(--ink)}
+  .dropline .dl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .dropline .dl-i{color:var(--stripe)}
   .dropline .dl-txt{flex:1 1 55%}
   .dropline .dl-act{display:flex;gap:7px;flex-wrap:wrap}
+  .dl-conns{display:flex;flex-direction:column;gap:5px;border-top:1px solid var(--line);padding-top:9px}
+  .dl-conn{font-size:12.5px;color:var(--ink);display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .dl-conn .dl-pair{white-space:nowrap}
+  .dl-conn .dl-meta{color:var(--mut);font-size:11.5px;font-variant-numeric:tabular-nums}
+  .dl-more{color:var(--mut);font-style:italic}
   .dropchip{border:1px solid var(--stripe);background:transparent;color:var(--stripe);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .dropchip:hover{filter:brightness(1.15)}
   .panel.attn-stat{border-color:var(--warn)} .panel.attn-stat .data{color:var(--warn)}
@@ -1771,21 +1777,35 @@ function dropFacts(units){
     progIdx:us.findIndex(u=>u.kind==="program"&&u.smw) };
 }
 function dropLine(units){
-  const f=dropFacts(units); if(!f.nProc && !f.nD3) return "";
+  const us=units||[]; const f=dropFacts(us); if(!f.nProc && !f.nD3) return "";
+  let g={nodes:[],external:[],edges:[]}; try{ g=systemGraph(us); }catch(e){}
+  const lbl={}; g.nodes.forEach(n=>lbl[n.id]=n.label); g.external.forEach(x=>lbl[x.id]=x.label);
   const parts=[];
   if(f.nProc) parts.push(`<b>${f.nProc}</b> processor${f.nProc>1?"s":""}`);
   if(f.nD3) parts.push(`<b>${f.nD3}</b> D3 lighting project${f.nD3>1?"s":""}`);
   let s="This drop: "+parts.join(" + ");
   if(f.bridges) s+=`, linked by <b>${f.bridges}</b> EISC bridge${f.bridges>1?"s":""}`;
-  if(f.ext) s+=` (plus ${f.ext} external system${f.ext>1?"s":""} referenced but not in the drop)`;
+  if(f.ext) s+=` (plus <b>${f.ext}</b> external system${f.ext>1?"s":""} referenced)`;
   else if(f.nProc===1 && !f.nD3 && !f.bridges){ const bits=[]; if(f.sig)bits.push(f.sig.toLocaleString()+" signals"); if(f.dev)bits.push(f.dev.toLocaleString()+" devices"); if(bits.length) s+=" — "+bits.join(", "); }
   s+=".";
+  // connection detail — completeness rule: every bridge with its IP-ID(s) + IP / loopback, resolved to named endpoints
+  const conns=[];
+  (g.edges||[]).forEach(e=>{ const A=esc(lbl[e.a]||e.a); const ids=esc((e.ipids||[]).join(", "));
+    if(/^u/.test(e.b)){ const B=esc(lbl[e.b]||e.b);
+      const where = e.kind==="intra" ? "same processor (loopback)" : (e.ip?esc(e.ip)+" · separate box":"separate box");
+      conns.push(`<span class="dl-conn"><span class="dl-pair"><b>${A}</b> ⇄ <b>${B}</b></span> <span class="dl-meta">IP-ID ${ids} · ${where}</span></span>`);
+    } else { const X=esc(lbl[e.b]||"external");
+      const where = e.kind==="orphan" ? "loopback · not in this drop" : (e.ip?"external · not in this drop":"external");
+      conns.push(`<span class="dl-conn"><span class="dl-pair"><b>${A}</b> → <b>${X}</b></span> <span class="dl-meta">IP-ID ${ids} · ${where}</span></span>`);
+    }
+  });
+  const cap=16, connHtml = conns.length ? `<div class="dl-conns">${conns.slice(0,cap).join("")}${conns.length>cap?`<span class="dl-conn dl-more">+${conns.length-cap} more — see the System Map</span>`:""}</div>` : "";
   const cur=(typeof state!=="undefined"&&typeof state.unitIndex==="number")?state.unitIndex:-1;
   const chips=[];
   if(f.sysIdx>=0 && f.sysIdx!==cur) chips.push(`<button class="dropchip" data-unit="${f.sysIdx}">▣ Start with the System Map</button>`);
   if(f.d3Idx>=0 && f.d3Idx!==cur) chips.push(`<button class="dropchip" data-unit="${f.d3Idx}">◐ Open the lighting view</button>`);
   if(f.sysIdx<0 && f.nProc===1 && f.progIdx>=0 && f.progIdx!==cur) chips.push(`<button class="dropchip" data-unit="${f.progIdx}">▣ Open the processor audit</button>`);
-  return `<div class="dropline"><span class="dl-i">◈</span><span class="dl-txt">${s}</span>${chips.length?`<span class="dl-act">${chips.join("")}</span>`:""}</div>`;
+  return `<div class="dropline"><div class="dl-row"><span class="dl-i">◈</span><span class="dl-txt">${s}</span>${chips.length?`<span class="dl-act">${chips.join("")}</span>`:""}</div>${connHtml}</div>`;
 }
 function renderWholeSystem(){
   const us=state.units||[]; const progIdx=[]; us.forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progIdx.push(i); });
