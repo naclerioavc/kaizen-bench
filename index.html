@@ -2327,7 +2327,7 @@ function chooseAllPrograms(files){
     const builds=list.map(i=>({ name:norm[i].replace(/.*\//,""), smw:i, dip:sibOf(i,"dip"), smft:sibOf(i,"smft"), mtime:files[i].mtime||0 }));
     const fullDir=norm[pick].replace(/\/[^/]*$/,"");
     const archived=/(^|\/)[~]/.test(fullDir) || /(^|\/)(old|older|archive[ds]?|backups?|deprecated|superseded)\b/i.test(fullDir);
-    return { smw:pick, smft:sib("smft"), dip:sib("dip"), ir, name:norm[pick].replace(/.*\//,""),
+    return { smw:pick, smft:sibOf(pick,"smft"), dip:sibOf(pick,"dip"), ir, name:norm[pick].replace(/.*\//,""),
       folder:(norm[pick].replace(/\/[^/]*$/,"").replace(/.*\//,"")||""), versions:list.slice(1).map(i=>norm[i].replace(/.*\//,"")), builds, archived };
   }).sort((a,b)=>sz(b.smw)-sz(a.smw));
   const d3=new Set();
