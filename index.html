@@ -734,6 +734,53 @@ async function extractOne(buf, rawName){
   }
   return null;
 }
+// ---- streaming zip over File.slice: read the central directory and inflate entries one at a
+// time straight from disk — the whole archive is NEVER loaded into memory. ZIP64-aware (>4GB). ----
+async function zipSlice(file,start,end){ return new Uint8Array(await file.slice(start,end).arrayBuffer()); }
+async function zipDir(file){
+  const size=file.size, tailLen=Math.min(size,65557);
+  const tail=await zipSlice(file,size-tailLen,size);
+  const tv=new DataView(tail.buffer,tail.byteOffset,tail.byteLength);
+  let e=-1; for(let i=tail.length-22;i>=0;i--){ if(tv.getUint32(i,true)===0x06054b50){ e=i; break; } }
+  if(e<0) throw new Error("archive isn't a readable zip");
+  let count=tv.getUint16(e+10,true), cdSize=tv.getUint32(e+12,true), cdOff=tv.getUint32(e+16,true);
+  if(cdOff===0xFFFFFFFF||count===0xFFFF||cdSize===0xFFFFFFFF){            // ZIP64
+    let loc=-1; for(let i=e-20;i>=0;i--){ if(tv.getUint32(i,true)===0x07064b50){ loc=i; break; } }
+    if(loc>=0){ const z64off=Number(tv.getBigUint64(loc+8,true)); const z=await zipSlice(file,z64off,z64off+56);
+      const zv=new DataView(z.buffer,z.byteOffset,z.byteLength);
+      if(zv.getUint32(0,true)===0x06064b50){ count=Number(zv.getBigUint64(32,true)); cdSize=Number(zv.getBigUint64(40,true)); cdOff=Number(zv.getBigUint64(48,true)); } }
+  }
+  const cd=await zipSlice(file,cdOff,cdOff+cdSize);
+  const cv=new DataView(cd.buffer,cd.byteOffset,cd.byteLength);
+  const entries=[]; let off=0;
+  for(let n=0;n<count && off+46<=cd.length;n++){
+    if(cv.getUint32(off,true)!==0x02014b50) break;
+    const method=cv.getUint16(off+10,true), crc=cv.getUint32(off+16,true);
+    let compSize=cv.getUint32(off+20,true), uSize=cv.getUint32(off+24,true);
+    const nameLen=cv.getUint16(off+28,true), extraLen=cv.getUint16(off+30,true), commentLen=cv.getUint16(off+32,true);
+    let lhOff=cv.getUint32(off+42,true);
+    const name=decodeText(cd.subarray(off+46,off+46+nameLen));
+    if(lhOff===0xFFFFFFFF||compSize===0xFFFFFFFF||uSize===0xFFFFFFFF){    // ZIP64 extra
+      let p=off+46+nameLen, endp=p+extraLen;
+      while(p+4<=endp){ const id=cv.getUint16(p,true), len=cv.getUint16(p+2,true); let q=p+4;
+        if(id===0x0001){ if(uSize===0xFFFFFFFF){uSize=Number(cv.getBigUint64(q,true));q+=8;} if(compSize===0xFFFFFFFF){compSize=Number(cv.getBigUint64(q,true));q+=8;} if(lhOff===0xFFFFFFFF){lhOff=Number(cv.getBigUint64(q,true));q+=8;} }
+        p+=4+len; }
+    }
+    if(!name.endsWith("/")) entries.push({name,method,crc,compSize,size:uSize,lhOff});
+    off+=46+nameLen+extraLen+commentLen;
+  }
+  return entries;
+}
+async function zipReadEntry(file,ent){
+  const lh=await zipSlice(file,ent.lhOff,ent.lhOff+30);
+  const lv=new DataView(lh.buffer,lh.byteOffset,lh.byteLength);
+  const dataStart=ent.lhOff+30+lv.getUint16(26,true)+lv.getUint16(28,true);
+  const comp=await zipSlice(file,dataStart,dataStart+ent.compSize);
+  if(ent.method===0) return comp;
+  if(ent.method===8) return await inflateRaw(comp);
+  return null;
+}
+
 function chooseEntry(files, kind){
   const c=files.filter(f=>!f.name.endsWith("/"));
   if(kind==="smw") return c.find(f=>/\.smw$/i.test(f.name)) || null;

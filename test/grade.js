@@ -524,5 +524,33 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const sigB=w.eval("censusStats(parseSmw(state.units[0].smw)).sigTot");
   ck("build switch re-parses to the chosen build (signal count changes)", [sigA,sigB], [2,5]);
 }
-console.log(`\n==== ${pass} pass, ${fail} fail ====`);
-process.exit(fail?1:0);
+// ===== streaming zip reader over Blob.slice (STORED fixture; never loads whole file) =====
+function buildStoredZip(items){
+  const enc=new TextEncoder(); const locs=[]; const chunks=[]; let off=0;
+  const u16=v=>{const b=new Uint8Array(2);new DataView(b.buffer).setUint16(0,v,true);return b;};
+  const u32=v=>{const b=new Uint8Array(4);new DataView(b.buffer).setUint32(0,v>>>0,true);return b;};
+  for(const it of items){ const nm=enc.encode(it.name), data=enc.encode(it.data); locs.push({off,nm,len:data.length});
+    chunks.push(u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(0),u32(data.length),u32(data.length),u16(nm.length),u16(0),nm,data);
+    off+=30+nm.length+data.length; }
+  const cdStart=off; const cd=[];
+  for(const l of locs){ cd.push(u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(0),u32(l.len),u32(l.len),u16(l.nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(l.off),l.nm); }
+  let cdSize=0; cd.forEach(c=>cdSize+=c.length);
+  const eocd=[u32(0x06054b50),u16(0),u16(0),u16(items.length),u16(items.length),u32(cdSize),u32(cdStart),u16(0)];
+  const all=chunks.concat(cd,eocd); let total=0; all.forEach(c=>total+=c.length);
+  const out=new Uint8Array(total); let p=0; all.forEach(c=>{out.set(c,p);p+=c.length;}); return out;
+}
+(async function(){
+  try{
+    const zbytes=buildStoredZip([{name:"01-AV/prog.smw",data:"[\nObjTp=Hd\nPgmNm=Z\n]"},{name:"note.txt",data:"hello"}]);
+    const blob=new Blob([zbytes]);                              // Node Blob: slice()+arrayBuffer() like a File
+    const ents=await w.zipDir(blob);
+    ck("zipDir reads the central directory (entry count)", ents.length, 2);
+    has("zipDir returns names without loading file body", ents.some(e=>e.name==="01-AV/prog.smw") && ents.some(e=>e.name==="note.txt"));
+    ck("zipDir reports uncompressed sizes from the directory", ents.find(e=>e.name==="note.txt").size, 5);
+    const smwEnt=ents.find(e=>e.name==="01-AV/prog.smw");
+    const bytes=await w.zipReadEntry(blob,smwEnt);
+    has("zipReadEntry inflates one entry via slice (STORED)", w.decodeText(bytes).indexOf("PgmNm=Z")>=0);
+  }catch(e){ fail++; console.log("  FAIL  streaming zip reader threw: "+e.message); }
+  console.log(`\n==== ${pass} pass, ${fail} fail ====`);
+  process.exit(fail?1:0);
+})();
