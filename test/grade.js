@@ -422,8 +422,16 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const html=w.mdToHtml("# Go-list\n\n| # | Issue | Domain |\n|---|---|---|\n| 1 | bath cans dead | **electrical** |\n");
   has("triage mdToHtml renders a markdown table with header + row", /<table>/.test(html) && /<th>Issue<\/th>/.test(html) && /<td>bath cans dead<\/td>/.test(html) && /<b>electrical<\/b>/.test(html));
   // exportFactsForLLM: no program -> clear guidance; with program -> includes as-built
-  w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null;");
+  w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.units=null; state.logDigest=null;");
   has("exportFactsForLLM with nothing loaded gives clear guidance", /No program loaded/i.test(w.exportFactsForLLM()));
+  // grounding: log/console findings + match verdict fed to triage when a log is loaded
+  w.eval(`state.logDigest={name:'cp4.err',model:'CP4',fw:'2.8',match:'match',recurring:[{n:9,msg:'Logic could not be solved within 1500 waves',who:'LE_1',rate:'steady'}],drops:[{id:'1F',name:'NVX Zone1',n:12}],timeouts:5,loops:2,storms:1,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
+  { const f=w.exportFactsForLLM();
+    has("triage grounds on console/log findings (drops named)", /CONSOLE \/ LOG FINDINGS/.test(f) && /NVX Zone1/.test(f));
+    has("triage carries the log-vs-program match verdict", /Log-vs-program match: MATCH/.test(f));
+    has("triage ties solve-timeouts to feedback loops", /Signal-solve timeouts: 5/.test(f) && /2 feedback loop/.test(f)); }
+  w.eval("state.prog={name:null,smw:'x',smft:null,dip:null,d3:null}; state.units=null; state.logDigest=null;");
+  has("triage grounding status: program present, console missing -> points to Log Analyzer", /Log Analyzer/.test(w.trGroundHTML()) && /program/.test(w.trGroundHTML()));
 }
 // ===== D3 scene contents: scene -> the loads it controls (button = scene = these loads) =====
 { const prog="[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_47_In_Scene]\n[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_48_In_Scene]\n[ObjTp=Sg\nNm=[_Area_Scene][Up_All_ON]Load_47_In_Scene]";

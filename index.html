@@ -229,6 +229,13 @@
   @media print{ #mgGround,#mgOverlay{display:none!important} }
   @media print{ .unitbar{display:none!important} }
   .tr-cfgwrap{margin:2px 0 14px}
+  .tr-ground{font-size:12.5px;color:var(--mut);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin:2px 0 10px}
+  .tr-ground .tr-glbl{color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin-right:6px}
+  .tr-ground code{font-size:11px}
+  .tr-gmiss{color:var(--warn);margin-top:6px}
+  .tr-gok{color:var(--ok);margin-top:6px}
+  .tr-steps{margin:0 0 14px;padding-left:20px;color:var(--mut);font-size:12.5px;line-height:1.6}
+  .tr-steps li{margin:2px 0} .tr-steps b{color:var(--ink)}
   .tr-cfgbtn{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:12.5px;padding:7px 12px;border-radius:8px;cursor:pointer}
   .tr-cfgbtn:hover{color:var(--ink);border-color:var(--dim)}
   .tr-cfg{margin-top:10px;padding:14px 15px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
@@ -537,7 +544,9 @@
 
   <!-- TRIAGE -->
   <section id="tab-triage" class="hide">
-    <details class="tabhelp"><summary>How Triage works</summary><div>Paste messy job intake (emails, texts, punch list). AI extracts a clean issue list (you confirm), then resolves each against this program&rsquo;s facts from the <b>Audit</b> tab and drafts a go-list. <b>Opt-in, your key, off by default</b> &mdash; the one feature that sends data off your machine. Output is an <b>AI draft &mdash; verify on site.</b></div></details>
+    <details class="tabhelp"><summary>How Triage works</summary><div>Paste messy job intake (emails, texts, punch list). AI extracts a clean issue list (you confirm), then resolves each against the <b>program facts (Audit)</b> and the <b>runtime evidence (Log Analyzer)</b> &mdash; whichever you&rsquo;ve loaded &mdash; and drafts a go-list. <b>Opt-in, your key, off by default</b> &mdash; the one feature that sends data off your machine. Output is an <b>AI draft &mdash; verify on site.</b></div></details>
+    <div id="trGround" class="tr-ground"></div>
+    <ol class="tr-steps"><li>Drop the job backup <code>.zip</code> in <b>Audit</b> &mdash; pins issues to exact devices / IP-IDs.</li><li>Drop an Info-Tool / console dump in <b>Log Analyzer</b> &mdash; adds what&rsquo;s actually failing + which build is live.</li><li>Paste the customer&rsquo;s complaints below &mdash; get a grounded go-list.</li></ol>
     <div class="tr-cfgwrap">
       <button class="tr-cfgbtn" id="trCfgBtn">&#9881; AI settings <b id="trState" class="muted">&mdash; off</b></button>
       <div class="tr-cfg hide" id="trCfg">
@@ -617,6 +626,7 @@ function show(tab){
   $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   TABS.forEach(t=>$("#tab-"+t).classList.toggle("hide",t!==tab));
   maybeAuto(tab);
+  if(tab==="triage"&&typeof window.__trRefresh==="function"){ try{window.__trRefresh();}catch(e){} }
 }
 function maybeAuto(tab){
   const pr=state.prog;
@@ -2731,6 +2741,12 @@ function runLog(name,text){
       state.logXref={ drops:namedDrops, waveTimeouts:a.toRows.length, loops:(sa?sa.oscCandidates:0), missingFiles:a.missingFiles||[], devConflicts:a.devConflicts||[] };
     } else { state.logXref=null; }
   }catch(e){ state.logXref=null; }
+  if(a.compatible){ state.logDigest={ name:name, model:a.bootModel||"", fw:a.bootFw||"",
+    match:(state.logMatch&&state.logMatch.status)||"",
+    recurring:(a.recurring||[]).slice(0,12).map(function(t){return {n:t.n,msg:trim(t.example||t.msg||"",90),who:trim(t.who||"",30),rate:(t.rate&&t.rate.txt)||""};}),
+    drops:(state.logXref&&state.logXref.drops&&state.logXref.drops.length)?state.logXref.drops.slice(0,20):(a.dropTop||[]).slice(0,20).map(function(p){return {id:String(p[0]).replace(/^IP-ID\s+/,""),name:"",n:p[1]};}),
+    timeouts:(a.toRows&&a.toRows.length)||0, loops:(state.logXref&&state.logXref.loops)||0, storms:(a.storms&&a.storms.length)||0,
+    authFails:Array.isArray(a.authFails)?a.authFails.length:(a.authFails||0), missingFiles:(a.missingFiles||[]).slice(0,10), devConflicts:(a.devConflicts||[]).slice(0,10), cpu:a.cpu||a.loadavg||"" }; } else { state.logDigest=null; }
   if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
 
   const worst=a.recurring[0];
@@ -3108,15 +3124,53 @@ async function trCall(cfg, system, user){
   if(cfg.provider==="anthropic") return (d.content&&d.content[0]&&d.content[0].text)||"";
   return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
 }
+function trGroundHTML(){
+  var progs=(state.units?state.units.filter(function(u){return u.kind==="program"&&u.smw;}).length:0); if(!progs&&state.prog&&state.prog.smw)progs=1;
+  var L=state.logDigest, hasLog=!!L;
+  var b1=(progs?"✓":"✗")+" program"+(progs>1?(" ("+progs+" processors)"):"");
+  var b2=(hasLog?"✓":"✗")+" console log"+(hasLog&&L.match?(" · "+esc(L.match)):"");
+  var miss=[]; if(!progs)miss.push("drop the job backup <code>.zip</code> in <b>Audit</b>"); if(!hasLog)miss.push("drop an Info-Tool / console dump in <b>Log Analyzer</b>");
+  var tail = miss.length ? ('<div class="tr-gmiss">⚠ For sharper, runtime-confirmed triage: '+miss.join("; ")+'.</div>') : '<div class="tr-gok">✓ Fully grounded — program + console.</div>';
+  return '<span class="tr-glbl">Triage will use</span> <b>'+b1+'</b> &nbsp; <b>'+b2+'</b>'+tail;
+}
 function exportFactsForLLM(){
   var parts=[], pr=state.prog;
-  var facts=(typeof auditToText==="function")?auditToText():"";
-  if(facts) parts.push("AS-BUILT (devices, IP-IDs, signals, checks):\n"+facts);
+  // whole-system context for multi-processor jobs (so cross-processor complaints resolve)
+  try{
+    var pu=(state.units||[]).filter(function(u){return u.kind==="program"&&u.smw;});
+    if(pu.length>1){
+      var ss=systemSummary(state.units), g=systemGraph(state.units);
+      var pl=ss.processors.map(function(p){return "- "+(p.folder||p.name)+": "+p.signals+" signals, "+p.devices+" devices, "+p.ipids+" IP-IDs"+(p.eisc&&p.eisc.length?(", "+p.eisc.length+" EISC links"):"");});
+      var br=g.edges.filter(function(e){return /^u/.test(e.b);}).map(function(e){var A=(g.nodes.find(function(n){return n.id===e.a;})||{}).label,B=(g.nodes.find(function(n){return n.id===e.b;})||{}).label;return "- "+A+" <-> "+B+" ("+e.kind+", IP-ID "+(e.ipids||[]).join(",")+")";});
+      parts.push("WHOLE SYSTEM ("+ss.totals.processors+" processors):\n"+pl.join("\n")+(br.length?("\nEISC BRIDGES:\n"+br.join("\n")):""));
+    }
+  }catch(e){}
+  var facts=""; try{ facts=(typeof auditToText==="function")?auditToText():""; }catch(e){}
+  if(facts) parts.push("AS-BUILT of the active processor"+(pr&&pr.name?(" ("+pr.name+")"):"")+" — devices, IP-IDs, signals, checks:\n"+facts);
   if(pr&&pr.d3){
     var d=pr.d3;
     if(d.lighting){ if(d.lighting.rooms&&d.lighting.rooms.length)parts.push("LIGHTING ROOMS: "+d.lighting.rooms.map(function(r){return r.name;}).join(", ")); if(d.lighting.scenes&&d.lighting.scenes.length)parts.push("LIGHTING SCENES: "+d.lighting.scenes.map(function(x){return x.name;}).join(", ")); }
     if(d.loads&&d.loads.length)parts.push("LIGHTING LOADS (load -> module/output/feed):\n"+d.loads.slice(0,250).map(function(l){return l.load+" -> "+l.modType+" mod "+l.modNum+" out "+l.out+(l.feed?(" feed "+l.feed):"");}).join("\n"));
   }
+  // runtime evidence from a loaded console/log (digested, capped)
+  try{ var L=state.logDigest;
+    if(L){
+      var lg=["CONSOLE / LOG FINDINGS"+(L.name?(" ("+L.name+")"):"")+":"];
+      if(L.model||L.fw) lg.push("Running: "+(L.model||"?")+(L.fw?(" firmware "+L.fw):""));
+      if(L.match) lg.push("Log-vs-program match: "+String(L.match).toUpperCase()+(L.match==="mismatch"?" — the log is from a DIFFERENT system; do NOT tie its events to this program.":(L.match==="match"?" — the log confirms this program/processor.":" — unconfirmed; treat correlations as best-effort.")));
+      if(L.drops&&L.drops.length) lg.push("Devices dropping offline: "+L.drops.map(function(x){return (x.name||x.id)+" ("+x.n+"x)";}).join("; "));
+      if(L.timeouts) lg.push("Signal-solve timeouts: "+L.timeouts+(L.loops?(" — tied to "+L.loops+" feedback loop(s) with no wave-breaker (prime suspects)"):""));
+      if(L.storms) lg.push("Feedback/command storms (CPU-saturating bursts): "+L.storms);
+      if(L.recurring&&L.recurring.length) lg.push("Top recurring errors:\n"+L.recurring.map(function(r){return "- "+r.n+"x"+(r.rate?(" ("+r.rate+")"):"")+" "+r.msg+(r.who?(" ["+r.who+"]"):"");}).join("\n"));
+      if(L.missingFiles&&L.missingFiles.length) lg.push("Missing program files at boot: "+L.missingFiles.join(", "));
+      if(L.devConflicts&&L.devConflicts.length) lg.push("Device claimed by two programs: "+L.devConflicts.join(", "));
+      if(L.authFails) lg.push("Failed-login events: "+L.authFails);
+      if(L.cpu) lg.push("Processor load (as logged): "+L.cpu);
+      parts.push(lg.join("\n"));
+    } else if(facts){
+      parts.push("(No console/log loaded — add an Info-Tool dump in the Log Analyzer for runtime-confirmed diagnosis: which devices are actually dropping, what's timing out, and which build is deployed.)");
+    }
+  }catch(e){}
   if(!parts.length) return "(No program loaded in the Audit tab. Load one there first so issues resolve to exact devices/loads/IP-IDs.)";
   return parts.join("\n\n");
 }
@@ -3140,7 +3194,7 @@ function mdToHtml(md){
 }
 var TR_SYS="You are a senior AV / Crestron service-triage assistant. Be concise and practical. Never invent devices, loads, IP-IDs, modules, or facts that aren't given.";
 function trPrompt1(intake){ return "Extract a clean, DEDUPLICATED issue list from this messy job intake. One issue per row in the reporter's own concrete terms (keep their room/location words). Merge duplicates (note if several reported it). Separate a reported FACT from a REQUEST, labeled. Flag contradictions/ambiguity. Invent nothing.\n\nOutput a markdown table: # | Issue | fact/request | reported by | notes. Then one line: \"Confirm or edit above, then Resolve + diagnose.\"\n\nINTAKE:\n"+intake; }
-function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
+function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. (3) When the CONSOLE/LOG FINDINGS corroborate an issue (a named device dropping, a solve-timeout tied to a feedback loop, a storm), cite it as LIVE evidence and raise confidence; if the log is marked MISMATCH, do NOT use it for this program. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
 
 var TR_PRESETS={
   anthropic:{type:"anthropic",base:"",model:"claude-3-5-sonnet-latest",local:false,help:'Paste your <b>Anthropic</b> key (get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys). Model &amp; URL are pre-filled — nothing else to enter.'},
@@ -3163,7 +3217,8 @@ var TR_PRESETS={
     st.textContent = ready ? ("— on · "+({anthropic:"Claude",openai:"OpenAI",openrouter:"OpenRouter",ollama:"Ollama (local)",lmstudio:"LM Studio (local)"}[c.choice]||"AI")) : "— off";
     st.className = ready ? "" : "muted";
     build.disabled = !ready || !(intake.value.trim() || attached.length);
-    hint.textContent = ready ? "Reads the program loaded in Audit for instance resolution." : "Turn on AI settings to start.";
+    hint.textContent = ready ? "Grounds on the program (Audit) + console log (Log Analyzer)." : "Turn on AI settings to start.";
+    var _gd=$id("trGround"); if(_gd&&typeof trGroundHTML==="function") _gd.innerHTML=trGroundHTML();
   }
   var provHelp=$id("trProvHelp");
   function applyPreset(name,keepEdits){ var p=TR_PRESETS[name]||TR_PRESETS.anthropic; if(!keepEdits){ base.value=p.base; model.value=p.model; } if(provHelp)provHelp.innerHTML=p.help; key.parentNode.style.display=p.local?"none":""; }
@@ -3172,6 +3227,7 @@ var TR_PRESETS={
   btn.addEventListener("click",function(){ panel.classList.toggle("hide"); if(!panel.classList.contains("hide"))loadForm(); });
   save.addEventListener("click",function(){ var p=TR_PRESETS[prov.value]||TR_PRESETS.anthropic; var c={choice:prov.value,provider:p.type,base:base.value.trim()||p.base,model:model.value.trim()||p.model,key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
   clear.addEventListener("click",function(){ try{localStorage.removeItem("simplbench-triage");}catch(e){} key.value=""; refresh(); });
+  window.__trRefresh=refresh;
   intake.addEventListener("input",refresh);
   function readDrop(fl){ [].slice.call(fl).forEach(function(file){ var rd=new FileReader(); rd.onload=function(){ attached.push({name:file.name,text:String(rd.result||"").slice(0,200000)}); renderChips(); refresh(); }; rd.readAsText(file); }); }
   ["dragenter","dragover"].forEach(function(ev){ intake.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); intake.classList.add("tr-drag"); }); });
