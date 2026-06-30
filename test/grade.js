@@ -569,6 +569,14 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("branding: deliverables use the user's company when set", /Acme AV Integration/.test(bh) && !/kaizen/i.test(bh));
   w.localStorage.removeItem("simplbench-brand");
   has("branding: falls back to Kaizen Logic when unset", /kaizen/i.test(w.rcBrandHtml()));
+  // every CSV/MD export carries the branding header + company filename prefix
+  { w.localStorage.setItem("simplbench-brand", JSON.stringify({company:"Acme AV"}));
+    var cap="", capName="", OB=w.Blob; w.Blob=function(parts,o){ cap=(parts||[]).join(""); return new OB(parts,o); };
+    w.URL.createObjectURL=function(){return "blob:x";}; w.URL.revokeObjectURL=function(){}; w.HTMLAnchorElement.prototype.click=function(){ capName=this.download; };
+    w.downloadCsv("punchlist.csv","a,b\r\n1,2");
+    has("exports carry the user's branding header", /Acme AV/.test(cap) && /SIMPL Bench/.test(cap));
+    has("export filename is company-prefixed", /^Acme_AV_/.test(capName));
+    w.Blob=OB; w.localStorage.removeItem("simplbench-brand"); }
 }
 // ===== streaming zip reader over Blob.slice (STORED fixture; never loads whole file) =====
 function buildStoredZip(items){
