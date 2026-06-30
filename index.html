@@ -557,8 +557,9 @@
         <div class="tr-row"><label>Connect to</label><select id="trProvider"><option value="anthropic">Anthropic &mdash; Claude (recommended)</option><option value="openai">OpenAI &mdash; GPT</option><option value="openrouter">OpenRouter &mdash; many models, one key</option><option value="ollama">Local &mdash; Ollama (private, no key)</option><option value="lmstudio">Local &mdash; LM Studio (private, no key)</option></select></div>
         <p class="tr-help" id="trProvHelp"></p>
         <div class="tr-row"><label>API key</label><input id="trKey" type="password" placeholder="paste your key — stored in this browser only"></div>
-        <details class="tr-adv"><summary>Advanced — model &amp; URL (pre-filled, usually leave as-is)</summary>
-          <div class="tr-row"><label>Model</label><input id="trModel"></div>
+        <div class="tr-row"><label>Model</label><select id="trModelSel"></select></div>
+        <div class="tr-row tr-modelcustom hide"><label>Custom model</label><input id="trModel" placeholder="exact model id"></div>
+        <details class="tr-adv"><summary>Advanced — Base URL (usually leave as-is)</summary>
           <div class="tr-row"><label>Base URL</label><input id="trBase"></div>
         </details>
         <div class="tr-row"><button class="btn" id="trSaveCfg">Save</button><button class="btn ghost" id="trClearCfg">Turn off</button></div>
@@ -3274,15 +3275,15 @@ function trPrompt1(intake){ return "Extract a clean, DEDUPLICATED issue list fro
 function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. (3) When the CONSOLE/LOG FINDINGS corroborate an issue (a named device dropping, a solve-timeout tied to a feedback loop, a storm), cite it as LIVE evidence and raise confidence; if the log is marked MISMATCH, do NOT use it for this program. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
 
 var TR_PRESETS={
-  anthropic:{type:"anthropic",base:"",model:"claude-3-5-sonnet-latest",local:false,help:'Paste your <b>Anthropic</b> key (get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys). Model &amp; URL are pre-filled — nothing else to enter.'},
-  openai:{type:"openai",base:"https://api.openai.com/v1",model:"gpt-4o-mini",local:false,help:'Paste your <b>OpenAI</b> key (<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> → API keys).'},
-  openrouter:{type:"openai",base:"https://openrouter.ai/api/v1",model:"anthropic/claude-3.5-sonnet",local:false,help:'Paste your <b>OpenRouter</b> key (<a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>) — one key, hundreds of models. Change the model under Advanced.'},
-  ollama:{type:"openai",base:"http://localhost:11434/v1",model:"llama3.1",local:true,help:'<b>No key needed.</b> Install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>, run <code>ollama serve</code>, and <code>ollama pull llama3.1</code> (or set your model under Advanced). 100% on your machine.'},
-  lmstudio:{type:"openai",base:"http://localhost:1234/v1",model:"local-model",local:true,help:'<b>No key needed.</b> In <a href="https://lmstudio.ai" target="_blank" rel="noopener">LM Studio</a>, load a model and start the local server. 100% on your machine.'}
+  anthropic:{type:"anthropic",base:"",model:"claude-haiku-4-5-20251001",models:["claude-haiku-4-5-20251001","claude-sonnet-4-6","claude-opus-4-8"],local:false,help:'Paste your <b>Anthropic</b> key (<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys). Defaults to <b>Haiku</b> (cheapest/fastest) — pick a bigger model below if you want.'},
+  openai:{type:"openai",base:"https://api.openai.com/v1",model:"gpt-4o-mini",models:["gpt-4o-mini","gpt-4o","gpt-4.1-mini","gpt-4.1"],local:false,help:'Paste your <b>OpenAI</b> key (<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> → API keys). Defaults to <b>gpt-4o-mini</b> (cheapest).'},
+  openrouter:{type:"openai",base:"https://openrouter.ai/api/v1",model:"anthropic/claude-3.5-haiku",models:["anthropic/claude-3.5-haiku","openai/gpt-4o-mini","google/gemini-flash-1.5","meta-llama/llama-3.1-70b-instruct"],local:false,help:'Paste your <b>OpenRouter</b> key (<a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>) — one key, hundreds of models. Pick from the list or choose Custom.'},
+  ollama:{type:"openai",base:"http://localhost:11434/v1",model:"llama3.1",models:["llama3.1","qwen2.5","mistral","phi3","gemma2"],local:true,help:'<b>No key needed.</b> Install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>, run <code>ollama serve</code> + <code>ollama pull</code> your model. 100% on your machine.'},
+  lmstudio:{type:"openai",base:"http://localhost:1234/v1",model:"local-model",models:["local-model"],local:true,help:'<b>No key needed.</b> In <a href="https://lmstudio.ai" target="_blank" rel="noopener">LM Studio</a>, load a model + start the local server. 100% on your machine.'}
 };
 (function(){
   var $id=function(x){return document.getElementById(x);};
-  var btn=$id("trCfgBtn"), panel=$id("trCfg"), st=$id("trState"), prov=$id("trProvider"), base=$id("trBase"), model=$id("trModel"), key=$id("trKey"),
+  var btn=$id("trCfgBtn"), panel=$id("trCfg"), st=$id("trState"), prov=$id("trProvider"), base=$id("trBase"), model=$id("trModel"), modelSel=$id("trModelSel"), key=$id("trKey"),
       save=$id("trSaveCfg"), clear=$id("trClearCfg"), intake=$id("trIntake"), build=$id("trBuild"), hint=$id("trHint"), body=$id("trBody"),
       files=$id("trFiles"), chips=$id("trChips");
   var attached=[];
@@ -3298,11 +3299,17 @@ var TR_PRESETS={
     var _gd=$id("trGround"); if(_gd&&typeof trGroundHTML==="function") _gd.innerHTML=trGroundHTML();
   }
   var provHelp=$id("trProvHelp");
-  function applyPreset(name,keepEdits){ var p=TR_PRESETS[name]||TR_PRESETS.anthropic; if(!keepEdits){ base.value=p.base; model.value=p.model; } if(provHelp)provHelp.innerHTML=p.help; key.parentNode.style.display=p.local?"none":""; }
-  function loadForm(){ var c=trGetCfg(); prov.value=c.choice||"anthropic"; key.value=c.key||""; applyPreset(prov.value,false); if(c.base)base.value=c.base; if(c.model)model.value=c.model; }
+  function fillModels(p,selected){ if(!modelSel)return; var ms=(p.models||[p.model]).filter(Boolean);
+    modelSel.innerHTML=ms.map(function(m){return '<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join("")+'<option value="__custom__">Custom\u2026</option>';
+    var cr=document.querySelector(".tr-modelcustom"), want=selected||p.model;
+    if(want&&ms.indexOf(want)<0){ modelSel.value="__custom__"; if(model)model.value=want; if(cr)cr.classList.remove("hide"); }
+    else { modelSel.value=want||ms[0]||"__custom__"; if(cr)cr.classList.add("hide"); } }
+  function applyPreset(name,keepEdits){ var p=TR_PRESETS[name]||TR_PRESETS.anthropic; if(!keepEdits){ base.value=p.base; fillModels(p); } if(provHelp)provHelp.innerHTML=p.help; key.parentNode.style.display=p.local?"none":""; }
+  function loadForm(){ var c=trGetCfg(); prov.value=c.choice||"anthropic"; key.value=c.key||""; applyPreset(prov.value,false); if(c.base)base.value=c.base; fillModels(TR_PRESETS[prov.value]||TR_PRESETS.anthropic, c.model); }
   prov.addEventListener("change",function(){ applyPreset(prov.value,false); });
+  if(modelSel)modelSel.addEventListener("change",function(){ var cr=document.querySelector(".tr-modelcustom"); if(cr)cr.classList.toggle("hide",modelSel.value!=="__custom__"); });
   btn.addEventListener("click",function(){ panel.classList.toggle("hide"); if(!panel.classList.contains("hide"))loadForm(); });
-  save.addEventListener("click",function(){ var p=TR_PRESETS[prov.value]||TR_PRESETS.anthropic; var c={choice:prov.value,provider:p.type,base:base.value.trim()||p.base,model:model.value.trim()||p.model,key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
+  save.addEventListener("click",function(){ var p=TR_PRESETS[prov.value]||TR_PRESETS.anthropic; var mdl=(modelSel&&modelSel.value&&modelSel.value!=="__custom__")?modelSel.value:((model&&model.value.trim())||p.model); var c={choice:prov.value,provider:p.type,base:base.value.trim()||p.base,model:mdl,key:key.value.trim()}; try{localStorage.setItem("simplbench-triage",JSON.stringify(c));}catch(e){} panel.classList.add("hide"); refresh(); });
   clear.addEventListener("click",function(){ try{localStorage.removeItem("simplbench-triage");}catch(e){} key.value=""; refresh(); });
   window.__trRefresh=refresh;
   intake.addEventListener("input",refresh);
@@ -3338,6 +3345,7 @@ var TR_PRESETS={
       });
     }).catch(function(e){ err(e.message); });
   });
+  loadForm();
   refresh();
 })();
 if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
