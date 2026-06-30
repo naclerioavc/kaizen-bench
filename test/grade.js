@@ -422,21 +422,21 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const html=w.mdToHtml("# Go-list\n\n| # | Issue | Domain |\n|---|---|---|\n| 1 | bath cans dead | **electrical** |\n");
   has("triage mdToHtml renders a markdown table with header + row", /<table>/.test(html) && /<th>Issue<\/th>/.test(html) && /<td>bath cans dead<\/td>/.test(html) && /<b>electrical<\/b>/.test(html));
   // exportFactsForLLM: no program -> clear guidance; with program -> includes as-built
-  w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.units=null; state.logDigest=null;");
+  w.eval("state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.units=null; state.logDigests=null; state.logDigest=null;");
   has("exportFactsForLLM with nothing loaded gives clear guidance", /No program loaded/i.test(w.exportFactsForLLM()));
   // all-angles: LOG-ONLY (no program) still grounds + caveats; grounding points to Audit
-  w.eval(`state.units=null; state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.logDigest={name:'cp4.log',model:'CP4',fw:'2.8',hostname:'CP4-LAB',appSlots:3,match:'match',recurring:[],drops:[{id:'1F',name:'',n:4}],timeouts:0,loops:0,storms:0,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
+  w.eval(`state.units=null; state.prog={name:null,smw:null,smft:null,dip:null,d3:null}; state.audit=null; state.logDigests=null; state.logDigest={name:'cp4.log',model:'CP4',fw:'2.8',hostname:'CP4-LAB',appSlots:3,match:'match',recurring:[],drops:[{id:'1F',name:'',n:4}],timeouts:0,loops:0,storms:0,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
   { const f=w.exportFactsForLLM();
     has("log-only: console findings still feed (hostname)", /CONSOLE \/ LOG FINDINGS/.test(f) && /CP4-LAB/.test(f));
     has("log-only: caveats that instances can't resolve without the program", /No program\/as-built loaded/.test(f));
-    has("log-only grounding: program missing -> points to Audit", /Audit/.test(w.trGroundHTML()) && /console log/.test(w.trGroundHTML())); }
+    has("log-only grounding: program missing -> points to Audit", /Audit/.test(w.trGroundHTML()) && /CP4-LAB/.test(w.trGroundHTML())); }
   // grounding: log/console findings + match verdict fed to triage when a log is loaded
-  w.eval(`state.logDigest={name:'cp4.err',model:'CP4',fw:'2.8',match:'match',recurring:[{n:9,msg:'Logic could not be solved within 1500 waves',who:'LE_1',rate:'steady'}],drops:[{id:'1F',name:'NVX Zone1',n:12}],timeouts:5,loops:2,storms:1,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
+  w.eval(`state.logDigests=null; state.logDigest={name:'cp4.err',model:'CP4',fw:'2.8',match:'match',recurring:[{n:9,msg:'Logic could not be solved within 1500 waves',who:'LE_1',rate:'steady'}],drops:[{id:'1F',name:'NVX Zone1',n:12}],timeouts:5,loops:2,storms:1,authFails:0,missingFiles:[],devConflicts:[],cpu:''};`);
   { const f=w.exportFactsForLLM();
     has("triage grounds on console/log findings (drops named)", /CONSOLE \/ LOG FINDINGS/.test(f) && /NVX Zone1/.test(f));
     has("triage carries the log-vs-program match verdict", /Log-vs-program match: MATCH/.test(f));
     has("triage ties solve-timeouts to feedback loops", /Signal-solve timeouts: 5/.test(f) && /2 feedback loop/.test(f)); }
-  w.eval("state.prog={name:null,smw:'x',smft:null,dip:null,d3:null}; state.units=null; state.logDigest=null;");
+  w.eval("state.prog={name:null,smw:'x',smft:null,dip:null,d3:null}; state.units=null; state.logDigests=null; state.logDigest=null;");
   has("triage grounding status: program present, console missing -> points to Log Analyzer", /Log Analyzer/.test(w.trGroundHTML()) && /program/.test(w.trGroundHTML()));
 }
 // ===== D3 scene contents: scene -> the loads it controls (button = scene = these loads) =====
@@ -525,7 +525,7 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
 }
 // ===== Triage auto-collects EVERY loaded processor (no manual unit selection) =====
 { const mk=(nm,sig)=>{ let x="[\nObjTp=Hd\nPgmNm="+nm+"\n]"; for(let i=1;i<=sig;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=S"+i+"\nSgTp=\n]"; return x; };
-  w.eval(`state.units=[{kind:"system",name:"sys"},{kind:"program",name:"A",folder:"01-A",smw:${JSON.stringify(mk("A",2))}},{kind:"program",name:"B",folder:"02-B",smw:${JSON.stringify(mk("B",3))}}]; state.unitIndex=0; state.prog={name:"Whole system",smw:null}; state.logDigest=null;`);
+  w.eval(`state.units=[{kind:"system",name:"sys"},{kind:"program",name:"A",folder:"01-A",smw:${JSON.stringify(mk("A",2))}},{kind:"program",name:"B",folder:"02-B",smw:${JSON.stringify(mk("B",3))}}]; state.unitIndex=0; state.prog={name:"Whole system",smw:null}; state.logDigests=null; state.logDigest=null;`);
   const f=w.exportFactsForLLM();
   ck("Triage collects every processor's as-built, not just the active unit", (f.match(/^### /gm)||[]).length, 2);
   has("Triage facts name each processor folder", /01-A/.test(f) && /02-B/.test(f));
@@ -535,10 +535,21 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const dep=w.parseDeployedBuilds(log);
   ck("parseDeployedBuilds: latest load per slot wins", (dep.find(d=>d.slot==="01")||{}).name, "01_CP4_Main_v9_16");
   ck("parseDeployedBuilds: one entry per slot", dep.length, 2);
-  w.eval(`state.logDigest={deployed:[{slot:"01",name:"01_CP4_Main_v9_16"}]};`);
+  w.eval(`state.logDigests=null; state.logDigest={deployed:[{slot:"01",name:"01_CP4_Main_v9_16"}]};`);
   const unit={kind:"program",builds:[{name:"01_CP4_Main_v9_18.smw"},{name:"01_CP4_Main_v9_16.smw"}],activeBuild:"01_CP4_Main_v9_18.smw"};
   ck("deployedBuildFor returns the DEPLOYED build, not newest-saved", w.deployedBuildFor(unit), "01_CP4_Main_v9_16.smw");
   has("deployedBuildFor is null when the deployed build isn't in the archive", w.deployedBuildFor({kind:"program",builds:[{name:"X_v1.smw"}]})===null);
+}
+// ===== multiple logs accumulate (separate drops): evidence merges, deployedBuildFor scans all =====
+{ w.eval(`state.units=null; state.prog={smw:null}; state.audit=null; state.triageOff={}; state.logTriageOff={};
+  state.logDigests=[
+    {_id:"plog",name:"plog",deployed:[{slot:"01",name:"01_CP4_Main_v9_16"}],recurring:[],drops:[],timeouts:0,loops:0,storms:0,missingFiles:[],devConflicts:[]},
+    {_id:"info",name:"info",hostname:"CP4-LAB",model:"CP4",deployed:[],recurring:[],drops:[{id:"1F",name:"NVX",n:3}],timeouts:0,loops:0,storms:0,missingFiles:[],devConflicts:[]}
+  ]; state.logDigest=null;`);
+  const f=w.exportFactsForLLM();
+  has("multi-log: both logs' findings present (builds + hostname)", /Main_v9_16/.test(f) && /CP4-LAB/.test(f));
+  has("multi-log: deployedBuildFor scans ALL logs", w.deployedBuildFor({kind:"program",builds:[{name:"01_CP4_Main_v9_18.smw"},{name:"01_CP4_Main_v9_16.smw"}]})==="01_CP4_Main_v9_16.smw");
+  w.eval("state.logDigests=null;");
 }
 // ===== archived (~Older) folders excluded from the live map, counted separately =====
 { const mk=nm=>"[\nObjTp=Hd\nPgmNm="+nm+"\n]";

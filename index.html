@@ -2832,7 +2832,10 @@ function runLog(name,text){
     drops:(state.logXref&&state.logXref.drops&&state.logXref.drops.length)?state.logXref.drops.slice(0,20):(a.dropTop||[]).slice(0,20).map(function(p){return {id:String(p[0]).replace(/^IP-ID\s+/,""),name:"",n:p[1]};}),
     timeouts:(a.toRows&&a.toRows.length)||0, loops:(state.logXref&&state.logXref.loops)||0, storms:(a.storms&&a.storms.length)||0,
     authFails:Array.isArray(a.authFails)?a.authFails.length:(a.authFails||0), missingFiles:(a.missingFiles||[]).slice(0,10), devConflicts:(a.devConflicts||[]).slice(0,10), cpu:a.cpu||a.loadavg||"",
-    hostname:((text.match(/Hostname\s*:\s*([^\s\r\n]+)/i)||text.match(/\n([A-Za-z0-9_-]+)\s+Cntrl Eng/)||[])[1]||""), appSlots:((text.match(/Next Application Info/gi)||[]).length||(text.match(/Application is registered/gi)||[]).length||0) }; } else { state.logDigest=null; }
+    hostname:((text.match(/Hostname\s*:\s*([^\s\r\n]+)/i)||text.match(/\n([A-Za-z0-9_-]+)\s+Cntrl Eng/)||[])[1]||""), appSlots:((text.match(/Next Application Info/gi)||[]).length||(text.match(/Application is registered/gi)||[]).length||0) };
+    state.logDigests=state.logDigests||[]; var _lid=state.logDigest.hostname||state.logDigest.name||("log"+state.logDigests.length); state.logDigest._id=_lid;
+    var _ex=state.logDigests.map(function(d){return d._id;}).indexOf(_lid); if(_ex>=0)state.logDigests[_ex]=state.logDigest; else state.logDigests.push(state.logDigest);
+  } else { state.logDigest=null; }
   if(!a.compatible){ $("#logBody").innerHTML=`<div class="banner" style="border-left-color:var(--warn)"><b>Not a SIMPL log.</b> SIMPL Bench reads Crestron processor error logs (<code>.err</code> / <code>err plogcurrent</code>), console dumps, and Info-Tool / PLOG exports (<code>.zip</code>). This file doesn’t match any of those — if it’s from a non-Crestron device (power conditioner, switch, display), it’s out of scope.</div>`; return; }
 
   const worst=a.recurring[0];
@@ -3215,9 +3218,11 @@ function parseDeployedBuilds(text){
   while((m=re.exec(String(text)))){ bySlot[m[1]]={slot:m[1], name:m[2]}; }     // chronological -> latest load per slot wins
   return Object.keys(bySlot).sort().map(function(k){return bySlot[k];});
 }
+function allLogs(){ var s=(typeof state!=="undefined")?state:{}; return (s.logDigests&&s.logDigests.length)?s.logDigests:(s.logDigest?[s.logDigest]:[]); }
 function deployedBuildFor(unit){
-  if(!unit||!unit.builds||typeof state==="undefined"||!state.logDigest||!state.logDigest.deployed) return null;
-  var deps=state.logDigest.deployed.map(function(d){return (d.name||"").toLowerCase();});
+  if(!unit||!unit.builds||typeof state==="undefined") return null;
+  var deps=[]; allLogs().forEach(function(L){ (L.deployed||[]).forEach(function(d){ deps.push((d.name||"").toLowerCase()); }); });
+  if(!deps.length) return null;
   for(var i=0;i<unit.builds.length;i++){ var bn=unit.builds[i].name.replace(/\.(smw|umc|chd)$/i,"").toLowerCase(); if(deps.indexOf(bn)>=0) return unit.builds[i].name; }
   return null;
 }
@@ -3238,10 +3243,11 @@ function trGroundHTML(){
   Object.keys(dg).forEach(function(key){ var idxs=dg[key]; var active=d3PickIdx(us, idxs); var u=us[active];
     var picker = idxs.length>1 ? (multi=true, '<select class="tr-srcrev" data-d3sig="'+esc(key)+'">'+idxs.map(function(i){ return '<option value="'+i+'"'+(i===active?" selected":"")+'>'+esc(us[i].folder||us[i].name)+((us[i].d3&&us[i].d3._mtime)?(" \u00b7 "+new Date(us[i].d3._mtime).toISOString().slice(0,10)):"")+'</option>'; }).join("")+'</select>') : '<span class="tr-srct">'+esc(u.folder||u.name)+'</span>';
     rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-toff="'+active+'"'+(triageOff(active)?"":" checked")+'><span class="tr-srcn">\u25D0 lighting</span>'+picker+(idxs.length>1?'<span class="tr-srct">'+idxs.length+' revisions</span>':"")+'</div>'); });
-  var L=state.logDigest;
-  rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-logoff="1"'+(L?(state.logOff?"":" checked"):" disabled")+'><span class="tr-srcn">\u25C8 console log</span><span class="tr-srct">'+(L?esc((L.hostname||L.name||"loaded")+(L.match?(" \u00b7 "+L.match):"")):"none loaded \u2014 add in Log Analyzer")+'</span></div>');
+  var logs=allLogs();
+  if(logs.length){ logs.forEach(function(L){ rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" data-logid="'+esc(L._id||"")+'"'+((state.logTriageOff&&state.logTriageOff[L._id])?"":" checked")+'><span class="tr-srcn">\u25C8 log</span><span class="tr-srct">'+esc((L.hostname||L.name||"loaded")+(L.match?(" \u00b7 "+L.match):"")+(L.deployed&&L.deployed.length?(" \u00b7 "+L.deployed.length+" builds"):""))+'</span></div>'); }); }
+  else rows.push('<div class="tr-src"><input type="checkbox" class="tr-srcchk" disabled><span class="tr-srcn">\u25C8 console log</span><span class="tr-srct">none loaded \u2014 add in Log Analyzer</span></div>');
   var nP=us.filter(function(u){return u.kind==="program"&&u.smw&&!u.archived;}).length; var miss=[];
-  if(!nP && !(state.prog&&state.prog.smw))miss.push("drop the job backup in <b>Audit</b>"); if(!L)miss.push("drop a console dump in <b>Log Analyzer</b>");
+  if(!nP && !(state.prog&&state.prog.smw))miss.push("drop the job backup in <b>Audit</b>"); if(!logs.length)miss.push("drop a console dump in <b>Log Analyzer</b>");
   return '<div class="tr-srchead">Triage uses these \u2014 untick to exclude'+(multi?", pick the live revision":"")+':</div>'+rows.join("")+(miss.length?'<div class="tr-gmiss">\u26a0 For sharper triage: '+miss.join("; ")+'.</div>':'<div class="tr-gok">\u2713 Fully grounded \u2014 program + console.</div>');
 }
 function unitFacts(u){
@@ -3291,8 +3297,10 @@ function exportFactsForLLM(){
     if(d.sceneLoads&&d.sceneLoads.length) parts.push("LIGHTING SCENES -> loads ("+tag+", legacy):\n"+d.sceneLoads.slice(0,80).map(function(sc){return sc.scene+(sc.room?(" ["+sc.room+"]"):"")+": "+sc.loads.join(", ");}).join("\n"));
     if(d.sysKeypads&&d.sysKeypads.length) parts.push("KEYPADS -> button -> loads@levels ("+tag+"):\n"+d.sysKeypads.slice(0,40).map(function(kp){ return (kp.name||"keypad")+(kp.roomName?(" ["+kp.roomName+"]"):"")+": "+(kp.buttons||[]).slice(0,14).map(function(b){ var st=(b.steps||[]).slice(0,16).map(function(x){return (x.load||x.text||"")+(x.level?("@"+x.level):"");}).filter(Boolean).join(", "); return (b.name||"btn")+(st?(" {"+st+"}"):""); }).join(" | "); }).join("\n")); });
   // runtime evidence from a loaded console/log (digested, capped)
-  try{ var L=(typeof state!=="undefined"&&state.logOff)?null:state.logDigest;
-    if(L){
+  try{
+    var logs=(typeof state!=="undefined"&&state.logOff)?[]:allLogs();
+    logs=logs.filter(function(L){ return !(typeof state!=="undefined"&&state.logTriageOff&&L._id&&state.logTriageOff[L._id]); });
+    if(logs.length){ logs.forEach(function(L){
       var lg=["CONSOLE / LOG FINDINGS"+(L.name?(" ("+L.name+")"):"")+":"];
       if(L.model||L.fw) lg.push("Running: "+(L.model||"?")+(L.fw?(" firmware "+L.fw):""));
       if(L.hostname) lg.push("Processor hostname: "+L.hostname);
@@ -3309,7 +3317,7 @@ function exportFactsForLLM(){
       if(L.cpu) lg.push("Processor load (as logged): "+L.cpu);
       if(!hasProgram) lg.push("(No program/as-built loaded — cannot resolve complaints to exact devices/IP-IDs; diagnose from this log + complaints, and tell the user to load the job backup in Audit for instance resolution.)");
       parts.push(lg.join("\n"));
-    } else if(hasProgram){
+    }); } else if(hasProgram){
       parts.push("(No console/log loaded — add an Info-Tool dump in the Log Analyzer for runtime-confirmed diagnosis: which devices are actually dropping, what's timing out, and which build is deployed.)");
     }
   }catch(e){}
@@ -3378,7 +3386,7 @@ var TR_PRESETS={
   window.__trRefresh=refresh;
   var groundEl=$id("trGround");
   if(groundEl)groundEl.addEventListener("change",function(e){ var t=e.target; state.triageOff=state.triageOff||{}; state.d3Active=state.d3Active||{};
-    if(t.classList&&t.classList.contains("tr-srcchk")){ if(t.dataset.toff!==undefined)state.triageOff[+t.dataset.toff]=!t.checked; else if(t.dataset.logoff!==undefined)state.logOff=!t.checked; }
+    if(t.classList&&t.classList.contains("tr-srcchk")){ if(t.dataset.toff!==undefined)state.triageOff[+t.dataset.toff]=!t.checked; else if(t.dataset.logid!==undefined){ state.logTriageOff=state.logTriageOff||{}; state.logTriageOff[t.dataset.logid]=!t.checked; } else if(t.dataset.logoff!==undefined)state.logOff=!t.checked; }
     else if(t.classList&&t.classList.contains("tr-srcrev")){ state.d3Active[t.dataset.d3sig]=+t.value; }
     else if(t.classList&&t.classList.contains("tr-srcbuild")){ setUnitBuild(+t.dataset.uidx, t.value).then(refresh); return; }
     refresh(); });
