@@ -487,5 +487,23 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const e2=G2.edges.find(x=>/^u/.test(x.b));
   has("AV<->D3 is a real cross-box bridge by shared IP-ID (was external before)", !!e2 && e2.kind==="cross" && e2.ipids.indexOf("03")>=0);
 }
+// ===== "what's in this drop" line (deterministic facts + jump chips, no wizard) =====
+{ const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
+  const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
+  const dipOf=ps=>"[IPTable]\n"+ps.map((p,i)=>`id${i}=${p[0]}\naddr${i}=${p[1]}`).join("\n")+"\n";
+  const AV={kind:"program",name:"01-AV",folder:"01-AV",smw:proc("AV",[eisc(101,201,"20","RSD Lighting")]),dip:dipOf([["20","10.0.0.7"]])};
+  const D3={kind:"d3",name:"D3 Lighting",d3:{eiscSmw:proc("D3",[eisc(301,401,"20","Remote System")]),eiscDip:dipOf([["20","10.0.0.9"]])}};
+  const units=[{kind:"system",name:"System overview"},AV,D3];
+  const F=w.dropFacts(units);
+  ck("drop line: processor count", F.nProc, 1);
+  ck("drop line: lighting project count", F.nD3, 1);
+  ck("drop line: EISC bridge count", F.bridges, 1);
+  ck("drop line: zero external (reciprocal resolved)", F.ext, 0);
+  w.eval(`state.units=${JSON.stringify(units)}; state.unitName='Job'; state.unitIndex=0; setActiveUnit(0);`);
+  const cb=w.document.getElementById('censusBody'); const dl=cb.querySelector('.dropline');
+  has("drop line renders atop the whole-system view", dl!=null);
+  has("drop line states the facts (procs + lighting + bridges)", !!dl && /1 processor/.test(dl.textContent) && /D3 lighting/.test(dl.textContent) && /EISC bridge/.test(dl.textContent));
+  has("drop line offers a jump chip (data-unit)", cb.querySelectorAll('.dropline .dropchip[data-unit]').length>=1);
+}
 console.log(`\n==== ${pass} pass, ${fail} fail ====`);
 process.exit(fail?1:0);

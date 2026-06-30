@@ -369,6 +369,12 @@
   .actionbar:hover{background:rgba(245,177,76,.16)}
   .actionbar .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 0 3px rgba(245,177,76,.25)}
   .actionbar .ab-go{margin-left:auto;color:var(--warn);font-weight:600;white-space:nowrap}
+  .dropline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 14px;padding:11px 15px;border:1px solid var(--line);border-left:3px solid var(--stripe);border-radius:9px;background:var(--panel2);font-size:13.5px;color:var(--ink)}
+  .dropline .dl-i{color:var(--stripe)}
+  .dropline .dl-txt{flex:1 1 55%}
+  .dropline .dl-act{display:flex;gap:7px;flex-wrap:wrap}
+  .dropchip{border:1px solid var(--stripe);background:transparent;color:var(--stripe);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .dropchip:hover{filter:brightness(1.15)}
   .panel.attn-stat{border-color:var(--warn)} .panel.attn-stat .data{color:var(--warn)}
   .card.attn{border-left:3px solid var(--warn)} .card.attn>.card-head .card-title{color:var(--warn)}
   .hero-empty{text-align:center;padding:60px 24px}
@@ -387,7 +393,7 @@
     .report-cover .rc-l{color:#666;width:42%} .report-cover .rc-v{color:#000;font-weight:600}
     .report-cover .rc-counts{margin-top:24px;font-size:13px;color:#333;font-weight:600}
     .report-cover .rc-foot{margin-top:34px;font-size:10.5px;color:#777;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.5}
-    nav, .drop, footer, .diffbar, .filter, .gsbar, .chev, #modal, .stripe, .tagline, .card-intro, header, #censusName, .actionbar, .modal-nav { display:none !important; }
+    nav, .drop, footer, .diffbar, .filter, .gsbar, .chev, #modal, .stripe, .tagline, .card-intro, header, #censusName, .actionbar, .dropline, .modal-nav { display:none !important; }
     html,body{ background:#fff !important; color:#000 !important; }
     main{ padding:0; max-width:none; }
     .section-label{ color:#000; border-color:#000; }
@@ -1754,10 +1760,37 @@ function renderSystemMap(g){
   const legend=`<g transform="translate(14,${S-14})"><line x1="0" y1="0" x2="22" y2="0" class="sm-intra"/><text x="28" y="4" class="sm-lg">same box (loopback)</text><line x1="166" y1="0" x2="188" y2="0" class="sm-cross"/><text x="194" y="4" class="sm-lg">separate box (IP)</text><rect x="312" y="-6" width="13" height="13" rx="3" class="sm-lgl"/><text x="330" y="4" class="sm-lg">lighting</text><line x1="400" y1="0" x2="422" y2="0" class="sm-external"/><text x="428" y="4" class="sm-lg">external / not in drop</text></g>`;
   return `<div class="smwrap"><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
 }
+function dropFacts(units){
+  const us=units||[];
+  const progs=us.filter(u=>u.kind==="program"&&u.smw);
+  const d3s=us.filter(u=>u.kind==="d3");
+  let bridges=0,ext=0; try{ const g=systemGraph(us); bridges=g.edges.filter(e=>/^u/.test(e.b)).length; ext=g.external.length; }catch(e){}
+  let sig=0,dev=0; try{ const ss=systemSummary(us); sig=ss.totals.signals; dev=ss.totals.devices; }catch(e){}
+  return { nProc:progs.length, nD3:d3s.length, bridges, ext, sig, dev,
+    sysIdx:us.findIndex(u=>u.kind==="system"), d3Idx:us.findIndex(u=>u.kind==="d3"),
+    progIdx:us.findIndex(u=>u.kind==="program"&&u.smw) };
+}
+function dropLine(units){
+  const f=dropFacts(units); if(!f.nProc && !f.nD3) return "";
+  const parts=[];
+  if(f.nProc) parts.push(`<b>${f.nProc}</b> processor${f.nProc>1?"s":""}`);
+  if(f.nD3) parts.push(`<b>${f.nD3}</b> D3 lighting project${f.nD3>1?"s":""}`);
+  let s="This drop: "+parts.join(" + ");
+  if(f.bridges) s+=`, linked by <b>${f.bridges}</b> EISC bridge${f.bridges>1?"s":""}`;
+  if(f.ext) s+=` (plus ${f.ext} external system${f.ext>1?"s":""} referenced but not in the drop)`;
+  else if(f.nProc===1 && !f.nD3 && !f.bridges){ const bits=[]; if(f.sig)bits.push(f.sig.toLocaleString()+" signals"); if(f.dev)bits.push(f.dev.toLocaleString()+" devices"); if(bits.length) s+=" — "+bits.join(", "); }
+  s+=".";
+  const cur=(typeof state!=="undefined"&&typeof state.unitIndex==="number")?state.unitIndex:-1;
+  const chips=[];
+  if(f.sysIdx>=0 && f.sysIdx!==cur) chips.push(`<button class="dropchip" data-unit="${f.sysIdx}">▣ Start with the System Map</button>`);
+  if(f.d3Idx>=0 && f.d3Idx!==cur) chips.push(`<button class="dropchip" data-unit="${f.d3Idx}">◐ Open the lighting view</button>`);
+  if(f.sysIdx<0 && f.nProc===1 && f.progIdx>=0 && f.progIdx!==cur) chips.push(`<button class="dropchip" data-unit="${f.progIdx}">▣ Open the processor audit</button>`);
+  return `<div class="dropline"><span class="dl-i">◈</span><span class="dl-txt">${s}</span>${chips.length?`<span class="dl-act">${chips.join("")}</span>`:""}</div>`;
+}
 function renderWholeSystem(){
   const us=state.units||[]; const progIdx=[]; us.forEach((u,i)=>{ if(u.kind==="program"&&u.smw) progIdx.push(i); });
   const ss=systemSummary(us), t=ss.totals;
-  let html=renderUnitSelector();
+  let html=dropLine(us)+renderUnitSelector();
   html+=`<div class="section-label">Whole system</div>`;
   const _g=systemGraph(us); const _map=renderSystemMap(_g);
   if(_map) html+=card("System map",`${_g.nodes.length} processor${_g.nodes.length===1?"":"s"}`,`<p class="card-intro">The whole job at a glance \u2014 each box is a processor, lines are EISC bridges matched by <b>shared IP-ID</b>. <b>Dashed grey</b> = same physical box (loopback); <b>solid blue</b> = a separate box over IP; <b>amber dotted</b> = a system not in this drop. Click a processor to open its as-built.</p>`+_map,true);
@@ -1842,7 +1875,7 @@ function runAudit(){
     state.prog._symToDev=symToDev; }
   const devCell=(id,txt,bus)=>sigAds.has(bus+":"+String(id).toUpperCase())?`<td class="data drill" data-drill="devsignals" data-val="${bus}:${esc(id)}" title="click to see every signal wired to this device">${esc(txt)}</td>`:`<td class="data">${esc(txt)}</td>`;
   const eth=devRows.filter(d=>d.net==="Ethernet"), cres=devRows.filter(d=>d.net==="Cresnet");
-  let html="";
+  let html=dropLine(state.units);
   let ov=`<div class="row">`;
   ov+=(actionN?`<div class="panel attn-stat"><div class="stat"><span class="data">${actionN.toLocaleString()}</span><small>Action items</small></div></div>`:"");
   if(c){ ov+=stat(c.sigTot.toLocaleString(),"Signals")+stat(c.symActive.toLocaleString(),"Symbols")+stat(`${c.customPct.toFixed(0)}%`,"Custom / SIMPL+"); }
