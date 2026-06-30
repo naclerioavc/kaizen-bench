@@ -507,6 +507,18 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   has("drop line lists each bridge with its IP-ID (completeness)", [...cb.querySelectorAll('.dl-conn')].some(c=>/IP-ID\s*20/.test(c.textContent)));
   has("drop line shows separate-box IP detail", /separate box/.test(cb.textContent));
 }
+// ===== multiple D3 backups collapse to one lighting node (newest), bridge resolves =====
+{ const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
+  const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
+  const dipOf=ps=>"[IPTable]\n"+ps.map((p,i)=>`id${i}=${p[0]}\naddr${i}=${p[1]}`).join("\n")+"\n";
+  const AV={kind:"program",name:"AV",folder:"AV",smw:proc("AV",[eisc(101,201,"03","Lighting")]),dip:dipOf([["03","10.0.0.201"]])};
+  const mkD3=(nm,mt)=>({kind:"d3",name:nm,d3:{eiscSmw:proc("D3",[eisc(301,401,"03","Main")]),eiscDip:dipOf([["03","10.0.0.200"]]),_mtime:mt}});
+  const G=w.systemGraph([{kind:"system",name:"sys"},AV,mkD3("D3_old",1000),mkD3("D3_mid",2000),mkD3("D3_new",3000)]);
+  ck("D3 backups collapse to one lighting node", G.nodes.filter(n=>n.kind==="lighting").length, 1);
+  has("kept lighting is the newest-saved backup", (G.nodes.find(n=>n.kind==="lighting")||{}).label==="D3_new");
+  has("processor<->lighting bridge resolves after collapse", G.edges.some(e=>e.kind==="cross"&&/^u/.test(e.b)));
+  ck("no external endpoints after collapse", G.external.length, 0);
+}
 // ===== streaming zip reader over Blob.slice (STORED fixture; never loads whole file) =====
 function buildStoredZip(items){
   const enc=new TextEncoder(); const locs=[]; const chunks=[]; let off=0;
