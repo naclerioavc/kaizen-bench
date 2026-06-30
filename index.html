@@ -1892,10 +1892,12 @@ function renderWholeSystem(){
   const cp=$("#auditCopy"),pr=$("#auditPrint"),ea=document.getElementById("auditExportAll");
   if(cp)cp.disabled=true; if(pr)pr.disabled=true; if(ea)ea.disabled=false;
 }
-function switchBuild(name){
+async function switchBuild(name){
   const u=state.units&&state.units[state.unitIndex]; if(!u||!u.builds)return;
   const b=u.builds.find(x=>x.name===name); if(!b)return;
-  u.smw=b.smw?decodeText(b.smw):null; u.dip=b.dip?decodeText(b.dip):null; u.smft=b.smft?decodeText(b.smft):null; u.activeBuild=name;
+  const get=async x=>{ if(!x)return null; if(x.lhOff!==undefined && u._file) return await zipReadEntry(u._file,x); return x; };
+  const sb=await get(b.smw), db=await get(b.dip), fb=await get(b.smft);
+  u.smw=sb?decodeText(sb):null; u.dip=db?decodeText(db):null; u.smft=fb?decodeText(fb):null; u.activeBuild=name;
   setActiveUnit(state.unitIndex);
 }
 function buildSwitcher(u){
@@ -2269,7 +2271,7 @@ function scanProgramIPs(smw){
 // Each unit is parsed separately so namespaces are never merged. Single source of truth for intake.
 function chooseAllPrograms(files){
   const norm=files.map(f=>f.name.replace(/\\/g,"/"));
-  const sz=i=>(files[i].bytes&&files[i].bytes.length)||0;
+  const sz=i=>(files[i].bytes?files[i].bytes.length:(files[i].size||0));
   const isWork=i=>/\.smw$/i.test(norm[i]) && !/\/splswork\//i.test(norm[i]) && !/(^|\/)autosave[\/.]/i.test(norm[i]) && !/\/d3\//i.test(norm[i]);
   let idx=[]; for(let i=0;i<files.length;i++) if(isWork(i)) idx.push(i);
   if(!idx.length) for(let i=0;i<files.length;i++) if(/\.smw$/i.test(norm[i]) && !/\/splswork\//i.test(norm[i])) idx.push(i);
@@ -2395,17 +2397,29 @@ function buildD3(files, rootLower){
   return d3;
 }
 async function loadProgram(file){
-  const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
-  const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04)||/\.zip$/i.test(file.name);
   const out={smft:null,dip:null,smw:null,ir:[],d3:null,name:file.name};
+  const head=new Uint8Array(await file.slice(0,4).arrayBuffer());
+  const isZip=(head[0]===0x50&&head[1]===0x4b&&head[2]===0x03&&head[3]===0x04)||/\.zip$/i.test(file.name);
   if(isZip){
-    const files=await unzip(buf);
+    // MANIFEST-FIRST: read the central directory, then inflate ONLY the work files we keep.
+    // The whole archive is never loaded — a 4GB backup touches ~a few hundred MB, not 10GB.
+    const entries=await zipDir(file);
+    const files=entries.map(e=>({ name:e.name, size:e.size, _e:e }));
+    const inflate=async i=>{ if(i>=0 && files[i] && !files[i].bytes) files[i].bytes=await zipReadEntry(file,files[i]._e); return (i>=0&&files[i])?files[i].bytes:null; };
+    const isD3Need=nm=>{ const p=nm.replace(/\\/g,"/").toLowerCase(); if(/\/autosave\//.test(p))return false;
+      return /\/documentation\/(loadwiring|loadschedule\w*|engraving[^/]*)\.html?$/.test(p)
+        || /\/data\/(areas|rooms|loads|scenes)\.dat$/.test(p)
+        || /\/documentation\/sysdata\.xml$/.test(p) || /\.egr$/.test(p)
+        || /\/programs\/[^/]*\.smw$/.test(p) || /\/documentation\/.*\.(jpe?g|png)$/.test(p); };
+    for(let i=0;i<files.length;i++){ if(isD3Need(files[i].name)) await inflate(i); }
     const all=chooseAllPrograms(files);
-    const dec=i=>i>=0?decodeText(files[i].bytes):null;
+    for(const u of all.programs){ await inflate(u.smw); await inflate(u.smft); await inflate(u.dip); for(const k of u.ir) await inflate(k); }
+    const dec=i=>(i>=0&&files[i]&&files[i].bytes)?decodeText(files[i].bytes):null;
     const base=r=>(r||"").replace(/[\\/]$/,"").replace(/.*[\\/]/,"");
     const progUnits=all.programs.map(u=>{
       const o={ kind:"program", name:u.name, folder:u.folder, versions:u.versions||[], smw:dec(u.smw), smft:dec(u.smft), dip:dec(u.dip), ir:u.ir.map(k=>files[k].name.replace(/.*[\\/]/,"").replace(/\.ir$/i,"")) };
-      if(u.builds && u.builds.length>1){ o.builds=u.builds.map(b=>({ name:b.name, smw:files[b.smw].bytes, dip:b.dip>=0?files[b.dip].bytes:null, smft:b.smft>=0?files[b.smft].bytes:null })); o.activeBuild=u.builds[0].name; }
+      if(u.builds && u.builds.length>1){ o._file=file; o.activeBuild=u.builds[0].name;
+        o.builds=u.builds.map(b=>({ name:b.name, smw:files[b.smw]._e, dip:b.dip>=0?files[b.dip]._e:null, smft:b.smft>=0?files[b.smft]._e:null })); }
       return o;
     });
     let d3Units=all.d3roots.map(root=>{ const d3=buildD3(files, root.replace(/\\/g,"/").toLowerCase()); return d3?{ kind:"d3", name:base(root)||"D3 lighting", d3 }:null; }).filter(Boolean);
@@ -2416,6 +2430,7 @@ async function loadProgram(file){
     if(prim){ if(prim.kind==="program"){ out.smw=prim.smw; out.smft=prim.smft; out.dip=prim.dip; out.ir=prim.ir; } else { out.d3=prim.d3; } }
     if(!out.units.length) throw new Error("no .smft / .dip / .smw / loadwiring.htm inside the zip");
   } else {
+    const u8=new Uint8Array(await file.arrayBuffer());
     const txt=decodeText(u8); const n=file.name.toLowerCase();
     if(n.endsWith(".smft"))out.smft=txt; else if(n.endsWith(".dip"))out.dip=txt; else if(n.endsWith(".smw")||n.endsWith(".umc")||n.endsWith(".chd"))out.smw=txt;
     else if(n.endsWith(".htm")||n.endsWith(".html")){ const lw=parseD3Loadwiring(txt),ls=parseD3LoadSchedule(txt),eg=parseD3Engraving(txt); if(lw)out.d3=lw; else if(ls)out.d3={schedule:ls}; else if(eg)out.d3={keypads:eg}; if(!out.d3)throw new Error("that .htm isn't a recognized D3 Pro report (loadwiring / load schedule / engraving)"); }
