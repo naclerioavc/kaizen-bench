@@ -3251,6 +3251,9 @@ function unitFacts(u){
     if(devs.length>70) L.push("  …+"+(devs.length-70)+" more devices"); }
   if(dip.size){ var ids=[...dip.entries()].slice(0,60).map(function(e){return e[0]+(e[1]?("="+e[1]):"");}); L.push("IP-IDs: "+ids.join(", ")+(dip.size>60?" …":"")); }
   if(eisc.length) L.push("EISC links: "+eisc.map(function(l){return l.ipid+(l.ip?("@"+l.ip):"")+"->"+(l.target||"?");}).join("; "));
+  try{ var io=(typeof scanIO==="function")?scanIO(u.smw):[]; if(io&&io.length) L.push("Relay/IR/IO ports: "+io.slice(0,40).map(function(x){return x.type+" port "+x.port+(x.count?(" x"+x.count):"")+(x.host&&x.host!=="CP4N"?(" on "+x.host+(x.hostIpid?(" "+x.hostIpid):"")):"");}).join("; ")); }catch(e){}
+  try{ var ser=(typeof scanSerial==="function")?scanSerial(u.smw):[]; if(ser&&ser.length) L.push("Serial ports: "+ser.slice(0,30).map(function(x){return (x.device||("port "+x.port))+(x.proto?(" "+x.proto):"")+(x.host&&x.host!=="CP4N"?(" on "+x.host):"");}).join("; ")); }catch(e){}
+  try{ var ird=(typeof parseIrDevices==="function")?parseIrDevices(u.smw):[]; if(ird&&ird.length) L.push("IR devices: "+ird.slice(0,30).map(function(x){return (x.device||"")+(x.mfr?(" ["+x.mfr+"]"):"")+(x.host?(" on "+x.host+(x.hostIpid?(" "+x.hostIpid):"")):"");}).join("; ")); }catch(e){}
   return L.join("\n");
 }
 function exportFactsForLLM(){
