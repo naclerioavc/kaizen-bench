@@ -203,6 +203,15 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
 - ✅ **CP437 zip names.** `zipDir`/`zipSalvage` honor general-purpose flag bit 11: UTF-8 when set,
   CP437 table otherwise (decoding CP437 as UTF-8 mojibaked accented folder names and corrupted folder
   grouping). Legacy buffer readers unchanged (consistent within their own path).
+- ✅ **Low-batch hardening (2026-07-01).** `esc()` also escapes `'` (kills the single-quoted-attribute
+  footgun class). Log timestamps parse via fixed `Date.UTC` decomposition — local-time parsing shifted
+  spans/rates ±1h across DST (graded under `TZ=America/New_York` via `test/tz_probe.js`). Log lines are
+  capped at 4k chars BEFORE the `$`-anchored trim and the sysinfo regexes run on capped text — both were
+  O(n²) on a single multi-MB junk line (a real 3MB line hung the analyzer for minutes; now 57ms). Game
+  canvas scales by devicePixelRatio (crisp on hi-DPI) and fits small windows; overlay is a proper
+  `role="dialog"` with focus into the dialog on open and back to the launcher on close; the launcher is
+  no longer inside `aria-hidden`. Platformer only lands when feet crossed a platform's top that step
+  (no more side-entry teleport).
 - ✅ **Game/job isolation is graded.** The easter-egg engine provably cannot see or touch the tool:
   a source-level grader test asserts the game IIFE never references `state`/parsers/DOM outside its
   overlay, and a dynamic test plays 60 frames over a loaded multi-processor job and asserts the audit

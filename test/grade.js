@@ -937,6 +937,30 @@ function buildStoredZip(items){
     has(`game runs at full rate with a multi-proc job loaded (${steps} steps)`, steps>=50);
     has("playing the game changes NOTHING in the audit", w.document.getElementById("censusBody").innerHTML===before && w.eval("state.units.length")===3);
   }
+  // ===== low batch: esc('), DST-proof timestamps, giant-line cap, a11y, DPR canvas =====
+  ck("esc() escapes single quotes", w.esc("it's <b>"), "it&#39;s &lt;b&gt;");
+  { // timestamps parse TZ/DST-independently — probe under America/New_York (spring-forward day)
+    let out=""; try{ out=require("child_process").execSync("node "+JSON.stringify(path.join(__dirname,"tz_probe.js")),{env:Object.assign({},process.env,{TZ:"America/New_York"}),timeout:30000}).toString(); }catch(e){ out="ERR:"+e.message; }
+    ck("log span is 3.00h across US spring-forward under TZ=America/New_York", out, "3");
+  }
+  { // one multi-MB junk line must not stall the analyzer or eat neighboring entries
+    const big="Error: J # 2026-06-25 12:00:01 # "+"9".repeat(3*1024*1024);
+    const t0=Date.now();
+    const a=w.analyzeLog(["Error: A # 2026-06-25 12:00:00 # real one",big,"Error: A # 2026-06-25 12:00:02 # real two"].join("\n"));
+    has("giant junk line: analyzer completes fast and keeps real entries", (Date.now()-t0)<3000 && a.errN>=3 && a.compatible);
+  }
+  { // a11y + hi-DPI
+    has("game launcher is not wrapped in aria-hidden", !w.document.getElementById("mgGround").hasAttribute("aria-hidden"));
+    has("game overlay is a dialog", w.document.getElementById("mgOverlay").getAttribute("role")==="dialog");
+    let q3=[]; w.requestAnimationFrame=fn=>{q3.push(fn);return q3.length;}; w.cancelAnimationFrame=()=>{q3=[];};
+    w.devicePixelRatio=2;
+    const trg2=w.document.getElementById("mgTrigger");
+    trg2.dispatchEvent(new w.Event("click",{bubbles:true}));
+    ck("canvas backing store scales with devicePixelRatio", [w.document.getElementById("mgCanvas").width,w.document.getElementById("mgCanvas").height], [1440,760]);
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown",{key:"Escape"}));
+    has("closing the game returns focus to the launcher", w.document.activeElement===trg2);
+    w.devicePixelRatio=1;
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();

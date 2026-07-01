@@ -223,11 +223,11 @@
   [data-theme="brawler"] .mg-title{font-style:italic;font-weight:900;letter-spacing:1px;color:#ffd23a;-webkit-text-stroke:1.5px #b3231d;text-shadow:2px 3px 0 #7a1410;transform:skewX(-8deg)}
   #mgOverlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center}
   #mgOverlay.hide{display:none}
-  .mg-box{background:#15182b;border-radius:12px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .mg-box{background:#15182b;border-radius:12px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.55);max-width:96vw}
   .mg-bar{display:flex;align-items:center;gap:16px;margin-bottom:10px;font-size:13px;color:#fff}
   .mg-title{font-weight:800;letter-spacing:.08em;color:#fbc02d}
   #mgClose{margin-left:auto;background:none;border:0;color:#fff;font-size:18px;cursor:pointer}
-  #mgCanvas{display:block;border-radius:8px}
+  #mgCanvas{display:block;border-radius:8px;max-width:min(720px,90vw);height:auto}
   .mg-help{margin-top:9px;color:#9aa4bd;font-size:12px;text-align:center}
   @media print{ #mgGround,#mgOverlay{display:none!important} }
   @media print{ .unitbar{display:none!important} }
@@ -676,8 +676,8 @@
   </div>
 </div>
 
-<div id="mgGround" aria-hidden="true"><button id="mgTrigger" title="Pipe Dream — hop on the block!">?</button></div>
-<div id="mgOverlay" class="hide">
+<div id="mgGround"><button id="mgTrigger" title="Pipe Dream — hop on the block!" aria-label="Play the hidden mini game">?</button></div>
+<div id="mgOverlay" class="hide" role="dialog" aria-modal="true" aria-label="Mini game">
   <div class="mg-box">
     <div class="mg-bar"><span class="mg-title">PIPE DREAM</span><span id="mgScore">Coins 0 / 5</span><button id="mgClose" title="Close">✕</button></div>
     <canvas id="mgCanvas" width="720" height="380"></canvas>
@@ -2760,11 +2760,12 @@ wireDrop($("#dropL"),$("#fileL"),f=>{
     .catch(err=>{ $("#logBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
 function analyzeLog(text){
-  const lines=text.split("\n").map(l=>l.replace(/[\r\s]+$/,""));
+  const lines=text.split("\n").map(l=>{ if(l.length>4000)l=l.slice(0,4000); return l.replace(/[\r\s]+$/,""); });   // cap BEFORE the trim: $-anchored trim is O(n^2) on a multi-MB junk line
   const compatible = /^(Fatal|Error|Warning|Notice|Info|Ok):\s+\S.*#.*#/m.test(text) || /Crestron Information Tool|={6,}=|err plogcurrent|could not be solved|LogicEngine|cpuload/i.test(text);
   const tsRe=/(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)/;
   const ts=l=>{const m=l.match(tsRe);return m?m[1]:null;};
-  const toS=str=>{if(!str)return null;const d=new Date(str.replace(" ","T"));const t=d.getTime();return isNaN(t)?null:t/1000;};
+  const toS=str=>{if(!str)return null;const m=/^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)$/.exec(str);if(!m)return null;
+    return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])/1000;};   // relative math needs CONSISTENCY; local-time parse jumped across DST
 
   // log time span
   let firstTs=null,lastTs=null;
@@ -2836,15 +2837,16 @@ function analyzeLog(text){
 
   // processor load — parsed from the real Info-Tool cpuload / ramfree / taskstat sections
   let cpu=null, loadavg=null, proc=[], cores=null, mem=null;
-  const la=text.match(/[Ll]oad average:\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/); if(la)loadavg=[la[1],la[2],la[3]];
-  const cpul=text.match(/CPU:\s*([\d.]+)%\s*usr\s+([\d.]+)%\s*sys.*?([\d.]+)%\s*idle/); if(cpul)cpu={usr:cpul[1],sys:cpul[2],idle:cpul[3]};
+  const textC=lines.join("\n");   // sysinfo regexes run on CAPPED text: (\d+)-prefixed patterns are O(n^2) on a multi-MB digit run
+  const la=textC.match(/[Ll]oad average:\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/); if(la)loadavg=[la[1],la[2],la[3]];
+  const cpul=textC.match(/CPU:\s*([\d.]+)%\s*usr\s+([\d.]+)%\s*sys.*?([\d.]+)%\s*idle/); if(cpul)cpu={usr:cpul[1],sys:cpul[2],idle:cpul[3]};
   // cores: count per-core lines (cpu00:, cpu01: ...) from cpuload, else an explicit statement
-  const coreIdx=new Set((text.match(/^cpu\d+:/gim)||[]).map(x=>x.match(/\d+/)[0])); if(coreIdx.size>1)cores=coreIdx.size;
-  if(!cores){ const cm=text.match(/\b(\d+)[ \t]*(?:cpu cores|processors|cores online)\b/i); if(cm)cores=parseInt(cm[1],10); }
+  const coreIdx=new Set((textC.match(/^cpu\d+:/gim)||[]).map(x=>x.match(/\d+/)[0])); if(coreIdx.size>1)cores=coreIdx.size;
+  if(!cores){ const cm=textC.match(/\b(\d+)[ \t]*(?:cpu cores|processors|cores online)\b/i); if(cm)cores=parseInt(cm[1],10); }
   // memory from ramfree section
-  const rf=text.match(/(\d+)\s*percent of memory in use/i);
-  const rfFree=text.match(/(\d+)\s*bytes free/i);
-  const rfTot=text.match(/(\d+)\s*total bytes of physical memory/i);
+  const rf=textC.match(/(\d+)\s*percent of memory in use/i);
+  const rfFree=textC.match(/(\d+)\s*bytes free/i);
+  const rfTot=textC.match(/(\d+)\s*total bytes of physical memory/i);
   if(rf) mem={pct:parseInt(rf[1],10), freeB: rfFree?parseInt(rfFree[1],10):null, totalB: rfTot?parseInt(rfTot[1],10):null};
   // per-process CPU from taskstat: pid ppid st user% sys% core pri nice thd rss vsz pss name command
   lines.forEach(l=>{
@@ -3152,7 +3154,7 @@ function runLog(name,text){
 /* ---------- helpers ---------- */
 function wrapScroll(sel){ $$(sel+" table").forEach(t=>{ const tb=t.tBodies[0]; if(tb&&tb.rows.length>14&&!t.parentElement.classList.contains("scroll")){ const d=document.createElement("div"); d.className="scroll"; t.parentNode.insertBefore(d,t); d.appendChild(t); } }); }
 function stat(big,label){return `<div class="panel"><div class="stat">${big}<small>${label}</small></div></div>`;}
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 
 /* expose engine for headless tests (no-op in browser UI) */
@@ -3348,8 +3350,12 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
     startT=(typeof performance!=="undefined"?performance.now():Date.now()); finished=false; finishTime=0;
   }
   function now(){ return (typeof performance!=="undefined"?performance.now():Date.now()); }
-  function open(){ if(!ov.classList.contains("hide"))return; _lt=0; _acc=0; keys={}; ov.classList.remove("hide"); sk=SKINS[document.documentElement.getAttribute("data-theme")||""]||SKINS.plumber; var tt=document.querySelector(".mg-title"); if(tt)tt.textContent=sk.name; var hh=document.querySelector(".mg-help"); if(hh)hh.textContent=(sk.mode==="smash")?"MASH SPACE or click to smash the printer · R retry · Esc close":(sk.mode==="climb")?"← → move · ↑↓ climb ladders · space hop barrels · reach the top · Esc close":"← → move · ↑ / space jump · Esc close — grab every coin"; reset(); ctx=cv.getContext("2d"); if(cl)cl.focus(); if(!raf)loop(); }
-  function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} }
+  function open(){ if(!ov.classList.contains("hide"))return; _lt=0; _acc=0; keys={}; ov.classList.remove("hide"); sk=SKINS[document.documentElement.getAttribute("data-theme")||""]||SKINS.plumber; var tt=document.querySelector(".mg-title"); if(tt)tt.textContent=sk.name; var hh=document.querySelector(".mg-help"); if(hh)hh.textContent=(sk.mode==="smash")?"MASH SPACE or click to smash the printer · R retry · Esc close":(sk.mode==="climb")?"← → move · ↑↓ climb ladders · space hop barrels · reach the top · Esc close":"← → move · ↑ / space jump · Esc close — grab every coin"; reset();
+    var dpr=Math.max(1,Math.min(3,window.devicePixelRatio||1));
+    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);          // crisp on hi-DPI; logical coords stay 720x380
+    ctx=cv.getContext("2d"); if(ctx.setTransform)ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(cl)cl.focus(); if(!raf)loop(); }
+  function close(){ ov.classList.add("hide"); if(raf){cancelAnimationFrame(raf);raf=0;} try{trg.focus();}catch(e){} }
   function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
   // Fixed 60Hz timestep: per-frame movement constants stay honest on 144Hz monitors (leaderboard
   // times are wall-clock, so refresh rate must not change game speed). Draw rides the step.
@@ -3376,7 +3382,7 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
       if(player.x<0)player.x=0; if(player.x+player.w>W)player.x=W-player.w;
       player.g=false;
       for(var i=0;i<plats.length;i++){ var p=plats[i];
-        if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
+        if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>p.y&&player.y+player.h<p.y+p.h+20&&player.vy>=0&&(player.y+player.h-player.vy)<=p.y+1){ player.y=p.y-player.h; player.vy=0; player.g=true; } }
       if(player.y>H+80)reset();
       got=0; coins.forEach(function(c){ if(!c.got&&Math.abs(player.x+11-c.x)<17&&Math.abs(player.y+17-c.y)<19)c.got=true; if(c.got)got++; });
       if(got>=coins.length){ finished=true; finishTime=(now()-startT)/1000; saveScore(finishTime); }
