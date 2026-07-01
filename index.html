@@ -487,6 +487,18 @@
   .trq-del:hover{color:#e5534b}
   @media print{.trq-h,.trq-del,.tr-out-actions,.tr-adv{display:none!important}}
 
+  /* triage steer loop + input sanity */
+  .tr-reject{margin:6px 0 0;font-size:12px;color:#e5a53b;line-height:1.5}
+  .tr-reject div{margin:2px 0}
+  .tr-chat{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .tr-chatin{flex:1 1 260px;min-width:0;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
+  .tr-chatin:focus{outline:none;box-shadow:0 0 0 2px #1f6feb}
+  .tr-chat #trChatSt{font-size:12px}
+  .tr-chatlog{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}
+  .tr-cl{font-size:13px;line-height:1.5;padding:7px 10px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+  .tr-cl.you{background:#16202b}
+  .tr-cl b{color:var(--mut);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-right:7px}
+  @media print{.tr-chat,.tr-chatlog,.tr-reject{display:none!important}}
 </style>
 </head>
 <body>
@@ -3251,14 +3263,15 @@ function trim(s,n){s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;}
 function trGetCfg(){ try{ return JSON.parse(localStorage.getItem("simplbench-triage")||"null")||{provider:"anthropic",base:"",model:"",key:""}; }catch(e){ return {provider:"anthropic",base:"",model:"",key:""}; } }
 function trReady(c){ c=c||trGetCfg(); return !!(c.key) || /localhost|127\.0\.0|ollama|11434|:1234/i.test(c.base||""); }
 function trBuildRequest(cfg, system, user){
+  var msgs=Array.isArray(user)?user:[{role:"user",content:user}];
   if(cfg.provider==="anthropic"){
     return { url:(cfg.base||"https://api.anthropic.com/v1").replace(/\/$/,"")+"/messages",
       headers:{ "content-type":"application/json", "x-api-key":cfg.key||"", "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
-      body:{ model:cfg.model||"claude-3-5-sonnet-latest", max_tokens:2800, system:system, messages:[{role:"user",content:user}] } };
+      body:{ model:cfg.model||"claude-3-5-sonnet-latest", max_tokens:2800, system:system, messages:msgs } };
   }
   return { url:(cfg.base||"https://api.openai.com/v1").replace(/\/$/,"")+"/chat/completions",
     headers:{ "content-type":"application/json", "authorization":"Bearer "+(cfg.key||"") },
-    body:{ model:cfg.model||"gpt-4o-mini", messages:[{role:"system",content:system},{role:"user",content:user}] } };
+    body:{ model:cfg.model||"gpt-4o-mini", messages:[{role:"system",content:system}].concat(msgs) } };
 }
 async function trCall(cfg, system, user){
   var req=trBuildRequest(cfg,system,user);
@@ -3397,9 +3410,9 @@ function mdToHtml(md){
   }
   return out.join("");
 }
-var TR_SYS="You are a senior AV / Crestron service assistant. You turn a messy service intake into the tech's punch list — in the reporter's OWN words and their ORIGINAL order. Never reword, merge, split, or reorder their issues. Never invent a device, load, IP-ID, module, keypad, or fact that isn't in the SYSTEM FACTS. Add a short fact ONLY when the facts actually resolve or answer a line; add a flag ONLY when a line clearly isn't a programming fix. Output JSON only — no prose, no markdown.";
+var TR_SYS="You are a senior AV / Crestron service assistant working WITH a technician. You turn a messy service intake into the tech's punch list — in the reporter's OWN words and their ORIGINAL order. Never reword, merge, split, or reorder their issues. Never invent a device, load, IP-ID, module, keypad, or fact that isn't in the SYSTEM FACTS. Add a short fact ONLY when the facts actually resolve or answer a line; add a flag ONLY when a line clearly isn't a programming fix. When building or updating the list, output the JSON array ONLY (no prose, no markdown). When the tech asks you a QUESTION about the list, answer in 1-3 short plain sentences instead.";
 function trPrompt(intake, facts){
-  return "Turn the INTAKE into a punch list. List every distinct issue or request the reporter wrote, VERBATIM (their words, their room / location terms) and in their ORIGINAL ORDER. One item per issue. Do not merge, split, reword, or reorder.\n\nFor each item add two fields:\n- \"fact\": ONE short sentence, ONLY if the SYSTEM FACTS resolve the line to an exact instance (keypad button / load / device / IP-ID / module / deployed build) or directly answer a question in the line (e.g. \"are these dimmable?\"). If the facts don't clearly speak to it, use \"\" (empty). Never guess or pad.\n- \"flag\": \"elec\" if the line is a dead / physical / electrical problem (not programming), \"fw\" if it's a firmware or AV-device problem, \"net\" if network — otherwise \"\".\n\nReturn ONLY a JSON array, nothing before or after:\n[{\"issue\":\"<verbatim>\",\"fact\":\"<short or empty>\",\"flag\":\"<elec|fw|net or empty>\"}]\n\nSYSTEM FACTS (ground truth — invent nothing beyond this):\n"+(facts||"(none loaded)")+"\n\nINTAKE:\n"+intake;
+  return "Turn the INTAKE into a punch list. Pull issues from EVERY source in the intake \u2014 the pasted notes AND each \"--- ATTACHED FILE ---\" section AND the SYSTEM FACTS. Do not fixate on the longest or most conversational thread; a one-line mention is still an issue and must appear. List every distinct issue or request the reporter wrote, VERBATIM (their words, their room / location terms) and in their ORIGINAL ORDER. One item per issue. Do not merge, split, reword, or reorder.\n\nFor each item add two fields:\n- \"fact\": ONE short sentence, ONLY if the SYSTEM FACTS resolve the line to an exact instance (keypad button / load / device / IP-ID / module / deployed build) or directly answer a question in the line (e.g. \"are these dimmable?\"). If the facts don't clearly speak to it, use \"\" (empty). Never guess or pad.\n- \"flag\": \"elec\" if the line is a dead / physical / electrical problem (not programming), \"fw\" if it's a firmware or AV-device problem, \"net\" if network — otherwise \"\".\n\nReturn ONLY a JSON array, nothing before or after:\n[{\"issue\":\"<verbatim>\",\"fact\":\"<short or empty>\",\"flag\":\"<elec|fw|net or empty>\"}]\n\nSYSTEM FACTS (ground truth — invent nothing beyond this):\n"+(facts||"(none loaded)")+"\n\nINTAKE:\n"+intake;
 }
 function trFlagLabel(f){ return f==="elec"?"ELEC":f==="fw"?"FW/AV":f==="net"?"NET":""; }
 function trParseItems(raw){
@@ -3421,6 +3434,18 @@ function trItemsToCsv(items){
   var rows=[["Done","Issue","Fact","Flag"]];
   (items||[]).forEach(function(it){ rows.push([it.done?"x":"", it.issue, it.fact||"", it.flag||""]); });
   return rows.map(function(r){return r.map(q).join(",");}).join("\r\n");
+}
+function trAttachClass(name){
+  var n=String(name||"").toLowerCase();
+  if(/\.(zip|smw|smft|dip|egr|ir|lpz|sig|bin|smz|c3z|vc4z|dmc3?)$/.test(n)) return {ok:false, why:"program / archive \u2014 drop it in <b>Audit</b>, not here"};
+  if(/\.(err|plog|plogs)$/.test(n) || /plog/.test(n)) return {ok:false, why:"processor log \u2014 drop it in <b>Log Analyzer</b>, not here"};
+  if(/\.(pdf|xlsx|xls|docx|doc|pptx|ppt|png|jpe?g|gif|heic|webp|tif?f)$/.test(n)) return {ok:false, why:"can\u2019t read "+(n.split(".").pop().toUpperCase())+" yet \u2014 paste the text, or drop a .csv / .txt"};
+  return {ok:true};
+}
+function trLooksBinary(txt){
+  var s=String(txt||"").slice(0,4000); if(!s) return false; var bad=0;
+  for(var i=0;i<s.length;i++){ var c=s.charCodeAt(i); if(c===9||c===10||c===13) continue; if(c<32||c===65533) bad++; }
+  return bad > s.length*0.02;
 }
 function trRenderChecklist(host, items){
   if(!host) return; host.innerHTML=""; host.className="trq-list"; var drag=null;
@@ -3496,18 +3521,34 @@ var TR_PRESETS={
     else if(t.classList&&t.classList.contains("tr-srcbuild")){ setUnitBuild(+t.dataset.uidx, t.value).then(refresh); return; }
     refresh(); });
   intake.addEventListener("input",refresh);
-  function readDrop(fl){ [].slice.call(fl).forEach(function(file){ var rd=new FileReader(); rd.onload=function(){ attached.push({name:file.name,text:String(rd.result||"").slice(0,200000)}); renderChips(); refresh(); }; rd.readAsText(file); }); }
+  var rejected=[];
+  function showRejects(){ if(!chips)return; var host=chips.parentNode; if(!host)return; var el=document.getElementById("trRejectBox");
+    if(!el){ el=document.createElement("div"); el.id="trRejectBox"; el.className="tr-reject"; if(chips.nextSibling)host.insertBefore(el,chips.nextSibling); else host.appendChild(el); }
+    el.innerHTML=rejected.map(function(r){ return '<div>⚠ '+esc(r.name)+' — '+r.why+'</div>'; }).join(""); }
+  function trTakeFile(file, done){
+    var cls=trAttachClass(file.name);
+    if(!cls.ok){ rejected.push({name:file.name,why:cls.why}); showRejects(); done&&done(); return; }
+    var rd=new FileReader();
+    rd.onload=function(){ var t=String(rd.result||"").slice(0,200000);
+      if(trLooksBinary(t)){ rejected.push({name:file.name,why:"looks like a binary file — paste the text instead"}); showRejects(); }
+      else { attached.push({name:file.name,text:t}); renderChips(); }
+      refresh(); done&&done(); };
+    rd.onerror=function(){ done&&done(); };
+    rd.readAsText(file);
+  }
+  function readDrop(fl){ [].slice.call(fl).forEach(function(file){ trTakeFile(file); }); }
   ["dragenter","dragover"].forEach(function(ev){ intake.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); intake.classList.add("tr-drag"); }); });
   ["dragleave","dragend","drop"].forEach(function(ev){ intake.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); intake.classList.remove("tr-drag"); }); });
   intake.addEventListener("drop",function(e){ var fl=e.dataTransfer&&e.dataTransfer.files; if(fl&&fl.length)readDrop(fl); });
-  if(files)files.addEventListener("change",function(){ var fl=[].slice.call(files.files); var left=fl.length; if(!left)return; fl.forEach(function(file){ var rd=new FileReader(); rd.onload=function(){ attached.push({name:file.name,text:String(rd.result||"").slice(0,200000)}); if(--left===0){ files.value=""; renderChips(); refresh(); } }; rd.onerror=function(){ if(--left===0){files.value=""; renderChips(); refresh();} }; rd.readAsText(file); }); });
+  if(files)files.addEventListener("change",function(){ var fl=[].slice.call(files.files); var left=fl.length; if(!left)return; fl.forEach(function(file){ trTakeFile(file,function(){ if(--left===0){ files.value=""; } }); }); });
   if(chips)chips.addEventListener("click",function(e){ var b=e.target.closest("button[data-i]"); if(!b)return; attached.splice(+b.dataset.i,1); renderChips(); refresh(); });
   function busy(msg){ body.innerHTML='<div class="working"><span class="stripe"></span>'+esc(msg)+'</div>'; }
   function err(m){ body.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(m)+'</div>'; }
-  var trItems=[];
-  function trActions(){
-    return '<div class="tr-out-actions"><button class="btn hero" id="trAdd">+ Add item</button><span class="tr-omute">tap a line to edit · drag ⋮⋮ to reorder · × to delete</span><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExportCsv">Export CSV</button><button class="btn ghost" id="trPrintGo">Print</button></div>';
-  }
+
+  var trItems=[], trHistory=[];
+  function paintList(){ trRenderChecklist(document.getElementById("trList"), trItems); }
+  function chatSt(m){ var e=document.getElementById("trChatSt"); if(e)e.textContent=m||""; }
+  function appendChat(who,text){ var lg=document.getElementById("trChatLog"); if(!lg)return; var d=document.createElement("div"); d.className="tr-cl "+who; d.innerHTML='<b>'+(who==="you"?"you":"agent")+'</b>'+esc(text); lg.appendChild(d); lg.scrollTop=lg.scrollHeight; }
   function trPrintList(){
     var w2=window.open("","_blank"); if(!w2)return; var _b=brandGet();
     var _bh=(_b.company||_b.logo)?('<div class="bh">'+(_b.logo?'<img src="'+_b.logo+'">':'')+'<div><div class="bco">'+esc(_b.company||'')+'</div>'+(_b.contact?'<div class="bct">'+esc(_b.contact)+'</div>':'')+'</div></div>'):'';
@@ -3515,25 +3556,44 @@ var TR_PRESETS={
     w2.document.write('<html><head><title>Punchlist</title><style>body{font-family:system-ui;margin:24px;color:#111}h2{margin:14px 0 6px}small.sub{color:#666}ul{list-style:none;padding:0;margin-top:10px}li{border-bottom:1px solid #ddd;padding:8px 0;display:flex;gap:8px;align-items:flex-start}li.done span{text-decoration:line-through;color:#888}li small{color:#0645ad}.fl{color:#b00}li.elec{border-left:3px solid #e5534b;padding-left:8px}li.fw{border-left:3px solid #d29922;padding-left:8px}li.net{border-left:3px solid #1f6feb;padding-left:8px}.bh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:8px}.bh img{max-height:48px;max-width:220px}.bco{font-size:18px;font-weight:800}.bct{font-size:12px;color:#555}</style></head><body>'+_bh+'<h2>Service punch list</h2><small class="sub">Generated by SIMPL Bench — AI draft, verify on site.</small><ul>'+rows+'</ul></body></html>');
     w2.document.close(); setTimeout(function(){w2.print();},250);
   }
+  function trSteer(instr){
+    var c=trGetCfg(); appendChat("you",instr); chatSt("thinking…");
+    var snap=trItems.map(function(i){ return {issue:i.issue,fact:i.fact,flag:i.flag,done:!!i.done}; });
+    var msg="I'm either asking you to CHANGE the punch list or asking a QUESTION about it.\n- If changing: return ONLY the full updated JSON array (same schema) — keep issues in the reporter's own words, preserve the existing order, at most one grounded fact per line, flag only non-programming exceptions.\n- If asking a question: answer in 1-3 short sentences, no JSON.\n\nCURRENT LIST (my manual edits included — treat as the truth):\n"+JSON.stringify(snap)+"\n\nME:\n"+instr;
+    trHistory.push({role:"user",content:msg});
+    trCall(c,TR_SYS,trHistory).then(function(raw){
+      trHistory.push({role:"assistant",content:String(raw||"")}); chatSt("");
+      var items=trParseItems(raw);
+      if(items&&items.length){ var dm={}; trItems.forEach(function(i){ if(i.done)dm[i.issue]=1; }); items.forEach(function(i){ if(dm[i.issue])i.done=true; }); trItems=items; paintList(); appendChat("agent","list updated — "+items.length+" items."); }
+      else { appendChat("agent", String(raw||"").trim()||"(no clean reply — rephrase?)"); }
+    }).catch(function(e){ chatSt(""); appendChat("agent","⚠ "+e.message); });
+  }
   function renderTriageOut(){
-    body.innerHTML='<span class="tr-aibadge">AI draft — verify on site</span><div id="trList"></div>'+trActions()
-      +'<details class="tr-adv" style="margin-top:12px"><summary>+ Add more context &amp; rebuild</summary><textarea id="trMore" class="tr-text" rows="3" placeholder="extra complaints, or what you found on site…"></textarea><div class="tr-actions"><button class="btn ghost" id="trMoreBtn">Add &amp; rebuild</button></div></details>';
-    trRenderChecklist($id("trList"), trItems);
-    $id("trAdd").addEventListener("click",function(){ trItems.push({issue:"",fact:"",flag:"",done:false}); trRenderChecklist($id("trList"),trItems); var ls=$id("trList").querySelectorAll(".trq-t"); var el=ls[ls.length-1]; if(el)el.focus(); });
-    $id("trCopy").addEventListener("click",function(){ var txt=trItemsToText(trItems); if(navigator.clipboard)navigator.clipboard.writeText(txt); var x=$id("trCopy"),o=x.textContent; x.textContent="Copied ✓"; setTimeout(function(){x.textContent=o;},1400); });
-    $id("trExportCsv").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_punchlist.csv",trItemsToCsv(trItems)); });
-    $id("trPrintGo").addEventListener("click",trPrintList);
-    var mb=$id("trMoreBtn"); if(mb)mb.addEventListener("click",function(){ var add=($id("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); });
+    body.innerHTML='<span class="tr-aibadge">AI draft — verify on site</span><div id="trList"></div>'
+      +'<div class="tr-out-actions"><button class="btn hero" id="trAdd">+ Add item</button><span class="tr-omute">tap a line to edit · drag ⋮⋮ to reorder · × to delete</span><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExportCsv">Export CSV</button><button class="btn ghost" id="trPrintGo">Print</button></div>'
+      +'<div class="tr-chat"><input id="trChatIn" class="tr-chatin" placeholder="tell the agent what to change, or ask why… e.g. “add the Hodge items” or “why FW on the office TV?”"><button class="btn" id="trChatSend">Send</button><span id="trChatSt" class="muted"></span></div>'
+      +'<div id="trChatLog" class="tr-chatlog"></div>'
+      +'<details class="tr-adv" style="margin-top:12px"><summary>+ Add more context &amp; rebuild from scratch</summary><textarea id="trMore" class="tr-text" rows="3" placeholder="extra complaints, or what you found on site…"></textarea><div class="tr-actions"><button class="btn ghost" id="trMoreBtn">Add &amp; rebuild</button></div></details>';
+    paintList();
+    document.getElementById("trAdd").addEventListener("click",function(){ trItems.push({issue:"",fact:"",flag:"",done:false}); paintList(); var ls=document.getElementById("trList").querySelectorAll(".trq-t"); var el=ls[ls.length-1]; if(el)el.focus(); });
+    document.getElementById("trCopy").addEventListener("click",function(){ var txt=trItemsToText(trItems); if(navigator.clipboard)navigator.clipboard.writeText(txt); var x=document.getElementById("trCopy"),o=x.textContent; x.textContent="Copied ✓"; setTimeout(function(){x.textContent=o;},1400); });
+    document.getElementById("trExportCsv").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_punchlist.csv",trItemsToCsv(trItems)); });
+    document.getElementById("trPrintGo").addEventListener("click",trPrintList);
+    var ci=document.getElementById("trChatIn"), cs=document.getElementById("trChatSend");
+    function send(){ var v=(ci.value||"").trim(); if(!v)return; ci.value=""; trSteer(v); }
+    cs.addEventListener("click",send);
+    ci.addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } });
+    var mb=document.getElementById("trMoreBtn"); if(mb)mb.addEventListener("click",function(){ var add=(document.getElementById("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); });
   }
   build.addEventListener("click",function(){
     var c=trGetCfg(); var text=trFullIntake(); if(!text)return;
     busy("Building your punch list…");
-    trCall(c,TR_SYS,trPrompt(text, exportFactsForLLM())).then(function(raw){
+    var firstUser=trPrompt(text, exportFactsForLLM());
+    trHistory=[{role:"user",content:firstUser}];
+    trCall(c,TR_SYS,trHistory).then(function(raw){
+      trHistory.push({role:"assistant",content:String(raw||"")});
       var items=trParseItems(raw);
-      if(!items||!items.length){
-        body.innerHTML='<div class="banner" style="border-left-color:var(--warn)">The AI didn’t return a clean list. Raw output below — copy what you need.</div><textarea class="tr-text" rows="12">'+esc(String(raw||""))+'</textarea>';
-        return;
-      }
+      if(!items||!items.length){ body.innerHTML='<div class="banner" style="border-left-color:var(--warn)">The AI didn’t return a clean list. Raw output below — copy what you need, or rephrase.</div><textarea class="tr-text" rows="12">'+esc(String(raw||""))+'</textarea>'; return; }
       trItems=items; renderTriageOut();
     }).catch(function(e){ err(e.message); });
   });
@@ -3541,7 +3601,7 @@ var TR_PRESETS={
   loadForm();
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trPrompt,trParseItems,trItemsToText,trItemsToCsv,trFlagLabel,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trPrompt,trParseItems,trItemsToText,trItemsToCsv,trFlagLabel,trAttachClass,trLooksBinary,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

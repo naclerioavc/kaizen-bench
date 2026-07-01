@@ -419,6 +419,16 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   const o=w.trBuildRequest({provider:"openai",base:"http://localhost:11434/v1",model:"llama3.1",key:""},"SYS","USER");
   has("triage req (OpenAI-compatible): base URL honored (local Ollama) + bearer + chat/completions",
     o.url==="http://localhost:11434/v1/chat/completions" && /^Bearer /.test(o.headers.authorization) && o.body.messages[0].role==="system" && o.body.messages[1].content==="USER");
+  // multi-turn + input sanity (steer loop)
+  { const m=w.trBuildRequest({provider:"anthropic",key:"k"},"SYS",[{role:"user",content:"a"},{role:"assistant",content:"b"},{role:"user",content:"c"}]);
+    has("trBuildRequest carries a full message array (multi-turn steering)", m.body.messages.length===3 && m.body.messages[2].content==="c" && m.body.system==="SYS");
+    const mo=w.trBuildRequest({provider:"openai",key:"k"},"SYS",[{role:"user",content:"a"},{role:"assistant",content:"b"}]);
+    has("trBuildRequest (OpenAI) prepends system then the turns", mo.body.messages[0].role==="system" && mo.body.messages.length===3); }
+  { has("trAttachClass sends archives to Audit", w.trAttachClass("Current.zip").ok===false && /Audit/.test(w.trAttachClass("job.smw").why));
+    has("trAttachClass sends logs to Log Analyzer", w.trAttachClass("proc.err").ok===false && /Log Analyzer/.test(w.trAttachClass("x.err").why));
+    has("trAttachClass flags unreadable PDF/xlsx (the Hodge case)", w.trAttachClass("Hodge.pdf").ok===false && w.trAttachClass("bids.xlsx").ok===false);
+    has("trAttachClass allows text/csv/notes", w.trAttachClass("notes.txt").ok && w.trAttachClass("loads.csv").ok && w.trAttachClass("thread.md").ok);
+    has("trLooksBinary catches mojibake, passes real notes", w.trLooksBinary("PK\u0003\u0004\u0000\u0000\u0008\u0000 garbage")===true && w.trLooksBinary("office keypad lights on - remove the cabinet lights")===false); }
   const html=w.mdToHtml("# Go-list\n\n| # | Issue | Domain |\n|---|---|---|\n| 1 | bath cans dead | **electrical** |\n");
   has("triage mdToHtml renders a markdown table with header + row", /<table>/.test(html) && /<th>Issue<\/th>/.test(html) && /<td>bath cans dead<\/td>/.test(html) && /<b>electrical<\/b>/.test(html));
   // exportFactsForLLM: no program -> clear guidance; with program -> includes as-built
