@@ -368,6 +368,16 @@ Hard-won from refining the theme set + Plumber/Pipe Dream. Follow these; a new t
 - **Repaint gotcha:** the theme menu is inside `<nav>`; the nav's delegated click handler must ignore
   buttons without `data-tab`, or selecting a theme calls `show(undefined)` and hides every tab (THE
   real "content disappears on theme switch" bug — not sticky headers).
+- **Easter egg engine facts (2026-07-01 hardening):** physics runs on a **fixed 60Hz timestep**
+  (accumulator in `loop()`) so game speed — and therefore leaderboard times, which are wall-clock —
+  no longer scales with monitor refresh rate; leaderboard JSON is **shape-validated** on read (a
+  corrupt localStorage entry used to throw at 60fps on the finish screen); smash ignores key
+  auto-repeat (`!e.repeat`) and post-timeout hits; `open()` is re-entrancy-guarded and focuses the
+  close button (Enter on the still-focused launcher used to silently reset the run); Esc closes the
+  game WITHOUT also closing a modal beneath it; the climb barrels roll their ladder-drop dice **once
+  per encounter**, not per frame (0.28^5 had made "roll past" effectively impossible); finish screens
+  read a cached score list, not localStorage per frame. All graded headless (mock 2D ctx + manual
+  rAF pump at 120Hz and 30Hz).
 - **Easter egg rules:** original shapes + original name only (IP-safe — no Nintendo assets/names);
   isolated full-screen overlay; **canvas `getContext` only on open** so it never runs during grading
   or touches the tool; **local-only leaderboard** (a static app can't do a global one — top-5 times

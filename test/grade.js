@@ -793,6 +793,65 @@ function buildStoredZip(items){
   { const adv=w.document.getElementById("trBase").closest("details");
     has("Base URL field carries the key-exfiltration warning", !!adv && /API key is sent to this host/.test(adv.textContent));
   }
+  // ===== minigames: fixed timestep, leaderboard hardening, input guards (headless harness) =====
+  { const mk2d=()=>new Proxy({},{get:(t,k)=>(k in t)?t[k]:function(){},set:(t,k,v)=>{t[k]=v;return true;}});
+    w.HTMLCanvasElement.prototype.getContext=function(){return mk2d();};
+    let q=[]; w.requestAnimationFrame=fn=>{q.push(fn);return q.length;}; w.cancelAnimationFrame=()=>{q=[];};
+    const pump=ts=>{const fns=q;q=[];fns.forEach(f=>f(ts));};
+    const key=(k,rep)=>w.document.dispatchEvent(new w.KeyboardEvent("keydown",{key:k,repeat:!!rep,cancelable:true}));
+    const trg=w.document.getElementById("mgTrigger");
+    w.prompt=()=>"AAA";
+    // (a) refresh-rate independence: ~60 physics steps per simulated second at 120Hz AND 30Hz
+    w.eval("window.__mgDebug={}");
+    trg.dispatchEvent(new w.Event("click",{bubbles:true}));
+    for(let i=1;i<=120;i++)pump(1000+i*(1000/120));
+    const s120=w.eval("window.__mgDebug.step||0");
+    key("Escape");
+    w.eval("window.__mgDebug={}");
+    trg.dispatchEvent(new w.Event("click",{bubbles:true}));
+    for(let i=1;i<=30;i++)pump(5000+i*(1000/30));
+    const s30=w.eval("window.__mgDebug.step||0");
+    key("Escape");
+    has(`fixed timestep: ~60 steps/sec at 120Hz (got ${s120}) and 30Hz (got ${s30})`, s120>=55&&s120<=65&&s30>=55&&s30<=65&&Math.abs(s120-s30)<=3);
+    // (b) corrupt leaderboard JSON must not brick open/finish
+    w.localStorage.setItem("pipedream-OFFICE FIGHTER",'[{"n":"AAA"},"junk",{"n":"BBB","t":"NaN"}]');
+    w.document.documentElement.setAttribute("data-theme","brawler");
+    w.eval("window.__mgDebug={}");
+    let ok=true;
+    try{
+      trg.dispatchEvent(new w.Event("click",{bubbles:true}));
+      key(" ",true);                                            // auto-repeat: must NOT count
+      const h0=w.eval("window.__mgDebug.hit||0");
+      for(let i=0;i<15;i++)key(" ");                            // 15 real mashes -> HP<=0 -> saveScore on corrupt data
+      pump(9000); pump(9016.7);                                 // render the finish screen (reads scores)
+      has("smash: key auto-repeat does not mash for you", h0===0);
+      ck("smash: 15 real hits land", w.eval("window.__mgDebug.hit||0"), 15);
+    }catch(e){ ok=false; console.log("      threw: "+e.message); }
+    has("corrupt leaderboard entries are filtered, game + finish screen survive", ok);
+    // (c) re-entrant open(): clicking the (still-focused) launcher mid-game must not reset the run
+    const r0=w.eval("window.__mgDebug.reset||0");
+    trg.dispatchEvent(new w.Event("click",{bubbles:true}));
+    ck("open() is re-entrancy-guarded (no silent run reset)", w.eval("window.__mgDebug.reset||0"), r0);
+    // (d) Esc over a modal: closes the game only, modal survives for the next Esc
+    w.openModal("T","B");
+    has("setup: modal open under the game", !w.document.getElementById("modal").classList.contains("hide"));
+    key("Escape");
+    has("Esc closes the game, NOT the modal beneath it",
+      w.document.getElementById("mgOverlay").classList.contains("hide") && !w.document.getElementById("modal").classList.contains("hide"));
+    key("Escape");
+    has("second Esc closes the modal", w.document.getElementById("modal").classList.contains("hide"));
+    w.document.documentElement.removeAttribute("data-theme");
+    w.localStorage.removeItem("pipedream-OFFICE FIGHTER");
+  }
+  // ===== global search is debounced (no full re-render per keystroke) =====
+  { const mk=n=>{ let x="[\nObjTp=Hd\nPgmNm=P\n]"; for(let i=1;i<=n;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=Sig"+i+"\nSgTp=\n]"; return x; };
+    w.eval(`state.units=[{kind:"program",name:"P",folder:"P",smw:${JSON.stringify(mk(5))},dip:null,smft:null}]; state.unitName=""; state.unitIndex=0; setActiveUnit(0);`);
+    const inp=w.document.getElementById("auditSearch"); const root=w.document.getElementById("censusBody");
+    inp.value="Sig3"; inp.dispatchEvent(new w.Event("input",{bubbles:true}));
+    has("search does NOT run synchronously on keystroke", !root.classList.contains("gsearch"));
+    await new Promise(r=>setTimeout(r,260));
+    has("search runs after the debounce window", root.classList.contains("gsearch"));
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();
