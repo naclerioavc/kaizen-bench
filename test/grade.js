@@ -688,6 +688,37 @@ function buildStoredZip(items){
     const sigB=w.eval("censusStats(parseSmw(state.units[0].smw)).sigTot");
     ck("build switch re-parses to the chosen build (signal count changes)", [sigA,sigB], [2,5]);
   }
+  // ===== As-Built print: per-processor "System context" (map + roll-up + EISC table) =====
+  { const eisc=(smH,dvH,ipid,nm)=>`[\nObjTp=Sm\nH=${smH}\nNm=3 Series TCP/IP Ethernet Intersystem Communications\nDvH=${dvH}\n]\n[\nObjTp=Dv\nH=${dvH}\nNm=${nm}\nAd=${ipid}\n]`;
+    const proc=(name,parts)=>`[\nObjTp=Hd\nPgmNm=${name}\n]\n`+parts.join("\n");
+    const dipOf=ps=>"[IPTable]\n"+ps.map((p,i)=>`id${i}=${p[0]}\naddr${i}=${p[1]}`).join("\n")+"\n";
+    const A={kind:"program",name:"01-Main",folder:"01-Main",smw:proc("Main",[eisc(101,201,"F2","02_Lighting")]),dip:dipOf([["F2","127.0.0.2"]])};
+    const B={kind:"program",name:"02-Lighting",folder:"02-Lighting",smw:proc("Lighting",[eisc(110,210,"F2","Main")]),dip:dipOf([["F2","127.0.0.2"]])};
+    const sysUnits=[{kind:"system",name:"System overview"},A,B];
+    w.eval(`state.units=${JSON.stringify(sysUnits)}; state.unitName='TestJob'; state.unitIndex=1; setActiveUnit(1);`);
+    const h=w.sysContextHTML();
+    has("sysContext: renders for a processor audit in a multi-proc job", !!h && /report-sysctx/.test(h));
+    has("sysContext: includes the system map SVG", /svg class="sysmap"/.test(h) || /class="sysmap"/.test(h));
+    has("sysContext: current processor highlighted on the map (sm-cur)", /sm-cur/.test(h));
+    has("sysContext: current processor flagged in the roll-up (this report)", /rs-me/.test(h) && /this report/.test(h));
+    has("sysContext: EISC bridge table with the shared IP-ID", /Intersystem links/.test(h) && /F2/.test(h) && /127\.0\.0\.2/.test(h));
+    // print click injects it after the cover
+    w.print=()=>{};
+    w.document.getElementById('auditPrint').disabled=false;
+    w.document.getElementById('auditPrint').dispatchEvent(new w.Event('click',{bubbles:true}));
+    const cb=w.document.getElementById('censusBody');
+    const cv=cb.querySelector('.report-cover'), sc=cb.querySelector('.report-sysctx');
+    has("print injects System context into the per-processor As-Built", sc!=null);
+    has("System context sits right after the cover page", !!cv && !!sc && cv.nextElementSibling===sc);
+    const curN=sc?sc.querySelector('.sm-cur'):null;
+    ck("sm-cur highlights THE audited processor (data-unit)", curN?curN.getAttribute('data-unit'):null, "1");
+    // whole-system view: sysContextHTML declines (its print already carries the map)
+    w.eval(`setActiveUnit(0);`);
+    ck("sysContext: empty on the whole-system view", w.sysContextHTML(), "");
+    // single-program drop: no system context
+    w.eval(`state.units=[${JSON.stringify(A)}]; state.unitName=""; state.unitIndex=0; setActiveUnit(0);`);
+    ck("sysContext: empty for a single-program drop", w.sysContextHTML(), "");
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();

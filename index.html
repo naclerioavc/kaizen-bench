@@ -426,6 +426,17 @@
   .hero-empty .he-title{font-size:17px;font-weight:600;color:var(--ink);margin-bottom:8px}
   .hero-empty .he-sub{font-size:13px;max-width:540px;margin:0 auto;line-height:1.55;color:var(--mut)}
   .report-cover{display:none}
+  .report-sysctx{display:none}
+  @media print{
+    .report-sysctx{display:block!important;page-break-after:always;color:#000}
+    .report-sysctx .rs-kind{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#555;margin:6px 0 2px}
+    .report-sysctx .rs-title{font-size:18px;font-weight:700;color:#000;margin:0 0 6px}
+    .report-sysctx .rs-note{font-size:11px;color:#444;margin:0 0 8px;line-height:1.5}
+    .report-sysctx .rs-sub{font-size:12px;font-weight:700;color:#000;margin:12px 0 4px}
+    .report-sysctx .smwrap{max-width:620px;margin:0 auto}
+    .report-sysctx svg.sysmap{max-height:none}
+    .report-sysctx tr.rs-me td{font-weight:700}
+  }
   @media print {
     .report-cover{display:block!important;page-break-after:always;text-align:center;padding:60px 30px 0;color:#000}
     .report-cover .rc-brand{font-size:26px;font-weight:800;letter-spacing:-.02em;color:#000}
@@ -1579,7 +1590,11 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
   }
 }
 $("#auditCopy").addEventListener("click",()=>{ navigator.clipboard.writeText(auditToText()).then(()=>{ const b=$("#auditCopy"),o=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=o,1500); }); });
-$("#auditPrint").addEventListener("click",()=>{ $$("#tab-census .card.collapsed").forEach(c=>c.classList.remove("collapsed")); $$("#tab-census .panel.lc").forEach(p=>p.classList.remove("lc")); window.print(); });
+$("#auditPrint").addEventListener("click",()=>{ $$("#tab-census .card.collapsed").forEach(c=>c.classList.remove("collapsed")); $$("#tab-census .panel.lc").forEach(p=>p.classList.remove("lc"));
+  try{ const old=document.querySelector("#censusBody .report-sysctx"); if(old)old.remove();
+    const cv=document.querySelector("#censusBody .report-cover");
+    if(cv){ const h=sysContextHTML(); if(h)cv.insertAdjacentHTML("afterend",h); } }catch(e){}
+  window.print(); });
 $("#auditExport").addEventListener("click",exportSelected);
 $("#auditExportAll").addEventListener("click",exportAll);
 function auditToText(){
@@ -1912,7 +1927,7 @@ function systemGraph(units){
     Object.keys(grp).forEach(uid=>edges.push({a:uid,b:x.id,kind:x.loop?"orphan":"external",ip:x.ip,ipids:[...new Set(grp[uid])]})); });
   return {nodes,external,edges};
 }
-function renderSystemMap(g){
+function renderSystemMap(g, curId){
   const procs=g.nodes||[], ext=g.external||[]; if(procs.length<2) return "";
   const deg={}; g.edges.forEach(e=>{ deg[e.a]=(deg[e.a]||0)+1; deg[e.b]=(deg[e.b]||0)+1; });
   let hub=null,hd=-1; procs.forEach(p=>{ const d=deg[p.id]||0; if(d>hd){hd=d;hub=p;} });
@@ -1932,7 +1947,7 @@ function renderSystemMap(g){
   const lineSvg=e=>{ const A=pos[e.a],B=pos[e.b]; if(!A||!B)return""; const t=(e.ipids&&e.ipids.length)?("IP-ID "+e.ipids.join(", ")+(e.ip?" @ "+e.ip:"")):""; return `<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" class="sm-${e.kind}">${t?`<title>${esc(t)}</title>`:""}</line>`; };
   const nodeSvg=nd=>{ const p=pos[nd.id]; if(!p)return""; const x=p.x-bw/2,y=p.y-bh/2;
     const click=nd.kind==="processor"||nd.kind==="lighting";
-    const cls=nd.kind==="lighting"?"sm-light":(nd.kind==="processor"?"sm-proc":"sm-ext");
+    const cls=(nd.kind==="lighting"?"sm-light":(nd.kind==="processor"?"sm-proc":"sm-ext"))+(curId&&nd.id===curId?" sm-cur":"");
     const full=nd.label||""; const lab=esc(full.length>20?(full.slice(0,19)+"…"):full);
     const sub=nd.kind==="lighting"?"lighting":((nd.build&&nd.build.ver)?(nd.build.ver+(nd.build.confirmed?" \u2713":"")):(click?(deg[nd.id]?(deg[nd.id]+" link"+(deg[nd.id]>1?"s":"")):"no EISC"):(nd.loop?"slot not in drop":"external")));
     const subCls=(nd.build&&nd.build.confirmed)?"sm-ns sm-okt":"sm-ns";
@@ -1945,7 +1960,26 @@ function renderSystemMap(g){
   g.edges.forEach(e=>{ if(e.kind==="intra"&&par[e.a]!==undefined&&par[e.b]!==undefined) par[find(e.a)]=find(e.b); });
   const boxes=new Set(pnodes.map(n=>find(n.id))).size, nP=pnodes.length, nL=procs.filter(n=>n.kind==="lighting").length;
   const cap=`${nP} processor${nP!==1?"s":""} \u00b7 ${boxes} physical box${boxes!==1?"es":""}`+(nL?` \u00b7 ${nL} lighting`:"");
-  return `<div class="smwrap"><div class="sm-cap">${cap}</div><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sm-cap{font-size:12px;color:#6b7280;margin:0 0 8px;font-weight:600}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-okt{fill:#1e9e5a;font-weight:700}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
+  return `<div class="smwrap"><div class="sm-cap">${cap}</div><svg viewBox="0 0 ${S} ${S}" class="sysmap" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System map"><style>.sysmap{width:100%;height:auto;max-height:78vh;font-family:inherit}.sm-cap{font-size:12px;color:#6b7280;margin:0 0 8px;font-weight:600}.sysmap line{stroke-width:2}.sm-intra{stroke:#9aa4b2;stroke-dasharray:5 4}.sm-cross{stroke:#2f6df6}.sm-external,.sm-orphan{stroke:#b9a13a;stroke-dasharray:2 4}.smnode rect{fill:#fff;stroke:#cbd2dc;stroke-width:1.5}.sm-proc rect{fill:#eef4ff;stroke:#2f6df6}.sm-light rect{fill:#e9f7ef;stroke:#1e9e5a}.sm-proc,.sm-light{cursor:pointer}.sm-lgl{fill:#e9f7ef;stroke:#1e9e5a;stroke-width:1.5}.sm-ext rect{fill:#fbf7e8;stroke:#b9a13a;stroke-dasharray:3 3}.sm-nl{text-anchor:middle;font-size:12px;font-weight:600;fill:#1f2937}.sm-ns{text-anchor:middle;font-size:9px;fill:#6b7280}.sm-okt{fill:#1e9e5a;font-weight:700}.sm-proc:hover rect{fill:#dbe7ff}.sm-light:hover rect{fill:#cfeede}.sm-cur rect{stroke-width:3.5}.sm-cur .sm-nl{font-weight:800}.sm-lg{font-size:10px;fill:#6b7280}</style>${edgesSvg}${nodesSvg}${legend}</svg></div>`;
+}
+// Print-only "System context" for the per-processor As-Built: the whole-job map (this
+// processor highlighted) + the processor roll-up + every EISC bridge. Built lazily at print
+// time (re-parses all units via systemSummary -- never cached, so a build switch can't stale it).
+function sysContextHTML(){
+  if(typeof state==="undefined")return"";
+  const us=state.units||[]; if(us.length<2)return"";
+  const u=us[state.unitIndex]; if(!u||u.kind!=="program"||!u.smw)return"";
+  let g=null; try{ g=systemGraph(us); }catch(e){} if(!g||g.nodes.length<2)return"";
+  const map=renderSystemMap(g,"u"+state.unitIndex); if(!map)return"";
+  let ss=null; try{ ss=systemSummary(us); }catch(e){} if(!ss)return"";
+  const progIdx=[]; us.forEach((x,i)=>{ if(x.kind==="program"&&x.smw)progIdx.push(i); });
+  const rows=ss.processors.map((p,k)=>{ const me=progIdx[k]===state.unitIndex;
+    return `<tr${me?' class="rs-me"':''}><td class="data">${esc(p.folder||p.name)}${p.archived?' <span class="pill warn" style="font-size:9px">archived</span>':''}${me?' \u25c2 this report':''}</td><td class="data">${esc(p.program||p.name||"\u2014")}</td><td class="num data">${p.signals.toLocaleString()}</td><td class="num data">${p.devices.toLocaleString()}</td><td class="num data">${p.ipids.toLocaleString()}</td><td class="num data">${p.eisc.length||"\u2014"}</td></tr>`; }).join("");
+  const links=[]; ss.processors.forEach(p=>p.eisc.forEach(e=>links.push({from:p.folder||p.name,ipid:e.ipid,target:e.target,ip:e.ip})));
+  const lrows=links.map(l=>{ const lo=/^127\./.test(l.ip||""); return `<tr><td class="data">${esc(l.from)}</td><td class="data">${esc(l.target||"\u2014")}</td><td class="data">${esc(l.ipid||"\u2014")}</td><td class="data">${esc(l.ip||"\u2014")}${lo?' <span class="muted">(loopback \u2014 same box)</span>':""}</td></tr>`; }).join("");
+  return `<div class="report-sysctx"><div class="rs-kind">System context</div><div class="rs-title">${esc(state.unitName||"Whole job")}</div><p class="rs-note">Where this processor (bold outline) sits in the whole job. Lines are EISC bridges matched by <b>shared IP-ID</b> \u2014 dashed grey = same physical box (loopback), solid = a separate box over IP, dotted amber = a system not in this drop.</p>${map}<div class="rs-sub">Processors in this job</div>`+
+    tbl([{t:"Processor"},{t:"Program"},{t:"Signals",num:1},{t:"Devices",num:1},{t:"IP-IDs",num:1},{t:"Cross-links",num:1}],rows,0)+
+    (lrows?`<div class="rs-sub">Intersystem links (EISC)</div>`+tbl([{t:"From program"},{t:"Links to"},{t:"IP-ID"},{t:"Target IP"}],lrows,0):"")+`</div>`;
 }
 function dropFacts(units){
   const us=units||[];

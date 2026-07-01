@@ -451,11 +451,18 @@ PDF ingested, right lines grounded. The real field job (notes, retro, reference 
 LOCAL validation folder — never committed.
 
 **NEXT candidates (pick by real-world value):**
-- **True build confirmation** *only if* a real Info-Tool dump is found to carry the running program name +
-  compile date (progcomments/loadinfo). Then match it to a build's `.smw` save-time → turn the amber
-  build flag green. Not seen in dumps so far — don't build speculatively.
+- ✅ **True build confirmation — DONE** (bullet was stale): a **full PLOG archive** DOES name the deployed
+  build per slot — `Loading Program /simpl/appNN/<name>.bin` lines (a single `.err` doesn't).
+  `parseDeployedBuilds()` reads them (latest load per slot wins), `deployedBuildFor()` matches a build's
+  `.smw` name → the build switcher's amber flag turns green (`✓ DEPLOYED`) and the map badges it.
 - **Map UX polish** — group/badge cross-processor vs loopback clusters on very large jobs; optional
   dimmed "show archived" toggle.
-- **As-Built report** could fold in the System Map + the whole-system roll-up.
+- ✅ **As-Built + System Map — DONE**: the per-processor As-Built PDF now opens with a print-only
+  **"System context"** page after the cover — the whole-job map with **this processor highlighted**
+  (`sm-cur` bold outline), the processor roll-up table (current row flagged "this report"), and the
+  full EISC bridge table (IP-ID / target IP, loopback labeled). Built lazily at **print time** via
+  `sysContextHTML()` (re-parses all units through `systemSummary` — never cached, so a build switch
+  can't stale the printed counts). Skipped for single-program drops and for the whole-system view
+  (whose print already carries the map). Graded.
 - ✅ **Triage product fit — DONE** (see "Triage rebuilt from field feedback" above): narrowed to an
   editable, grounded, steerable punch list; deterministic engine stays the moat.
