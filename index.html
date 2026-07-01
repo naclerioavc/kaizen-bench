@@ -464,6 +464,29 @@
     .stack .seg.sig-d{background:#4f8ef7}.stack .seg.sig-a{background:#ef4444}.stack .seg.sig-s{background:#1c1c1e}
   }
   @media(max-width:680px){main{padding:20px 16px 60px}header{padding:18px 16px 0}.pair{grid-template-columns:1fr}}
+  /* triage editable checklist */
+  .trq-list{margin-top:6px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .trq-row{display:flex;gap:9px;align-items:flex-start;padding:10px 10px 10px 4px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .trq-row:last-child{border-bottom:0}
+  .trq-row.dragging{opacity:.55;background:#1b222c}
+  .trq-h{flex:0 0 auto;width:22px;align-self:stretch;display:flex;align-items:center;justify-content:center;color:var(--dim);cursor:grab;touch-action:none;user-select:none;font-size:14px}
+  .trq-cb{flex:0 0 auto;width:20px;height:20px;margin:1px 0 0;cursor:pointer}
+  .trq-body{flex:1 1 auto;min-width:0}
+  .trq-t{outline:none;overflow-wrap:anywhere;display:inline;color:var(--ink)}
+  .trq-t:focus{background:#1b232e;box-shadow:0 0 0 2px #1f6feb;border-radius:4px}
+  .trq-row.done .trq-t{text-decoration:line-through;color:var(--mut)}
+  .trq-note{display:block;color:#7ea6ff;font-size:12.5px;margin-top:3px}
+  .trq-chip{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;padding:1px 6px;border-radius:5px;margin-left:7px;vertical-align:middle}
+  .trq-chip.elec{background:#e5534b22;color:#e5534b;border:1px solid #e5534b55}
+  .trq-chip.fw{background:#d2992222;color:#d29922;border:1px solid #d2992255}
+  .trq-chip.net{background:#1f6feb22;color:#7ea6ff;border:1px solid #1f6feb55}
+  .trq-row.elec{border-left:3px solid #e5534b}
+  .trq-row.fw{border-left:3px solid #d29922}
+  .trq-row.net{border-left:3px solid #1f6feb}
+  .trq-del{flex:0 0 auto;background:none;border:none;color:var(--dim);font-size:18px;line-height:1;padding:0 4px;cursor:pointer}
+  .trq-del:hover{color:#e5534b}
+  @media print{.trq-h,.trq-del,.tr-out-actions,.tr-adv{display:none!important}}
+
 </style>
 </head>
 <body>
@@ -568,9 +591,9 @@
 
   <!-- TRIAGE -->
   <section id="tab-triage" class="hide">
-    <details class="tabhelp"><summary>How Triage works</summary><div>Paste messy job intake (emails, texts, punch list). AI extracts a clean issue list (you confirm), then resolves each against the <b>program facts (Audit)</b> and the <b>runtime evidence (Log Analyzer)</b> &mdash; whichever you&rsquo;ve loaded &mdash; and drafts a go-list. <b>Opt-in, your key, off by default</b> &mdash; the one feature that sends data off your machine. Output is an <b>AI draft &mdash; verify on site.</b></div></details>
+    <details class="tabhelp"><summary>How Triage works</summary><div>Paste messy job intake (emails, texts, punch list). AI turns it into <b>your punch list &mdash; your words, your order</b> &mdash; grounded against the <b>program facts (Audit)</b> and the <b>runtime evidence (Log Analyzer)</b> whichever you&rsquo;ve loaded. Reorder, edit, add, delete, check off, export. <b>Opt-in, your key, off by default</b> &mdash; the one feature that sends data off your machine. Output is an <b>AI draft &mdash; verify on site.</b></div></details>
     <div id="trGround" class="tr-ground"></div>
-    <ol class="tr-steps"><li>Drop the job backup <code>.zip</code> in <b>Audit</b> &mdash; pins issues to exact devices / IP-IDs.</li><li>Drop an Info-Tool / console dump in <b>Log Analyzer</b> &mdash; adds what&rsquo;s actually failing + which build is live.</li><li>Paste the customer&rsquo;s complaints below &mdash; get a grounded go-list.</li></ol>
+    <ol class="tr-steps"><li>Drop the job backup <code>.zip</code> in <b>Audit</b> &mdash; pins issues to exact devices / IP-IDs.</li><li>Drop an Info-Tool / console dump in <b>Log Analyzer</b> &mdash; adds what&rsquo;s actually failing + which build is live.</li><li>Paste the customer&rsquo;s complaints below &mdash; get an editable punch list in their order, grounded.</li></ol>
     <div class="tr-cfgwrap">
       <button class="tr-cfgbtn" id="trCfgBtn">&#9881; AI settings <b id="trState" class="muted">&mdash; off</b></button>
       <div class="tr-cfg hide" id="trCfg">
@@ -604,13 +627,13 @@
         <dt>Audit <span class="muted">— program .zip / .smw / .smft / .dip</span></dt>
         <dd>The whole as-built at a glance: every device + IP-ID + the port it lands on, the full IP-ID table, third-party IP gear, serial / IR / relay, touchpanels, signals, custom modules, and a checks pass (loops, contention, unconnected). <b>Search everything</b> up top; export any table.</dd>
         <dt>Whole-system map <span class="muted">— drop the whole job folder</span></dt>
-        <dd>Drop a multi-processor backup and Bench parses <b>every</b> processor + D3 project on its own (never mixing them), then shows the system: totals, each processor, and the <b>cross-processor EISC links</b> — how the programs actually talk to each other (<code>127.0.0.N</code> = program slot N on the same box). A view no Crestron tool gives you. Click any processor for its full audit.</dd>
+        <dd>Drop a multi-processor backup and Bench parses <b>every</b> processor + D3 project on its own (never mixing them), then shows the system: totals, each processor, and the <b>cross-processor EISC links</b> — how the programs actually talk to each other (bridges matched by <b>shared EISC IP-ID</b>; a loopback <code>127.x</code> IP means the two programs live on the same box, a real IP means separate boxes). A view no Crestron tool gives you. Click any processor for its full audit.</dd>
         <dt>Lighting (D3 Pro) <span class="muted">— the D3 project folder</span></dt>
         <dd>Zip the D3 <b>project folder</b> (the one containing <code>data</code> + <code>Documentation</code>) and drop it — not a <code>.d3a</code>. Every load → its module / output / feed / enclosure; every room and scene; and the big one: each <b>keypad button → what it recalls → the loads at their exact levels</b>, plus the engraved label. Answer &ldquo;what does this button do?&rdquo; on the phone, no D3.</dd>
         <dt>Log Analyzer <span class="muted">— .err / Info-Tool dump / .zip</span></dt>
         <dd>Leads with a triage summary, then recurring errors by <b>rate</b> (a boot burst reads differently from a steady hum), solve-timeout vs restart correlation, processor load as logged, and socket drops. Load the program in Audit too and the log cross-references it — naming the dropping devices.</dd>
         <dt>Triage <span class="muted">— opt-in AI, your key</span></dt>
-        <dd>Paste messy job intake (and/or drop files); AI turns it into a clean issue list, then resolves each against this program&rsquo;s facts and drafts a go-list. <b>Off by default</b>, your key (Anthropic / OpenAI / local Ollama / LM&nbsp;Studio) — the one feature that sends data off your machine. Output is an <b>AI draft — verify on site</b>.</dd>
+        <dd>Paste messy job intake (and/or drop files); AI turns it into an <b>editable punch list in the reporter&rsquo;s own words and order</b>, grounding each line against this program&rsquo;s facts + any loaded log. Reorder / edit / add / delete / check off / export. <b>Off by default</b>, your key (Anthropic / OpenAI / local Ollama / LM&nbsp;Studio) — the one feature that sends data off your machine. Output is an <b>AI draft — verify on site</b>.</dd>
       </dl>
     </div>
     <div class="panel" style="margin-top:14px">
@@ -3374,9 +3397,59 @@ function mdToHtml(md){
   }
   return out.join("");
 }
-var TR_SYS="You are a senior AV / Crestron service-triage assistant. Be concise and practical. Never invent devices, loads, IP-IDs, modules, or facts that aren't given.";
-function trPrompt1(intake){ return "Extract a clean, DEDUPLICATED issue list from this messy job intake. One issue per row in the reporter's own concrete terms (keep their room/location words). Merge duplicates (note if several reported it). Separate a reported FACT from a REQUEST, labeled. Flag contradictions/ambiguity. Invent nothing.\n\nOutput a markdown table: # | Issue | fact/request | reported by | notes. Then one line: \"Confirm or edit above, then Resolve + diagnose.\"\n\nINTAKE:\n"+intake; }
-function trPrompt2(issues, facts){ return "My CONFIRMED issue list:\n"+issues+"\n\nDETERMINISTIC facts for this system from SIMPL Bench — ground truth; invent no device/load/IP-ID/module/feed not in here:\n"+facts+"\n\nFor each issue: (1) resolve to the EXACT instance (device / load / IP-ID / module / feed) using the facts; if several fit, list them; if not present, say \"not found in the as-built\". (2) classify likely domain as a CANDIDATE (programming / electrical / network / config / device-hardware / user-error) with one piece of evidence. (3) When the CONSOLE/LOG FINDINGS corroborate an issue (a named device dropping, a solve-timeout tied to a feedback loop, a storm), cite it as LIVE evidence and raise confidence; if the log is marked MISMATCH, do NOT use it for this program. Then surface cross-issue patterns (e.g. several dead loads sharing one module/feed → suspect that feed/breaker before the program). Lead with the cheapest shared root cause. Every conclusion is a candidate to confirm on site — hedge honestly; note what to verify live.\n\nOutput:\n## Go-list\nmarkdown table: # | Issue | Resolved instance | Likely domain (candidate) | Check on site | Confidence\n## The story\n3 plain-English sentences.\n## Still ambiguous\nshort list."; }
+var TR_SYS="You are a senior AV / Crestron service assistant. You turn a messy service intake into the tech's punch list — in the reporter's OWN words and their ORIGINAL order. Never reword, merge, split, or reorder their issues. Never invent a device, load, IP-ID, module, keypad, or fact that isn't in the SYSTEM FACTS. Add a short fact ONLY when the facts actually resolve or answer a line; add a flag ONLY when a line clearly isn't a programming fix. Output JSON only — no prose, no markdown.";
+function trPrompt(intake, facts){
+  return "Turn the INTAKE into a punch list. List every distinct issue or request the reporter wrote, VERBATIM (their words, their room / location terms) and in their ORIGINAL ORDER. One item per issue. Do not merge, split, reword, or reorder.\n\nFor each item add two fields:\n- \"fact\": ONE short sentence, ONLY if the SYSTEM FACTS resolve the line to an exact instance (keypad button / load / device / IP-ID / module / deployed build) or directly answer a question in the line (e.g. \"are these dimmable?\"). If the facts don't clearly speak to it, use \"\" (empty). Never guess or pad.\n- \"flag\": \"elec\" if the line is a dead / physical / electrical problem (not programming), \"fw\" if it's a firmware or AV-device problem, \"net\" if network — otherwise \"\".\n\nReturn ONLY a JSON array, nothing before or after:\n[{\"issue\":\"<verbatim>\",\"fact\":\"<short or empty>\",\"flag\":\"<elec|fw|net or empty>\"}]\n\nSYSTEM FACTS (ground truth — invent nothing beyond this):\n"+(facts||"(none loaded)")+"\n\nINTAKE:\n"+intake;
+}
+function trFlagLabel(f){ return f==="elec"?"ELEC":f==="fw"?"FW/AV":f==="net"?"NET":""; }
+function trParseItems(raw){
+  var s=String(raw||"").trim();
+  s=s.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim();
+  var a=s.indexOf("["), b=s.lastIndexOf("]");
+  if(a>=0&&b>a) s=s.slice(a,b+1);
+  var arr; try{ arr=JSON.parse(s); }catch(e){ return null; }
+  if(!Array.isArray(arr)) return null;
+  return arr.map(function(o){ o=o||{}; var fl=String(o.flag||"").toLowerCase(); if(["elec","fw","net"].indexOf(fl)<0) fl="";
+    return { issue:String(o.issue||o.text||"").trim(), fact:String(o.fact||"").trim(), flag:fl, done:false }; })
+    .filter(function(o){ return o.issue; });
+}
+function trItemsToText(items){
+  return (items||[]).map(function(it){ return "["+(it.done?"x":" ")+"] "+it.issue+(it.fact?("\n      -> "+it.fact):""); }).join("\n");
+}
+function trItemsToCsv(items){
+  var q=function(c){ c=String(c==null?"":c); return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c; };
+  var rows=[["Done","Issue","Fact","Flag"]];
+  (items||[]).forEach(function(it){ rows.push([it.done?"x":"", it.issue, it.fact||"", it.flag||""]); });
+  return rows.map(function(r){return r.map(q).join(",");}).join("\r\n");
+}
+function trRenderChecklist(host, items){
+  if(!host) return; host.innerHTML=""; host.className="trq-list"; var drag=null;
+  function commitOrder(){ var order=[].map.call(host.querySelectorAll(".trq-row"), function(r){ return items[+r.dataset.i]; });
+    items.length=0; [].push.apply(items, order); trRenderChecklist(host, items); }
+  items.forEach(function(it,i){
+    var row=document.createElement("div");
+    row.className="trq-row"+(it.done?" done":"")+(it.flag?(" "+it.flag):""); row.dataset.i=i;
+    var chip=it.flag?'<span class="trq-chip '+it.flag+'">'+trFlagLabel(it.flag)+'</span>':'';
+    var note=it.fact?'<span class="trq-note">→ '+esc(it.fact)+'</span>':'';
+    row.innerHTML='<span class="trq-h" title="drag to move">⋮⋮</span>'
+      +'<input type="checkbox" class="trq-cb"'+(it.done?" checked":"")+'>'
+      +'<span class="trq-body"><span class="trq-t" contenteditable="true">'+esc(it.issue)+'</span>'+chip+note+'</span>'
+      +'<button class="trq-del" title="delete">×</button>';
+    host.appendChild(row);
+    row.querySelector(".trq-cb").addEventListener("change",function(e){ it.done=e.target.checked; row.classList.toggle("done",it.done); });
+    var t=row.querySelector(".trq-t");
+    t.addEventListener("blur",function(){ it.issue=t.innerText.trim(); });
+    t.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); t.blur(); } });
+    row.querySelector(".trq-del").addEventListener("click",function(){ items.splice(i,1); trRenderChecklist(host,items); });
+    row.querySelector(".trq-h").addEventListener("pointerdown",function(e){ e.preventDefault(); drag=row; row.classList.add("dragging");
+      var move=function(ev){ if(!drag)return; var rows=[].filter.call(host.querySelectorAll(".trq-row"),function(r){return r!==drag;}); var after=null;
+        for(var k=0;k<rows.length;k++){ var bb=rows[k].getBoundingClientRect(); if(ev.clientY<bb.top+bb.height/2){ after=rows[k]; break; } }
+        if(after)host.insertBefore(drag,after); else host.appendChild(drag); };
+      var up=function(){ document.removeEventListener("pointermove",move); if(drag){ drag.classList.remove("dragging"); drag=null; commitOrder(); } };
+      document.addEventListener("pointermove",move); document.addEventListener("pointerup",up,{once:true});
+    });
+  });
+}
 
 var TR_PRESETS={
   anthropic:{type:"anthropic",base:"",model:"claude-haiku-4-5-20251001",models:["claude-haiku-4-5-20251001","claude-sonnet-4-6","claude-opus-4-8"],local:false,help:'Paste your <b>Anthropic</b> key (<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys). Defaults to <b>Haiku</b> (cheapest/fastest) — pick a bigger model below if you want.'},
@@ -3431,57 +3504,44 @@ var TR_PRESETS={
   if(chips)chips.addEventListener("click",function(e){ var b=e.target.closest("button[data-i]"); if(!b)return; attached.splice(+b.dataset.i,1); renderChips(); refresh(); });
   function busy(msg){ body.innerHTML='<div class="working"><span class="stripe"></span>'+esc(msg)+'</div>'; }
   function err(m){ body.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(m)+'</div>'; }
-  function outActions(md){
-    return '<div class="tr-out-actions"><span class="tr-omute">Tick items as you clear them \u00b7</span><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExportMd">Export .md</button><button class="btn ghost" id="trExportCsv">Export CSV</button><button class="btn ghost" id="trPrintGo">Print punchlist</button></div>';
+  var trItems=[];
+  function trActions(){
+    return '<div class="tr-out-actions"><button class="btn hero" id="trAdd">+ Add item</button><span class="tr-omute">tap a line to edit · drag ⋮⋮ to reorder · × to delete</span><button class="btn ghost" id="trCopy">Copy</button><button class="btn ghost" id="trExportCsv">Export CSV</button><button class="btn ghost" id="trPrintGo">Print</button></div>';
   }
-  function trMakeInteractive(box){
-    if(!box)return; var tb=box.querySelector("table"); if(!tb)return;
-    var head=tb.querySelector("thead tr"); if(head&&!head.querySelector(".tr-doneh")){ var th=document.createElement("th"); th.textContent="Done"; th.className="tr-doneh"; head.insertBefore(th, head.firstChild); }
-    [].forEach.call(tb.querySelectorAll("tbody tr"), function(tr){
-      if(tr.querySelector(".tr-chk"))return;
-      var td=document.createElement("td"); var cb=document.createElement("input"); cb.type="checkbox"; cb.className="tr-chk";
-      cb.addEventListener("change", function(){ tr.classList.toggle("tr-done", cb.checked); });
-      td.appendChild(cb); tr.insertBefore(td, tr.firstChild);
-    });
+  function trPrintList(){
+    var w2=window.open("","_blank"); if(!w2)return; var _b=brandGet();
+    var _bh=(_b.company||_b.logo)?('<div class="bh">'+(_b.logo?'<img src="'+_b.logo+'">':'')+'<div><div class="bco">'+esc(_b.company||'')+'</div>'+(_b.contact?'<div class="bct">'+esc(_b.contact)+'</div>':'')+'</div></div>'):'';
+    var rows=trItems.map(function(it){ return '<li class="'+(it.flag||'')+(it.done?' done':'')+'"><input type=checkbox '+(it.done?'checked':'')+'> <span>'+esc(it.issue)+(it.flag?' <b class="fl">['+trFlagLabel(it.flag)+']</b>':'')+(it.fact?'<br><small>→ '+esc(it.fact)+'</small>':'')+'</span></li>'; }).join("");
+    w2.document.write('<html><head><title>Punchlist</title><style>body{font-family:system-ui;margin:24px;color:#111}h2{margin:14px 0 6px}small.sub{color:#666}ul{list-style:none;padding:0;margin-top:10px}li{border-bottom:1px solid #ddd;padding:8px 0;display:flex;gap:8px;align-items:flex-start}li.done span{text-decoration:line-through;color:#888}li small{color:#0645ad}.fl{color:#b00}li.elec{border-left:3px solid #e5534b;padding-left:8px}li.fw{border-left:3px solid #d29922;padding-left:8px}li.net{border-left:3px solid #1f6feb;padding-left:8px}.bh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:8px}.bh img{max-height:48px;max-width:220px}.bco{font-size:18px;font-weight:800}.bct{font-size:12px;color:#555}</style></head><body>'+_bh+'<h2>Service punch list</h2><small class="sub">Generated by SIMPL Bench — AI draft, verify on site.</small><ul>'+rows+'</ul></body></html>');
+    w2.document.close(); setTimeout(function(){w2.print();},250);
   }
-  function trGoListCsv(box){
-    var tb=box&&box.querySelector("table"); if(!tb)return "";
-    var esc2=function(c){ c=String(c==null?"":c); return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c; };
-    var rows=[[].map.call(tb.querySelectorAll("thead th"), function(th){return th.textContent;})];
-    [].forEach.call(tb.querySelectorAll("tbody tr"), function(tr){
-      rows.push([].map.call(tr.querySelectorAll("td"), function(td,i){ return i===0 ? ((td.querySelector("input")||{}).checked?"x":"") : td.textContent; }));
-    });
-    return rows.map(function(r){return r.map(esc2).join(",");}).join("\r\n");
+  function renderTriageOut(){
+    body.innerHTML='<span class="tr-aibadge">AI draft — verify on site</span><div id="trList"></div>'+trActions()
+      +'<details class="tr-adv" style="margin-top:12px"><summary>+ Add more context &amp; rebuild</summary><textarea id="trMore" class="tr-text" rows="3" placeholder="extra complaints, or what you found on site…"></textarea><div class="tr-actions"><button class="btn ghost" id="trMoreBtn">Add &amp; rebuild</button></div></details>';
+    trRenderChecklist($id("trList"), trItems);
+    $id("trAdd").addEventListener("click",function(){ trItems.push({issue:"",fact:"",flag:"",done:false}); trRenderChecklist($id("trList"),trItems); var ls=$id("trList").querySelectorAll(".trq-t"); var el=ls[ls.length-1]; if(el)el.focus(); });
+    $id("trCopy").addEventListener("click",function(){ var txt=trItemsToText(trItems); if(navigator.clipboard)navigator.clipboard.writeText(txt); var x=$id("trCopy"),o=x.textContent; x.textContent="Copied ✓"; setTimeout(function(){x.textContent=o;},1400); });
+    $id("trExportCsv").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_punchlist.csv",trItemsToCsv(trItems)); });
+    $id("trPrintGo").addEventListener("click",trPrintList);
+    var mb=$id("trMoreBtn"); if(mb)mb.addEventListener("click",function(){ var add=($id("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); });
   }
   build.addEventListener("click",function(){
     var c=trGetCfg(); var text=trFullIntake(); if(!text)return;
-    busy("Building the issue list…");
-    trCall(c,TR_SYS,trPrompt1(text)).then(function(md){
-      body.innerHTML='<span class="tr-aibadge">AI draft — verify</span><div class="tr-md">'+mdToHtml(md)+'</div>'
-        +'<label class="tr-lbl" style="margin-top:14px">Edit the issue list if needed, then resolve against the program facts:</label>'
-        +'<textarea id="trIssues" class="tr-text" rows="7"></textarea>'
-        +'<div class="tr-actions"><button class="btn hero" id="trResolve">Resolve + diagnose →</button><span class="muted">Uses every loaded program + console log automatically.</span></div>'
-        +'<details class="tr-adv" style="margin-top:12px"><summary>+ Add more context &amp; rebuild</summary><textarea id="trMore" class="tr-text" rows="3" placeholder="extra complaints, or what you found on site\u2026"></textarea><div class="tr-actions"><button class="btn ghost" id="trMoreBtn">Add &amp; rebuild list</button></div></details>'+'<div id="trBody2"></div>';
-      $id("trIssues").value=md;
-      { var _mb=$id("trMoreBtn"); if(_mb)_mb.addEventListener("click",function(){ var add=($id("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); }); }
-      $id("trResolve").addEventListener("click",function(){
-        var issues=$id("trIssues").value.trim(); var facts=exportFactsForLLM();
-        var b2=$id("trBody2"); b2.innerHTML='<div class="working"><span class="stripe"></span>Resolving to instances + diagnosing…</div>';
-        trCall(c,TR_SYS,trPrompt2(issues,facts)).then(function(go){
-          b2.innerHTML='<span class="tr-aibadge">AI draft — verify on site</span><div class="tr-md" id="trGo">'+mdToHtml(go)+'</div>'+outActions(go);
-          var goBox=$id("trGo"); trMakeInteractive(goBox);
-          $id("trCopy").addEventListener("click",function(){ navigator.clipboard&&navigator.clipboard.writeText(go); var x=$id("trCopy"),o=x.textContent;x.textContent="Copied ✓";setTimeout(function(){x.textContent=o;},1400); });
-          $id("trExportMd").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_punchlist.md",go); });
-          $id("trExportCsv").addEventListener("click",function(){ if(typeof downloadCsv==="function")downloadCsv("triage_punchlist.csv",trGoListCsv(goBox)); });
-          $id("trPrintGo").addEventListener("click",function(){ var w2=window.open("","_blank"); if(!w2)return; var _b=brandGet(); var _bh=(_b.company||_b.logo)?('<div class="bh">'+(_b.logo?'<img src="'+_b.logo+'">':'')+'<div><div class="bco">'+esc(_b.company||'')+'</div>'+(_b.contact?'<div class="bct">'+esc(_b.contact)+'</div>':'')+'</div></div>'):''; w2.document.write('<html><head><title>Punchlist</title><style>body{font-family:system-ui;margin:24px;color:#111}h2{margin:14px 0 4px}table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:10px}th,td{border:1px solid #ccc;padding:6px 9px;text-align:left;vertical-align:top}th{background:#f2f2f2}tr.tr-done td{text-decoration:line-through;color:#888}.tr-chk{transform:scale(1.2)}small{color:#666}.bh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:8px}.bh img{max-height:48px;max-width:220px}.bco{font-size:18px;font-weight:800}.bct{font-size:12px;color:#555}</style></head><body>'+_bh+'<h2>Service punchlist</h2><small>Generated by SIMPL Bench \u2014 AI draft, verify on site.</small>'+goBox.innerHTML+'</body></html>'); w2.document.close(); setTimeout(function(){w2.print();},250); });
-        }).catch(function(e){ b2.innerHTML='<div class="banner" style="border-left-color:var(--bad)">'+esc(e.message)+'</div>'; });
-      });
+    busy("Building your punch list…");
+    trCall(c,TR_SYS,trPrompt(text, exportFactsForLLM())).then(function(raw){
+      var items=trParseItems(raw);
+      if(!items||!items.length){
+        body.innerHTML='<div class="banner" style="border-left-color:var(--warn)">The AI didn’t return a clean list. Raw output below — copy what you need.</div><textarea class="tr-text" rows="12">'+esc(String(raw||""))+'</textarea>';
+        return;
+      }
+      trItems=items; renderTriageOut();
     }).catch(function(e){ err(e.message); });
   });
+
   loadForm();
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trPrompt,trParseItems,trItemsToText,trItemsToCsv,trFlagLabel,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>

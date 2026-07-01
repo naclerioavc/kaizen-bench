@@ -439,6 +439,34 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
   w.eval("state.prog={name:null,smw:'x',smft:null,dip:null,d3:null}; state.units=null; state.logDigests=null; state.logDigest=null;");
   has("triage grounding status: program present, console missing -> points to Log Analyzer", /Log Analyzer/.test(w.trGroundHTML()) && /program/.test(w.trGroundHTML()));
 }
+
+// ===== Triage NEW: JSON contract + editable checklist (the field-usable output) =====
+{
+  const p=w.trPrompt("bath cans dead\nsaloon button wrong","FACTS_HERE");
+  has("trPrompt demands JSON array, embeds facts+intake, enforces original order",
+      /JSON array/i.test(p) && /FACTS_HERE/.test(p) && /bath cans dead/.test(p) && /ORIGINAL ORDER/i.test(p));
+
+  const raw='```json\n[{"issue":"bath cans dead","fact":"MBath center-4 on one feed","flag":"ELEC"},{"issue":"saloon button wrong","fact":"","flag":"x"},{"issue":"","fact":"drop me","flag":""}]\n```';
+  const items=w.trParseItems(raw);
+  ck("trParseItems strips code fences + drops empty issues", items.length, 2);
+  ck("trParseItems preserves reporter order", items.map(i=>i.issue), ["bath cans dead","saloon button wrong"]);
+  ck("trParseItems normalizes flag (valid->lower, invalid->blank)", [items[0].flag,items[1].flag], ["elec",""]);
+  has("trParseItems seeds done:false", items.every(i=>i.done===false));
+  has("trParseItems returns null on non-JSON (graceful fallback)", w.trParseItems("sorry, here is a prose summary")===null);
+
+  has("trItemsToCsv header Done/Issue/Fact/Flag + rows", /^Done,Issue,Fact,Flag/.test(w.trItemsToCsv(items)) && /bath cans dead/.test(w.trItemsToCsv(items)));
+  has("trItemsToText renders checkbox + inline fact", /^\[ \] bath cans dead\n      -> MBath/.test(w.trItemsToText(items)));
+
+  const host=w.document.createElement("div");
+  w.trRenderChecklist(host, items);
+  const rows=[...host.querySelectorAll(".trq-row")];
+  ck("checklist renders one row per item, in reporter order", rows.map(r=>r.querySelector(".trq-t").textContent), ["bath cans dead","saloon button wrong"]);
+  has("checklist flags the exception (class + chip), not the programming line",
+      rows[0].classList.contains("elec") && /ELEC/.test(rows[0].querySelector(".trq-chip").textContent) && rows[1].querySelector(".trq-chip")===null);
+  has("checklist shows the grounded fact inline", /center-4/.test((rows[0].querySelector(".trq-note")||{}).textContent||""));
+  has("checklist rows are editable + checkable + deletable",
+      rows[0].querySelector(".trq-t[contenteditable]")!=null && rows[0].querySelector(".trq-cb")!=null && rows[0].querySelector(".trq-del")!=null);
+}
 // ===== D3 scene contents: scene -> the loads it controls (button = scene = these loads) =====
 { const prog="[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_47_In_Scene]\n[ObjTp=Sg\nNm=[_Global_Lighting_Scene][Evening]Load_48_In_Scene]\n[ObjTp=Sg\nNm=[_Area_Scene][Up_All_ON]Load_47_In_Scene]";
   const sc=w.parseD3Scenes(prog);
