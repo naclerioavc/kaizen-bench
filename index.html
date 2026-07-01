@@ -841,7 +841,7 @@ async function zipDir(file){
   const tail=await zipSlice(file,size-tailLen,size);
   const tv=new DataView(tail.buffer,tail.byteOffset,tail.byteLength);
   const e=findEocd(tv,tail.length);
-  if(e<0) throw new Error("archive isn't a readable zip");
+  if(e<0) return zipSalvage(file);   // no central directory (truncated grab) -> recover what's there
   let count=tv.getUint16(e+10,true), cdSize=tv.getUint32(e+12,true), cdOff=tv.getUint32(e+16,true);
   if(cdOff===0xFFFFFFFF||count===0xFFFF||cdSize===0xFFFFFFFF){            // ZIP64
     let loc=-1; for(let i=e-20;i>=0;i--){ if(tv.getUint32(i,true)===0x07064b50){ loc=i; break; } }
@@ -891,6 +891,33 @@ async function arcExtract(arc, mEnt){
   if(arc.file&&mEnt.ent&&mEnt.ent.lhOff!==undefined){ const b=await zipReadEntry(arc.file,mEnt.ent); return b?decodeText(b):null; }
   return arc.buf?await extractOne(arc.buf,mEnt.raw):null;
 }
+// Salvage a TRUNCATED zip (real artifact: an interrupted Toolbox PLOG download has local file
+// headers but no central directory/EOCD — even desktop unzip refuses it). Local headers carry
+// real sizes on these grabs (no data descriptors), so walk them sequentially and recover every
+// complete entry. Stops clean at the first descriptor-style or cut-off entry.
+async function zipSalvage(file){
+  const entries=[]; let off=0; const size=file.size;
+  while(off+30<=size){
+    const h=await zipSlice(file,off,off+30);
+    const v=new DataView(h.buffer,h.byteOffset,h.byteLength);
+    if(v.getUint32(0,true)!==0x04034b50) break;
+    const flags=v.getUint16(6,true), method=v.getUint16(8,true);
+    const dosT=v.getUint16(10,true), dosD=v.getUint16(12,true), crc=v.getUint32(14,true);
+    const compSize=v.getUint32(18,true), uSize=v.getUint32(22,true);
+    const nameLen=v.getUint16(26,true), extraLen=v.getUint16(28,true);
+    if(flags&8) break;                                    // data-descriptor entry: sizes unknown
+    const name=decodeText(await zipSlice(file,off+30,off+30+nameLen));
+    const dataEnd=off+30+nameLen+extraLen+compSize;
+    if(dataEnd>size) break;                               // this entry itself is cut off
+    const _mo=(dosD>>5)&0x0f, _dy=dosD&0x1f;
+    const mtime=dosD?Date.UTC(1980+((dosD>>9)&0x7f),(_mo>0?_mo-1:0),(_dy>0?_dy:1),(dosT>>11)&0x1f,(dosT>>5)&0x3f,(dosT&0x1f)*2):0;
+    if(!name.endsWith("/")) entries.push({name,method,crc,compSize,size:uSize,lhOff:off,mtime});
+    off=dataEnd;
+  }
+  if(!entries.length) throw new Error("archive isn't a readable zip");
+  entries.salvaged=true;                                  // callers surface this honestly
+  return entries;
+}
 async function zipReadEntry(file,ent){
   const lh=await zipSlice(file,ent.lhOff,ent.lhOff+30);
   const lv=new DataView(lh.buffer,lh.byteOffset,lh.byteLength);
@@ -938,7 +965,8 @@ async function readPayload(file, kind){
         if(LOG_BIN_RE.test(ent.name)) continue;                      // known-binary noise: never inflate
         if(ent.size>512*1024*1024) continue;                          // no real console text is this big
         let bytes,name=ent.name;
-        try{ bytes=await zipReadEntry(file,ent); }catch(e){ continue; }   // one corrupt entry != dead drop
+        try{ bytes=await zipReadEntry(file,ent); }
+        catch(err){ if(/can't unzip here/.test(err.message||""))throw err; continue; }   // corrupt entry: skip; missing browser support: say so
         if(!bytes) continue;
         if(/\.gz$/i.test(name) || (bytes[0]===0x1f&&bytes[1]===0x8b)){
           try{ bytes=await gunzip(bytes); name=name.replace(/\.gz$/i,""); }catch(e){ continue; }
@@ -950,7 +978,8 @@ async function readPayload(file, kind){
       if(grp.multi){ const chosen=grp.groups.find(g=>g.key); use=chosen.files; multi={systems:grp.systems, chosen:chosen.key}; }
       use.sort((a,b)=>a.name<b.name?-1:1);
       const merged=use.map(f=>`===== ${f.name} =====\n${f.text}`).join("\n");
-      return {name:`${file.name} › ${use.length} log file${use.length>1?'s':''}${multi?" · "+multi.chosen:""}`, text:merged, multi};
+      const salv=entries.salvaged?" · recovered from a truncated zip":"";
+      return {name:`${file.name} › ${use.length} log file${use.length>1?'s':''}${multi?" · "+multi.chosen:""}${salv}`, text:merged, multi};
     }
     const pick=entries.find(e=>/\.smw$/i.test(e.name));
     if(!pick) throw new Error("no .smw program found inside the zip");
@@ -1107,7 +1136,7 @@ function loadSlot(which,file){
   $("#diffHint").textContent="Reading "+file.name+"…";
   if(/\.zip$/i.test(file.name)){
     zipDir(file).then(entries=>{ const man=manifestFromEntries(entries);
-      state["arc"+which]={file,manifest:man,name:file.name}; setArcSlot(which,file.name,man.size);
+      state["arc"+which]={file,manifest:man,name:file.name+(entries.salvaged?" (recovered from truncated zip)":"")}; setArcSlot(which,file.name,man.size);
     }).catch(e=>{ $("#diffHint").innerHTML=`<span style="color:var(--bad)">${esc(file.name)}: ${esc(e.message)}</span>`; });
     return;
   }

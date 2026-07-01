@@ -744,11 +744,11 @@ function buildStoredZip(items){
       {name:"CP4/console.txt",data:"System startup CP4 Cntrl Eng [v2.8000]"},
       {name:"CP4/bad.log",data:"AAAA"},
       {name:"CP4/shot.png",data:"\u0000\u0001binary\u0000"}]));
-    // corrupt bad.log: mark it DEFLATE in the central dir so inflate fails on STORED bytes
-    const dv=new DataView(zb.buffer); const enc=new TextEncoder().encode("CP4/bad.log");
+    // corrupt bad.log: point its central-dir local-header offset past EOF (slice fails per-entry)
+    const dv=new DataView(zb.buffer);
     for(let i=0;i+46<=zb.length;i++){ if(dv.getUint32(i,true)===0x02014b50){
       const nl=dv.getUint16(i+28,true); const nm=w.decodeText(zb.subarray(i+46,i+46+nl));
-      if(nm==="CP4/bad.log"){ dv.setUint16(i+10,8,true); break; } } }
+      if(nm==="CP4/bad.log"){ dv.setUint32(i+42,zb.length+512,true); break; } } }
     const pay=await w.readPayload(new NamedBlob([zb],"dump.zip"),"log");
     has("log zip intake (streaming): textual entries merged", /boom happened/.test(pay.text) && /System startup CP4/.test(pay.text));
     has("log zip intake: one corrupt entry is skipped, not fatal", !/AAAA/.test(pay.text));
@@ -764,6 +764,30 @@ function buildStoredZip(items){
     const txt=await w.arcExtract(w.eval("state.arcA"), w.eval("state.arcA.manifest.get('main.smw')"));
     has("arcExtract streams one file off disk for the deep diff", /PgmNm=STREAMA/.test(txt||""));
     w.eval("state.arcA=null; state.arcB=null;");
+  }
+  { // TRUNCATED zip (real artifact: interrupted PLOG grab has local headers, NO central dir):
+    // salvage-walk the local headers instead of refusing the whole file.
+    const full=new Uint8Array(buildStoredZip([{name:"logs/combined.err",data:"Error: X # 2026-06-25 12:00:00 # salvaged line"},{name:"logs/boot.txt",data:"System startup CP4 Cntrl Eng"}]));
+    // cut before the central directory: find first CD sig and truncate there
+    let cd=-1; const dv2=new DataView(full.buffer);
+    for(let i=0;i+4<=full.length;i++){ if(dv2.getUint32(i,true)===0x02014b50){ cd=i; break; } }
+    const trunc=full.subarray(0,cd);
+    const ents=await w.zipDir(new Blob([trunc]));
+    ck("truncated zip: salvage recovers every complete entry", ents.length, 2);
+    has("truncated zip: entries flagged as salvaged", ents.salvaged===true);
+    const pay=await w.readPayload(new NamedBlob([trunc],"cut.zip"),"log");
+    has("truncated zip: log intake reads the recovered text", /salvaged line/.test(pay.text) && /System startup CP4/.test(pay.text));
+    has("truncated zip: recovery stated honestly in the drop name", /recovered from a truncated zip/.test(pay.name));
+    // garbage that only pretends: no local headers at all -> still refused
+    let refuse=false; try{ await w.zipDir(new Blob([new TextEncoder().encode("not a zip at all, just text")])); }catch(e){ refuse=/readable zip/.test(e.message); }
+    has("garbage without headers is still refused", refuse);
+  }
+  { // environmental failure (no DecompressionStream, e.g. this jsdom) must SAY so, not report "no log text"
+    const zb2=new Uint8Array(buildStoredZip([{name:"a.err",data:"Error: Y # 2026-06-25 12:00:00 # z"}]));
+    const dv3=new DataView(zb2.buffer);
+    for(let i=0;i+46<=zb2.length;i++){ if(dv3.getUint32(i,true)===0x02014b50){ dv3.setUint16(i+10,8,true); break; } }  // mark DEFLATE
+    let msg=""; try{ await w.readPayload(new NamedBlob([zb2],"d.zip"),"log"); }catch(e){ msg=e.message; }
+    has("missing browser unzip support surfaces as ITS error, not 'no log text'", /can't unzip here/.test(msg));
   }
   // ===== per-unit parse memoization (whole-job re-parse per click: killed) =====
   { const mk=(nm,n)=>{ let x="[\nObjTp=Hd\nPgmNm="+nm+"\n]"; for(let i=1;i<=n;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=S"+i+"\nSgTp=\n]"; return x; };

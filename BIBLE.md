@@ -175,6 +175,20 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   `unzip`/`extractOne`) now **throw on ZIP64 markers** instead of returning an empty — silently-wrong —
   result (a ZIP64 Version Diff used to report "no changes"!). All EOCD scans validate the comment length,
   so a `PK\x05\x06` inside an archive comment can't spoof the directory. All graded (248→257).
+- ✅ **Truncated-zip salvage.** A real field artifact: an interrupted Toolbox PLOG download has local
+  file headers but NO central directory/EOCD — desktop unzip refuses it outright. `zipSalvage(file)`
+  (the `zipDir` fallback when no EOCD is found) walks the local headers sequentially and recovers every
+  complete entry (stops clean at a data-descriptor or cut-off entry; pure garbage is still refused).
+  Surfaced honestly: "recovered from a truncated zip" in the drop name. VALIDATED on the real truncated
+  PLOG grab: 44 entries / 24 log files / 11 MB of text recovered — including the boot model+firmware and
+  the per-slot "Loading Program" lines that confirm deployed builds. Per-entry inflate failures are
+  fault-isolated, but a MISSING DecompressionStream (old browser) is rethrown as its own message —
+  never degraded to a lying "no log text found".
+- ✅ **Real-file A/B regression harness** (local only, never committed): after the intake rewrite, every
+  real log artifact (.err, .log, two intact PLOG/log zips) was run through the OLD and NEW paths in the
+  same DOM — merged text byte-identical, `analyzeLog` outputs match, and all three real archives produce
+  key- and CRC-identical Version-Diff manifests. This is the standing bar: an intake change ships only
+  after the synthetic grader AND a real-file A/B both pass.
 - ✅ **Archived folders** (`~Older` / old / archive / backup paths) are flagged, kept inspectable +
   tagged in the Processors table, but excluded from the live System Map (drop-line notes "+N archived").
 
