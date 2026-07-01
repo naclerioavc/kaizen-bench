@@ -384,7 +384,7 @@ already shown per keypad as the interim (labels readable in-tool, no D3 needed).
 
 ## Continuing this project (onboarding for a fresh session)
 This repo IS the handoff. To pick up: `git clone`, then read this BIBLE + `index.html` + `test/grade.js`.
-- Grader is the contract: `node test/grade.js` (currently 198/0). Nothing ships ungraded.
+- Grader is the contract: `node test/grade.js` (currently 238/0). Nothing ships ungraded.
 - Validate every new parser against the user's REAL files locally before shipping; commit only
   synthetic fixtures (no customer data — privacy-grep first).
 - Don't make the user open Crestron software for anything but a change or live test; if data looks
@@ -420,6 +420,36 @@ digest** (drops, solve-timeouts→loops, storms, recurring, model/hostname/fw, m
 cleanly across all four data combos (program / log / both / neither) with honest caveats; Triage tab shows
 a live grounding-status line + 3-step instructions.
 
+## Triage rebuilt from field feedback (2026-07-01)
+Real site walk (6/30) proved the old Triage output — wide "go-list" tables (Issue | Instance |
+Domain | Confidence) + "story" + "still ambiguous" — was an encyclopedia nobody used onsite. The tech cleared
+the work with a flat Notepad++ list in the reporter's re-walk order. Root cause: the OUTPUT CONTRACT, not the
+engine. Rebuilt (3 commits, grader 215→238):
+
+- **Output = editable, in-order, grounded punch list.** Model returns JSON `[{issue,fact,flag}]` — issues
+  VERBATIM in the reporter's ORIGINAL order, ≤1 grounded fact/line, a flag only on non-programming exceptions
+  (ELEC/FW/NET). Rendered by `trRenderChecklist` (drag-reorder / edit / add / delete / check / Copy / CSV /
+  Print). Verbosity is structurally impossible — the model fills fields, it can't write an essay.
+- **Steer loop** (`trSteer`): chat box under the list. A change request → full updated JSON re-rendered in
+  place (keeps checks/edits); a question → 1–3 sentence answer, list untouched. `trBuildRequest` now takes a
+  multi-turn message array; history carries the facts across turns.
+- **Native file reading** (`trAttachClass` + `trProviderCaps` + `trB64`): PDFs/images go to the model as
+  document/image blocks — Anthropic pdf+image, OpenAI image-only, local none; unsupported = clear "switch to
+  Anthropic or paste", never silent. Archives/logs still route to Audit/Log Analyzer (deterministic grounding —
+  never feed a compiled binary to the LLM). xlsx/docx bounce ("save as PDF / paste rows").
+- Also fixed a "no-lies" bug: census help said `127.0.0.N = slot N`; now the IP-ID key.
+
+**Five non-negotiable lessons (regressing any is a bug):**
+1. KISS beats feature-rich — the flat checklist did the work; the AI codex didn't.
+2. Order is sacred — never regroup by room/floor/owner; the reporter's order is the re-walk order.
+3. Output must be editable + steerable, not a one-shot export — the user drives.
+4. Input sanity — binaries read as text = garbage that makes the model fixate; route archives/logs to the engine.
+5. Keep the AI narrow — structure + ground, never analyze/reorder/essay. Engine is the moat, AI is a sidecar.
+
+Remaining = a LIVE test only (needs the user's Anthropic key): drop the real notes + a PDF, confirm order kept,
+PDF ingested, right lines grounded. The real field job (notes, retro, reference CSVs, logs) is staged in a
+LOCAL validation folder — never committed.
+
 **NEXT candidates (pick by real-world value):**
 - **True build confirmation** *only if* a real Info-Tool dump is found to carry the running program name +
   compile date (progcomments/loadinfo). Then match it to a build's `.smw` save-time → turn the amber
@@ -427,5 +457,5 @@ a live grounding-status line + 3-step instructions.
 - **Map UX polish** — group/badge cross-processor vs loopback clusters on very large jobs; optional
   dimmed "show archived" toggle.
 - **As-Built report** could fold in the System Map + the whole-system roll-up.
-- Triage product fit: keep it opt-in, narrow it to "write up the deterministic findings as a client
-  deliverable," don't make it the headline (deterministic engine is the moat).
+- ✅ **Triage product fit — DONE** (see "Triage rebuilt from field feedback" above): narrowed to an
+  editable, grounded, steerable punch list; deterministic engine stays the moat.
