@@ -628,6 +628,7 @@
         <div class="tr-row tr-modelcustom hide"><label>Custom model</label><input id="trModel" placeholder="exact model id"></div>
         <details class="tr-adv"><summary>Advanced — Base URL (usually leave as-is)</summary>
           <div class="tr-row"><label>Base URL</label><input id="trBase"></div>
+          <p class="tr-help" style="margin:4px 0 0">Your <b>API key is sent to this host</b> with every request. Only change it for a provider or proxy you trust.</p>
         </details>
         <div class="tr-row"><button class="btn" id="trSaveCfg">Save</button><button class="btn ghost" id="trClearCfg">Turn off</button></div>
       </div>
@@ -1514,7 +1515,6 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeModal(); });
   document.addEventListener("keydown",function(e){ if(e.key==="Escape") close(); });
   apply(cur);
 })();
-let sigNameSet=null;
 function traceRows(m, startName, dir){
   const MAXD=5, MAXN=250;
   const drvOf=new Map(), ldOf=new Map();
@@ -1568,7 +1568,7 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
   } else if(type==="syminst" && m){
     const x=m.syms.find(s=>String(s.H)===String(val)); if(!x)return;
     const nm=h=>{ const n=m.sigName.get(h); return (n&&n[0]!=="/")?n:""; };
-    if(!sigNameSet){ sigNameSet=new Set(); m.sigName.forEach(v=>{ if(v)sigNameSet.add(v); }); }
+    const sigNameSet=state.prog._sigSet||(state.prog._sigSet=(()=>{const st=new Set(); m.sigName.forEach(v=>{ if(v)st.add(v); }); return st;})());   // per-program (state.prog is rebuilt on unit switch)
     const inRows=x.ins.map((h,i)=>({pin:"I"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const outRows=x.outs.map((h,i)=>({pin:"O"+(i+1),n:m.sigName.get(h)})).filter(o=>o.n&&o.n[0]!=="/");
     const li=o=>`<tr><td class="num data muted">${o.pin}</td><td class="data drill ${sigCls(m,o.n)}" data-drill="signal" data-val="${esc(o.n)}" title="${esc(o.n)}">${esc(o.n)}</td></tr>`;
@@ -1901,13 +1901,14 @@ function eiscLinks(smw, dip){
 function systemSummary(units){
   const progs=(units||[]).filter(u=>u.kind==="program" && u.smw);
   const procs=progs.map(u=>{
+    if(u._sum) return u._sum;                       // memo: parse each unit ONCE per drop (setUnitBuild invalidates)
     let m=null; try{ m=parseSmw(u.smw); }catch(e){}
     const cs=m?censusStats(m):null;
     const dip=u.dip?parseDip(u.dip):new Map();
     const devs=u.smft?parseSmft(u.smft):[];
-    const eisc=eiscLinks(u.smw, dip);
+    const eisc=u._eisc||(u._eisc=eiscLinks(u.smw, dip));
     let hdr=null; try{ hdr=parseHeader(u.smw); }catch(e){}
-    return { name:u.name, folder:u.folder||"", versions:u.versions||[], archived:!!u.archived, program:(hdr&&hdr.program)||"", signals:cs?cs.sigTot:0, symbols:cs?cs.symActive:0, devices:devs.length, ipids:dip.size, eisc };
+    return (u._sum={ name:u.name, folder:u.folder||"", versions:u.versions||[], archived:!!u.archived, program:(hdr&&hdr.program)||"", signals:cs?cs.sigTot:0, symbols:cs?cs.symActive:0, devices:devs.length, ipids:dip.size, eisc });
   });
   const sum=k=>procs.reduce((a,p)=>a+(k==="eisc"?p.eisc.length:p[k]),0);
   return { processors:procs, totals:{ processors:procs.length, signals:sum("signals"), symbols:sum("symbols"), devices:sum("devices"), ipids:sum("ipids"), eisc:sum("eisc") } };
@@ -1919,8 +1920,9 @@ function systemGraph(units){
   });
   const isLoop=ip=>/^127\./.test(ip||"");
   const linksByNode={};
-  progs.forEach(p=>{ let dip=new Map(); try{ dip=p.dip?parseDip(p.dip):new Map(); }catch(e){}
-    let ls=[]; try{ ls=eiscLinks(p.smw,dip); }catch(e){} linksByNode[p.i]=ls; });
+  progs.forEach(p=>{ if(p.u._eisc){ linksByNode[p.i]=p.u._eisc; return; }        // memo (setUnitBuild invalidates)
+    let dip=new Map(); try{ dip=p.dip?parseDip(p.dip):new Map(); }catch(e){}
+    let ls=[]; try{ ls=eiscLinks(p.smw,dip); }catch(e){} linksByNode[p.i]=(p.u._eisc=ls); });
   // Collapse duplicate lighting backups: lighting units that bridge to the SAME processor(s) are
   // versions of one job's lighting system (dated backups). Group by the set of processors each
   // connects to, keep the newest saved. (Truly "deployed" still needs a console — see the flag.)
@@ -2004,7 +2006,7 @@ function renderSystemMap(g, curId){
 }
 // Print-only "System context" for the per-processor As-Built: the whole-job map (this
 // processor highlighted) + the processor roll-up + every EISC bridge. Built lazily at print
-// time (re-parses all units via systemSummary -- never cached, so a build switch can't stale it).
+// time via systemSummary (per-unit memos; setUnitBuild invalidates, so counts can't go stale).
 function sysContextHTML(){
   if(typeof state==="undefined")return"";
   const us=state.units||[]; if(us.length<2)return"";
@@ -2101,6 +2103,7 @@ async function setUnitBuild(idx,name){
   const get=async x=>{ if(!x)return null; if(x.lhOff!==undefined && u._file) return await zipReadEntry(u._file,x); return x; };
   const sb=await get(b.smw), db=await get(b.dip), fb=await get(b.smft);
   u.smw=sb?decodeText(sb):null; u.dip=db?decodeText(db):null; u.smft=fb?decodeText(fb):null; u.activeBuild=name;
+  delete u._sum; delete u._eisc; delete u._model;   // content changed -> drop every per-unit memo
   return true;
 }
 async function switchBuild(name){ if(await setUnitBuild(state.unitIndex,name)) setActiveUnit(state.unitIndex); }
@@ -2133,7 +2136,7 @@ function setActiveUnit(i){
   if(u.kind==="system"){ state.prog={name:"Whole system",model:null,smw:null,smft:null,dip:null,ir:null,d3:null,multi:null,auditDone:true,devDone:true}; renderWholeSystem(); return; }
   const arch=state.unitName||"";
   const nm=(state.units.length>1 && arch)? (arch+" › "+(u.name||("Unit "+(i+1)))) : (u.name||arch||"");
-  state.prog={ name:nm, model:null, smw:u.smw||null, smft:u.smft||null, dip:u.dip||null, ir:u.ir||null, d3:u.d3||null, multi:null, auditDone:true, devDone:true, _dvByH:null,_symByH:null,_symToDev:null,_sigAds:null };
+  state.prog={ name:nm, model:u._model||null, smw:u.smw||null, smft:u.smft||null, dip:u.dip||null, ir:u.ir||null, d3:u.d3||null, multi:null, auditDone:true, devDone:true, _dvByH:null,_symByH:null,_symToDev:null,_sigAds:null };
   runAudit();
 }
 function renderUnitSelector(){
@@ -2146,7 +2149,9 @@ function renderUnitSelector(){
 }
 function runAudit(){
   const pr=state.prog;
-  if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; } }
+  if(pr.smw && !pr.model){ try{ pr.model=parseSmw(pr.smw); }catch(e){ pr.model=null; }
+    const _cu=state.units&&state.units[state.unitIndex];
+    if(pr.model&&_cu&&_cu.smw===pr.smw) _cu._model=pr.model; }             // memo the parse for the next visit
   let m=pr.model;
   if(m && m.sigName.size===0 && m.syms.length===0) m=null;
   const hdr=pr.smw?parseHeader(pr.smw):null;

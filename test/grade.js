@@ -765,6 +765,34 @@ function buildStoredZip(items){
     has("arcExtract streams one file off disk for the deep diff", /PgmNm=STREAMA/.test(txt||""));
     w.eval("state.arcA=null; state.arcB=null;");
   }
+  // ===== per-unit parse memoization (whole-job re-parse per click: killed) =====
+  { const mk=(nm,n)=>{ let x="[\nObjTp=Hd\nPgmNm="+nm+"\n]"; for(let i=1;i<=n;i++)x+="\n[\nObjTp=Sg\nH="+i+"\nNm=S"+i+"\nSgTp=\n]"; return x; };
+    const U1={kind:"program",name:"01-A",folder:"01-A",smw:mk("A",3),dip:null,smft:null};
+    const U2={kind:"program",name:"02-B",folder:"02-B",smw:mk("B",4),dip:null,smft:null};
+    w.eval("window.__ps=0; (function(){var o=parseSmw; parseSmw=function(t){window.__ps++; return o(t);};})()");
+    w.eval(`state.units=[{kind:"system",name:"sys"},${JSON.stringify(U1)},${JSON.stringify(U2)}]; state.unitName="J"; state.unitIndex=0;`);
+    w.eval("systemSummary(state.units); systemGraph(state.units);");
+    const first=w.eval("window.__ps");
+    w.eval("systemSummary(state.units); systemGraph(state.units); dropFacts(state.units);");
+    ck("systemSummary/systemGraph re-runs parse ZERO after the memo", w.eval("window.__ps")-first, 0);
+    ck("memoized totals still correct", w.eval("systemSummary(state.units).totals.signals"), 7);
+    // audit render: revisiting a unit must not re-parse it
+    w.eval("setActiveUnit(1);"); const afterVisit=w.eval("window.__ps");
+    w.eval("setActiveUnit(2); setActiveUnit(1);");
+    ck("revisiting a processor re-parses only the not-yet-cached one", w.eval("window.__ps")-afterVisit, 1);
+    // build switch invalidates: summary must reflect the NEW build, not the memo
+    w.eval(`state.units[1].activeBuild="vA.smw"; state.units[1].builds=[{name:"vA.smw",smw:new TextEncoder().encode(${JSON.stringify(mk("A",3))})},{name:"vB.smw",smw:new TextEncoder().encode(${JSON.stringify(mk("A2",9))})}];`);
+    await w.setUnitBuild(1,"vB.smw");
+    ck("setUnitBuild drops the memo (summary reflects the switched build)", w.eval("systemSummary(state.units).totals.signals"), 13);
+  }
+  // ===== sigNameSet is per-program now (was module-level -> stale param Kind across units) =====
+  { has("param-kind signal set dies with the unit switch (lives on state.prog)",
+      w.eval("state.prog._sigSet=new Set(['GHOST']); setActiveUnit(2); state.prog._sigSet===undefined||state.prog._sigSet===null"));
+  }
+  // ===== Base URL field warns that the API key goes to that host =====
+  { const adv=w.document.getElementById("trBase").closest("details");
+    has("Base URL field carries the key-exfiltration warning", !!adv && /API key is sent to this host/.test(adv.textContent));
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();

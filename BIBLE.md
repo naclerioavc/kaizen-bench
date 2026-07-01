@@ -147,6 +147,14 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   filter (have the check); compile-notice summary.
 
 ## Robustness (trust is the moat)
+- ✅ **Per-unit parse memoization.** `systemSummary`/`systemGraph` cache each unit's derived data on the
+  unit (`u._sum`/`u._eisc`), and the audit caches the active unit's parsed model (`u._model`) — so a
+  unit-pill click costs ONE parse of the newly-visited program instead of re-parsing the whole job
+  (was ~30 full-text scans per click on an 11-processor drop via `dropLine→dropFacts→systemSummary/Graph`).
+  **Invalidation is explicit and single-pointed:** `setUnitBuild` deletes all three memos when it swaps
+  build content; nothing else mutates a unit's files. Graded: zero re-parses on repeat calls, memo
+  dropped on build switch, param-Kind signal set now lives on `state.prog` (was module-level and went
+  stale across processor switches — a wrong "signal (wired)" label, i.e. a lie).
 - ✅ Swept against real CP4 (4-Series, 24MB), PRO3 Slave (3-Series), RMC4 Bistro (4-Series) and a
   real `.err`: all audit + drills (trace, device-signals, instance, reverse/forward trace) render
   with zero errors, zero bad tokens.
@@ -469,8 +477,7 @@ LOCAL validation folder — never committed.
   **"System context"** page after the cover — the whole-job map with **this processor highlighted**
   (`sm-cur` bold outline), the processor roll-up table (current row flagged "this report"), and the
   full EISC bridge table (IP-ID / target IP, loopback labeled). Built lazily at **print time** via
-  `sysContextHTML()` (re-parses all units through `systemSummary` — never cached, so a build switch
-  can't stale the printed counts). Skipped for single-program drops and for the whole-system view
-  (whose print already carries the map). Graded.
+  `sysContextHTML()` through `systemSummary`. Skipped for single-program drops and for the whole-system
+  view (whose print already carries the map). Graded.
 - ✅ **Triage product fit — DONE** (see "Triage rebuilt from field feedback" above): narrowed to an
   editable, grounded, steerable punch list; deterministic engine stays the moat.
