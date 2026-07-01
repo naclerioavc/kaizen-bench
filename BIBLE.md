@@ -159,6 +159,14 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   `.zip/.lpz/.sig`/images/non-primary builds are never inflated. The whole archive never enters RAM.
   Proven on the real **4 GB ZIP64** backup: 11 live processors loaded in ~0.5 s reading **0.27 % of the
   file** (peak slice ~7 MB), vs the old "inflate everything" path that would OOM the tab (~10 GB).
+  **Now covers ALL THREE intakes** (was Audit-only — an audit caught the gap): Version Diff slots hold
+  `{file, manifest}` (a `File` handle + `manifestFromEntries(zipDir(file))`, never the buffer; deep-diff
+  streams the one file via `arcExtract`→`zipReadEntry`), and the Log Analyzer's zip path walks the central
+  directory and inflates candidates one at a time (binary extensions + >512 MB entries skipped, each entry
+  fault-isolated so one corrupt file doesn't kill the drop). The legacy buffer readers (`zipManifest`/
+  `unzip`/`extractOne`) now **throw on ZIP64 markers** instead of returning an empty — silently-wrong —
+  result (a ZIP64 Version Diff used to report "no changes"!). All EOCD scans validate the comment length,
+  so a `PK\x05\x06` inside an archive comment can't spoof the directory. All graded (248→257).
 - ✅ **Archived folders** (`~Older` / old / archive / backup paths) are flagged, kept inspectable +
   tagged in the Processors table, but excluded from the live System Map (drop-line notes "+N archived").
 

@@ -743,11 +743,23 @@ async function gunzip(u8){
   const stream=new Blob([u8]).stream().pipeThrough(ds);
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
+// EOCD scan that can't be spoofed by a PK\x05\x06 inside the archive comment: prefer the
+// candidate whose own comment-length lands exactly on the buffer end; else last-in-file (legacy).
+function findEocd(dv,len){
+  let fb=-1;
+  for(let i=len-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ if(i+22+dv.getUint16(i+20,true)===len) return i; if(fb<0)fb=i; } }
+  return fb;
+}
+// Buffer-based readers are NOT ZIP64-aware — refuse loudly rather than return an empty (lying) result.
+function zip64Guard(dv,eocd){
+  if(dv.getUint16(eocd+10,true)===0xFFFF||dv.getUint32(eocd+12,true)===0xFFFFFFFF||dv.getUint32(eocd+16,true)===0xFFFFFFFF)
+    throw new Error("ZIP64 archive (>4GB or >65k files) \u2014 this path can't read it");
+}
 async function unzip(buf){
   const dv=new DataView(buf), u8=new Uint8Array(buf);
-  let eocd=-1;
-  for(let i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  const eocd=findEocd(dv,u8.length);
   if(eocd<0) throw new Error("archive isn't a readable zip");
+  zip64Guard(dv,eocd);
   const count=dv.getUint16(eocd+10,true); let off=dv.getUint32(eocd+16,true);
   const entries=[];
   for(let n=0;n<count && off+46<=u8.length;n++){
@@ -779,8 +791,9 @@ async function unzip(buf){
 // lightweight manifest from the central directory only (name + CRC + size) — no decompression
 function zipManifest(buf){
   const dv=new DataView(buf), u8=new Uint8Array(buf);
-  let eocd=-1; for(let i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
+  const eocd=findEocd(dv,u8.length);
   if(eocd<0) throw new Error("archive isn't a readable zip");
+  zip64Guard(dv,eocd);
   let off=dv.getUint32(eocd+16,true); const arr=[];
   while(off+46<=u8.length){
     if(dv.getUint32(off,true)!==0x02014b50) break;
@@ -800,8 +813,9 @@ function zipManifest(buf){
 }
 async function extractOne(buf, rawName){
   const dv=new DataView(buf), u8=new Uint8Array(buf);
-  let eocd=-1; for(let i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
-  if(eocd<0) return null; let off=dv.getUint32(eocd+16,true);
+  const eocd=findEocd(dv,u8.length);
+  if(eocd<0) return null; zip64Guard(dv,eocd);
+  let off=dv.getUint32(eocd+16,true);
   while(off+46<=u8.length){
     if(dv.getUint32(off,true)!==0x02014b50) break;
     const method=dv.getUint16(off+10,true), compSize=dv.getUint32(off+20,true);
@@ -825,7 +839,7 @@ async function zipDir(file){
   const size=file.size, tailLen=Math.min(size,65557);
   const tail=await zipSlice(file,size-tailLen,size);
   const tv=new DataView(tail.buffer,tail.byteOffset,tail.byteLength);
-  let e=-1; for(let i=tail.length-22;i>=0;i--){ if(tv.getUint32(i,true)===0x06054b50){ e=i; break; } }
+  const e=findEocd(tv,tail.length);
   if(e<0) throw new Error("archive isn't a readable zip");
   let count=tv.getUint16(e+10,true), cdSize=tv.getUint32(e+12,true), cdOff=tv.getUint32(e+16,true);
   if(cdOff===0xFFFFFFFF||count===0xFFFF||cdSize===0xFFFFFFFF){            // ZIP64
@@ -857,6 +871,24 @@ async function zipDir(file){
     off+=46+nameLen+extraLen+commentLen;
   }
   return entries;
+}
+// Normalized manifest (same wrapper-root strip as zipManifest) built from zipDir() entries —
+// carries the entry itself so deep-diff can zipReadEntry() it straight off disk.
+function manifestFromEntries(entries){
+  const arr=entries.filter(e=>!e.name.endsWith("/"));
+  let root=null;
+  for(const e of arr){ const seg=(e.name.match(/^[^/]+\//)||[null])[0]; if(seg===null){ root=""; break; } if(root===null)root=seg; else if(root!==seg){ root=""; break; } }
+  root=root||"";
+  const man=new Map();
+  for(const e of arr){ const norm=(root&&e.name.startsWith(root))?e.name.slice(root.length):e.name; man.set(norm,{crc:e.crc,size:e.size,raw:e.name,ent:e}); }
+  return man;
+}
+// Read one manifest file from an archive slot: streaming (File.slice) when the slot holds a File
+// handle, buffer fallback for legacy {buf} slots.
+async function arcExtract(arc, mEnt){
+  if(!arc||!mEnt) return null;
+  if(arc.file&&mEnt.ent&&mEnt.ent.lhOff!==undefined){ const b=await zipReadEntry(arc.file,mEnt.ent); return b?decodeText(b):null; }
+  return arc.buf?await extractOne(arc.buf,mEnt.raw):null;
 }
 async function zipReadEntry(file,ent){
   const lh=await zipSlice(file,ent.lhOff,ent.lhOff+30);
@@ -891,17 +923,22 @@ function splitLogSystems(files){
   const named=groups.filter(g=>g.key);
   return {groups, multi:named.length>1, systems:named.map(g=>g.key)};
 }
+const LOG_BIN_RE=/\.(png|jpe?g|gif|bmp|ico|dll|exe|bin|lpz|puf|zip|cuz|clz|sig|vtz|ir)$/i;
 async function readPayload(file, kind){
-  const buf=await file.arrayBuffer();
-  const u8=new Uint8Array(buf);
-  const isZip=(u8[0]===0x50&&u8[1]===0x4b&&u8[2]===0x03&&u8[3]===0x04) || /\.zip$/i.test(file.name);
+  const head=new Uint8Array(await file.slice(0,4).arrayBuffer());
+  const isZip=(head[0]===0x50&&head[1]===0x4b&&head[2]===0x03&&head[3]===0x04) || /\.zip$/i.test(file.name);
   if(isZip){
-    const files=await unzip(buf);
+    // streaming: central directory only, then inflate one candidate at a time — the whole
+    // archive (a PLOG dump can ride inside a multi-GB job backup) never enters RAM.
+    const entries=await zipDir(file);
     if(kind==="log"){
       const out=[];
-      for(const f of files){
-        if(f.name.endsWith("/")) continue;
-        let bytes=f.bytes, name=f.name;
+      for(const ent of entries){
+        if(LOG_BIN_RE.test(ent.name)) continue;                      // known-binary noise: never inflate
+        if(ent.size>512*1024*1024) continue;                          // no real console text is this big
+        let bytes,name=ent.name;
+        try{ bytes=await zipReadEntry(file,ent); }catch(e){ continue; }   // one corrupt entry != dead drop
+        if(!bytes) continue;
         if(/\.gz$/i.test(name) || (bytes[0]===0x1f&&bytes[1]===0x8b)){
           try{ bytes=await gunzip(bytes); name=name.replace(/\.gz$/i,""); }catch(e){ continue; }
         }
@@ -914,11 +951,13 @@ async function readPayload(file, kind){
       const merged=use.map(f=>`===== ${f.name} =====\n${f.text}`).join("\n");
       return {name:`${file.name} › ${use.length} log file${use.length>1?'s':''}${multi?" · "+multi.chosen:""}`, text:merged, multi};
     }
-    const pick=chooseEntry(files,kind);
+    const pick=entries.find(e=>/\.smw$/i.test(e.name));
     if(!pick) throw new Error("no .smw program found inside the zip");
-    return {name:`${file.name} › ${pick.name}`, text:decodeText(pick.bytes)};
+    const bytes=await zipReadEntry(file,pick);
+    if(!bytes) throw new Error("couldn't read "+pick.name+" from the zip");
+    return {name:`${file.name} › ${pick.name}`, text:decodeText(bytes)};
   }
-  return {name:file.name, text:decodeText(u8)};
+  return {name:file.name, text:decodeText(new Uint8Array(await file.arrayBuffer()))};
 }
 
 /* ---------- .smw parser (read-only; ported from smwlib) ---------- */
@@ -1066,8 +1105,9 @@ function setSlot(which,name,model){
 function loadSlot(which,file){
   $("#diffHint").textContent="Reading "+file.name+"…";
   if(/\.zip$/i.test(file.name)){
-    file.arrayBuffer().then(buf=>{ let man; try{man=zipManifest(buf);}catch(e){ $("#diffHint").innerHTML=`<span style="color:var(--bad)">${esc(file.name)}: ${esc(e.message)}</span>`; return; }
-      state["arc"+which]={buf,manifest:man,name:file.name}; setArcSlot(which,file.name,man.size); });
+    zipDir(file).then(entries=>{ const man=manifestFromEntries(entries);
+      state["arc"+which]={file,manifest:man,name:file.name}; setArcSlot(which,file.name,man.size);
+    }).catch(e=>{ $("#diffHint").innerHTML=`<span style="color:var(--bad)">${esc(file.name)}: ${esc(e.message)}</span>`; });
     return;
   }
   state["arc"+which]=null;
@@ -1150,7 +1190,7 @@ function expandArcNoise(){ const r=state.arcResult; if(!r)return; const base=k=>
 }
 function arcD3Diff(path){ const A=state.arcA,B=state.arcB; if(!(A&&B))return; const aE=A.manifest.get(path),bE=B.manifest.get(path); if(!aE||!bE)return;
   $("#diffBody").innerHTML=`<div class="working"><span class="stripe"></span>Diffing lighting loads\u2026</div>`;
-  Promise.all([extractOne(A.buf,aE.raw),extractOne(B.buf,bE.raw)]).then(([ta,tb])=>{
+  Promise.all([arcExtract(A,aE),arcExtract(B,bE)]).then(([ta,tb])=>{
     const da=parseD3Loadwiring(ta),db=parseD3Loadwiring(tb); if(!da||!db)throw new Error("couldn't read D3 loadwiring from one archive");
     const key=l=>`${l.area}||${l.load}`; const ma=new Map(da.loads.map(l=>[key(l),l])),mb=new Map(db.loads.map(l=>[key(l),l]));
     const addedL=[],removedL=[],rechan=[],wattC=[];
@@ -1170,7 +1210,7 @@ function arcDeepDiff(path){
   const A=state.arcA,B=state.arcB; if(!(A&&B))return;
   const aE=A.manifest.get(path), bE=B.manifest.get(path); if(!aE||!bE)return;
   $("#diffBody").innerHTML=`<div class="working"><span class="stripe"></span>Diffing ${esc(path.replace(/^.*\//,""))}…</div>`;
-  Promise.all([extractOne(A.buf,aE.raw),extractOne(B.buf,bE.raw)]).then(([ta,tb])=>{
+  Promise.all([arcExtract(A,aE),arcExtract(B,bE)]).then(([ta,tb])=>{
     if(!ta||!tb)throw new Error("couldn't read that program from one of the archives");
     state.diffA=parseSmw(ta); state.diffB=parseSmw(tb);
     const nm=path.replace(/^.*\//,"");

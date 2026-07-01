@@ -719,6 +719,52 @@ function buildStoredZip(items){
     w.eval(`state.units=[${JSON.stringify(A)}]; state.unitName=""; state.unitIndex=0; setActiveUnit(0);`);
     ck("sysContext: empty for a single-program drop", w.sysContextHTML(), "");
   }
+  // ===== ZIP64 honesty + EOCD comment-spoof + streaming Diff/Log intakes =====
+  { // buffer readers must THROW on ZIP64, never return an empty (lying) manifest
+    const z64=new Uint8Array(22); const zv=new DataView(z64.buffer);
+    zv.setUint32(0,0x06054b50,true); zv.setUint16(8,0xFFFF,true); zv.setUint16(10,0xFFFF,true);
+    zv.setUint32(12,0xFFFFFFFF,true); zv.setUint32(16,0xFFFFFFFF,true);
+    let threw=false; try{ w.zipManifest(z64.buffer); }catch(e){ threw=/ZIP64/.test(e.message); }
+    has("zipManifest THROWS on ZIP64 (no silent empty manifest)", threw);
+  }
+  { // EOCD signature inside the archive comment must not fool any reader
+    const zb=new Uint8Array(buildStoredZip([{name:"proj/main.smw",data:"[\nObjTp=Hd\nPgmNm=SPOOF\n]"},{name:"proj/readme.txt",data:"hi"}]));
+    const spoof=new Uint8Array(zb.length+26); spoof.set(zb,0);
+    new DataView(spoof.buffer).setUint16(zb.length-2,26,true);          // real EOCD commentLen=26
+    spoof.set([0x50,0x4b,0x05,0x06],zb.length);                          // fake EOCD sig in the comment
+    const man=w.zipManifest(spoof.buffer.slice(0));
+    ck("EOCD-in-comment: zipManifest still finds the REAL directory",[...man.keys()].sort(),["main.smw","readme.txt"]);
+    const ents=await w.zipDir(new Blob([spoof]));
+    ck("EOCD-in-comment: zipDir (streaming) still finds the REAL directory", ents.length, 2);
+  }
+  class NamedBlob extends Blob{ constructor(parts,name){ super(parts); this.name=name; } }
+  { // Log Analyzer zip intake is streaming + per-entry fault-isolated
+    const zb=new Uint8Array(buildStoredZip([
+      {name:"CP4/errors.err",data:"Error: LogicEngine_1 # 2026-06-25 12:00:00 # boom happened"},
+      {name:"CP4/console.txt",data:"System startup CP4 Cntrl Eng [v2.8000]"},
+      {name:"CP4/bad.log",data:"AAAA"},
+      {name:"CP4/shot.png",data:"\u0000\u0001binary\u0000"}]));
+    // corrupt bad.log: mark it DEFLATE in the central dir so inflate fails on STORED bytes
+    const dv=new DataView(zb.buffer); const enc=new TextEncoder().encode("CP4/bad.log");
+    for(let i=0;i+46<=zb.length;i++){ if(dv.getUint32(i,true)===0x02014b50){
+      const nl=dv.getUint16(i+28,true); const nm=w.decodeText(zb.subarray(i+46,i+46+nl));
+      if(nm==="CP4/bad.log"){ dv.setUint16(i+10,8,true); break; } } }
+    const pay=await w.readPayload(new NamedBlob([zb],"dump.zip"),"log");
+    has("log zip intake (streaming): textual entries merged", /boom happened/.test(pay.text) && /System startup CP4/.test(pay.text));
+    has("log zip intake: one corrupt entry is skipped, not fatal", !/AAAA/.test(pay.text));
+    has("log zip intake: binary-extension entries never inflated", !/binary/.test(pay.text));
+  }
+  { // Version Diff slots hold a File handle + manifest — never the whole archive buffer
+    const zb=new Uint8Array(buildStoredZip([{name:"proj/main.smw",data:"[\nObjTp=Hd\nPgmNm=STREAMA\n]"},{name:"proj/readme.txt",data:"hi"}]));
+    const fA=new NamedBlob([zb],"backupA.zip");
+    w.__fA=fA; w.loadSlot("A",fA);
+    await new Promise(r=>setTimeout(r,50));
+    has("diff slot: streaming manifest loaded (normalized keys)", w.eval("state.arcA && state.arcA.manifest.has('main.smw')"));
+    has("diff slot: File handle retained, archive NOT buffered into state", w.eval("state.arcA.file===window.__fA && state.arcA.buf===undefined"));
+    const txt=await w.arcExtract(w.eval("state.arcA"), w.eval("state.arcA.manifest.get('main.smw')"));
+    has("arcExtract streams one file off disk for the deep diff", /PgmNm=STREAMA/.test(txt||""));
+    w.eval("state.arcA=null; state.arcB=null;");
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();
