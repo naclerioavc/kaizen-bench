@@ -201,6 +201,8 @@
   .unitbar{margin:2px 0 16px;padding:13px 15px;border:1px solid var(--line);border-left:2px solid var(--trace);border-radius:9px;background:var(--panel)}
   .unitbar-lbl{font-size:12.5px;color:var(--mut);margin-bottom:10px;line-height:1.5}
   .unitsel{display:flex;gap:7px;flex-wrap:wrap}
+  .unitclear{background:transparent;border:1px dashed var(--line);color:var(--mut);font:inherit;font-size:12px;padding:6px 10px;border-radius:7px;cursor:pointer;margin-left:auto}
+  .unitclear:hover{color:var(--bad);border-color:var(--bad)}
   .unitpill{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;transition:color .13s ease,border-color .13s ease,background .13s ease}
   .unitpill:hover{color:var(--ink);border-color:var(--dim)}
   .unitpill.on{background:var(--trace);border-color:var(--trace);color:#fff}
@@ -836,6 +838,14 @@ async function extractOne(buf, rawName){
 // ---- streaming zip over File.slice: read the central directory and inflate entries one at a
 // time straight from disk — the whole archive is NEVER loaded into memory. ZIP64-aware (>4GB). ----
 async function zipSlice(file,start,end){ return new Uint8Array(await file.slice(start,end).arrayBuffer()); }
+// Zip names are CP437 unless general-purpose flag bit 11 says UTF-8 (APPNOTE 4.4.4/D.1).
+// Decoding CP437 as UTF-8 mojibakes accented folder names and corrupts folder grouping.
+const CP437_HI="\u00c7\u00fc\u00e9\u00e2\u00e4\u00e0\u00e5\u00e7\u00ea\u00eb\u00e8\u00ef\u00ee\u00ec\u00c4\u00c5\u00c9\u00e6\u00c6\u00f4\u00f6\u00f2\u00fb\u00f9\u00ff\u00d6\u00dc\u00a2\u00a3\u00a5\u20a7\u0192\u00e1\u00ed\u00f3\u00fa\u00f1\u00d1\u00aa\u00ba\u00bf\u2310\u00ac\u00bd\u00bc\u00a1\u00ab\u00bb\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255d\u255c\u255b\u2510\u2514\u2534\u252c\u251c\u2500\u253c\u255e\u255f\u255a\u2554\u2569\u2566\u2560\u2550\u256c\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256b\u256a\u2518\u250c\u2588\u2584\u258c\u2590\u2580\u03b1\u00df\u0393\u03c0\u03a3\u03c3\u00b5\u03c4\u03a6\u0398\u03a9\u03b4\u221e\u03c6\u03b5\u2229\u2261\u00b1\u2265\u2264\u2320\u2321\u00f7\u2248\u00b0\u2219\u00b7\u221a\u207f\u00b2\u25a0\u00a0";
+function zipName(u8,flags){
+  if(flags&0x800) return decodeText(u8);
+  let out=""; for(let i=0;i<u8.length;i++){ const c=u8[i]; out+= c<128?String.fromCharCode(c):CP437_HI[c-128]; }
+  return out;
+}
 async function zipDir(file){
   const size=file.size, tailLen=Math.min(size,65557);
   const tail=await zipSlice(file,size-tailLen,size);
@@ -854,14 +864,14 @@ async function zipDir(file){
   const entries=[]; let off=0;
   for(let n=0;n<count && off+46<=cd.length;n++){
     if(cv.getUint32(off,true)!==0x02014b50) break;
-    const method=cv.getUint16(off+10,true), crc=cv.getUint32(off+16,true);
+    const flags=cv.getUint16(off+8,true), method=cv.getUint16(off+10,true), crc=cv.getUint32(off+16,true);
     let compSize=cv.getUint32(off+20,true), uSize=cv.getUint32(off+24,true);
     const nameLen=cv.getUint16(off+28,true), extraLen=cv.getUint16(off+30,true), commentLen=cv.getUint16(off+32,true);
     let lhOff=cv.getUint32(off+42,true);
     const dosT=cv.getUint16(off+12,true), dosD=cv.getUint16(off+14,true);
     const _mo=(dosD>>5)&0x0f, _dy=dosD&0x1f;
     const mtime=dosD?Date.UTC(1980+((dosD>>9)&0x7f),(_mo>0?_mo-1:0),(_dy>0?_dy:1),(dosT>>11)&0x1f,(dosT>>5)&0x3f,(dosT&0x1f)*2):0;
-    const name=decodeText(cd.subarray(off+46,off+46+nameLen));
+    const name=zipName(cd.subarray(off+46,off+46+nameLen),flags);
     if(lhOff===0xFFFFFFFF||compSize===0xFFFFFFFF||uSize===0xFFFFFFFF){    // ZIP64 extra
       let p=off+46+nameLen, endp=p+extraLen;
       while(p+4<=endp){ const id=cv.getUint16(p,true), len=cv.getUint16(p+2,true); let q=p+4;
@@ -906,7 +916,7 @@ async function zipSalvage(file){
     const compSize=v.getUint32(18,true), uSize=v.getUint32(22,true);
     const nameLen=v.getUint16(26,true), extraLen=v.getUint16(28,true);
     if(flags&8) break;                                    // data-descriptor entry: sizes unknown
-    const name=decodeText(await zipSlice(file,off+30,off+30+nameLen));
+    const name=zipName(await zipSlice(file,off+30,off+30+nameLen),flags);
     const dataEnd=off+30+nameLen+extraLen+compSize;
     if(dataEnd>size) break;                               // this entry itself is cut off
     const _mo=(dosD>>5)&0x0f, _dy=dosD&0x1f;
@@ -994,15 +1004,15 @@ async function readPayload(file, kind){
 function parseSmw(text){
   if(!/ObjTp=S[mg]/.test(text)) throw new Error("no SIMPL signal/symbol records found — is this a raw, uncompiled .smw?");
   const sigName=new Map(), sigType=new Map(), H2nm=new Map(), H2pr=new Map(), parentOf=new Map(), childPos=new Map(), syms=[];
-  let cur=null, typ=null;
+  let cur=null, typ=null, lost=0, dupSigs=0;   // honesty counters: a truncated/damaged file must SAY so
   const lines=text.split("\n");
   for(let i=0;i<lines.length;i++){
     const line=lines[i].replace(/\r$/,"");
-    if(line==="["){cur={ins:[],outs:[]};typ=null;continue;}
+    if(line==="["){if(cur)lost++;cur={ins:[],outs:[]};typ=null;continue;}
     if(line==="]"){
       if(cur){
         const h=cur.H;
-        if(typ==="Sg"&&h!=null){sigName.set(h,cur.Nm||"");sigType.set(h,cur.SgTp||"");}
+        if(typ==="Sg"&&h!=null){if(sigName.has(h))dupSigs++;sigName.set(h,cur.Nm||"");sigType.set(h,cur.SgTp||"");}
         else if(typ==="Sm"&&h!=null){
           {const lbl=(cur.Nm==="SUBSYSTEM"&&cur.Cmn1)?String(cur.Cmn1).replace(/[\\\/]+\s*$/,"").trim():(cur.Nm||"");H2nm.set(h,lbl);}H2pr.set(h,cur.PrH||"");
           if(cur.ch)cur.ch.forEach((c,i)=>{parentOf.set(c,h);childPos.set(c,i+1);});
@@ -1024,7 +1034,8 @@ function parseSmw(text){
     else if(k[0]==="P"&&/^P\d+$/.test(k)){(cur.prm||(cur.prm=[])).push({i:parseInt(k.slice(1),10),v});}
     else cur[k]=v;
   }
-  return {sigName,sigType,H2nm,H2pr,parentOf,childPos,syms};
+  if(cur)lost++;                                // record open at EOF = cut off
+  return {sigName,sigType,H2nm,H2pr,parentOf,childPos,syms,lost,dupSigs};
 }
 const SGT={"":"D","0":"D","1":"D","2":"A","4":"S"};
 function typeClass(t){return SGT[t||""]||"D";}
@@ -1440,7 +1451,14 @@ wireDrop($("#dropC"),$("#fileC"),f=>{
   loadProgram(f).then(out=>{ mergeDrop(out); setActiveUnit(0); updateDiffLoaded(); })
     .catch(err=>{ $("#censusBody").innerHTML=`<p class="err">${esc(f.name)}: ${esc(err.message)}</p>`; });
 });
+function clearJob(){
+  state.units=null; state.unitIndex=0; state.unitName=null; state.audit=null; state.signals=null;
+  state.prog={name:null,model:null,smw:null,smft:null,dip:null,ir:null,multi:null,auditDone:false,devDone:false};
+  runAudit();
+  const fn=$("#censusName"); if(fn)fn.classList.add("hide");
+}
 $("#censusBody").addEventListener("click",e=>{
+  if(e.target.closest(".unitclear")){ clearJob(); return; }
   const sw=e.target.closest("[data-switchbuild]"); if(sw){ e.stopPropagation(); switchBuild(sw.dataset.switchbuild); return; }
   const up=e.target.closest("[data-unit]");
   if(up){ setActiveUnit(+up.dataset.unit); return; }
@@ -1633,8 +1651,14 @@ function drill(type,val,nav){ if(!nav){ mHist=mHist.slice(0,mPos+1); mHist.push(
     const all=(state.audit&&state.audit.hits||[]).filter(h=>h.ip===val);
     openModal(`${esc(val)} &mdash; ${all.length} use${all.length===1?'':'s'}`, tbl([{t:"In module"},{t:"Folder path (where to find it)"},{t:"Param",num:1},{t:"Address / value"},{t:"Connected to"}], all.map(h=>`<tr><td class="data">${esc(h.module)}</td><td class="data muted" title="${esc(m&&h.H!=null?folderPath(m,h.H):'')}">${esc((m&&h.H!=null?folderPath(m,h.H):'')||'—')}</td><td class="num data muted">${esc(h.param)}</td><td class="data" title="${esc(h.value||h.ip)}">${esc(h.value||h.ip)}</td><td class="data" title="${esc(h.context||'')}">${esc(h.context||'—')}</td></tr>`).join("")));
   } else if(type==="kpimg"){
-    const st=state.prog.d3&&state.prog.d3.keypads&&state.prog.d3.keypads.stations[val];
-    if(st&&st.imgUrl) openModal(`${esc(st.name||"Keypad")} &mdash; ${esc(st.room||"")} &middot; ${esc(st.model||"")}`,`<p class="card-intro">The engraving as the customer sees it &mdash; read the button labels off the picture.</p><img src="${st.imgUrl}" style="max-width:100%;border-radius:8px;border:1px solid var(--line)">`);
+    const d3k=state.prog.d3; const st=d3k&&d3k.keypads&&d3k.keypads.stations[val];
+    if(!st) return;
+    const ttl=`${esc(st.name||"Keypad")} &mdash; ${esc(st.room||"")} &middot; ${esc(st.model||"")}`;
+    const show=()=>openModal(ttl,`<p class="card-intro">The engraving as the customer sees it &mdash; read the button labels off the picture.</p><img src="${st.imgUrl}" style="max-width:100%;border-radius:8px;border:1px solid var(--line)">`);
+    if(st.imgUrl){ show(); }
+    else if(st._img&&d3k._file){ openModal(ttl,`<p class="card-intro">Reading the engraving image from the archive…</p>`);
+      zipReadEntry(d3k._file,st._img.ent).then(b=>{ if(!b)throw new Error("x"); st.imgUrl=bytesToDataUrl(b,st._img.name); delete st._img; show(); })
+        .catch(()=>openModal(ttl,`<p class="empty">couldn’t read this image from the archive</p>`)); }
   } else if(type==="signal" && m){
     const hs=new Set(); m.sigName.forEach((n,h)=>{ if(n===val)hs.add(h); });
     const drivers=[], loads=[];
@@ -1883,7 +1907,7 @@ function renderD3(d3){
   }
   const kp=d3.keypads;
   if(kp&&kp.stations&&kp.stations.length){
-    const krows=kp.stations.map((st,i)=>`<tr${st.imgUrl?` class="drill" data-drill="kpimg" data-val="${i}"`:""}><td class="data">${esc(st.name||"—")}</td><td class="data muted">${esc(st.room||"—")}</td><td class="data">${esc(st.model||"—")}</td><td class="data">${esc(st.netid||"—")}</td><td class="data">${st.engraving&&st.engraving.length?esc(st.engraving.join(" · ")):'<span class="muted">—</span>'}</td><td class="${st.imgUrl?'data':'muted'}">${st.imgUrl?"view engraving":"—"}</td></tr>`).join("");
+    const krows=kp.stations.map((st,i)=>{ const hasImg=!!(st.imgUrl||st._img); return `<tr${hasImg?` class="drill" data-drill="kpimg" data-val="${i}"`:""}><td class="data">${esc(st.name||"—")}</td><td class="data muted">${esc(st.room||"—")}</td><td class="data">${esc(st.model||"—")}</td><td class="data">${esc(st.netid||"—")}</td><td class="data">${st.engraving&&st.engraving.length?esc(st.engraving.join(" · ")):'<span class="muted">—</span>'}</td><td class="${hasImg?'data':'muted'}">${hasImg?"view engraving":"—"}</td></tr>`; }).join("");
     html+=card("Keypads",kp.stations.length,`<p class="card-intro">Every keypad station — room, model, Net-ID. Click for the <b>engraving</b> (button labels) to answer &ldquo;what does this button do?&rdquo; fast.</p>`+tbl([{t:"Station"},{t:"Room"},{t:"Model"},{t:"Net-ID"},{t:"Engraved buttons"},{t:"Image"}],krows),true);
   }
   const lt=d3.lighting;
@@ -2179,7 +2203,7 @@ function renderUnitSelector(){
   const pills=us.map((u,i)=>`<button class="unitpill${i===ai?' on':''}" data-unit="${i}">${u.kind==="d3"?"◐":u.kind==="system"?"◈":"▣"} ${esc((_multiArch&&u._arch?(u._arch.replace(/\.[^.]+$/,"")+" › "):"")+(u.folder||u.name||("Unit "+(i+1))))}</button>`).join("");
   const np=us.filter(u=>u.kind==="program").length, nd=us.filter(u=>u.kind==="d3").length;
   const lbl=[np?`${np} processor program${np>1?"s":""}`:"", nd?`${nd} lighting project${nd>1?"s":""}`:""].filter(Boolean).join(" + ");
-  return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl}. Pick one:</div><div class="unitsel">${pills}</div></div>`;
+  return `<div class="unitbar"><div class="unitbar-lbl">This archive holds ${lbl}. Pick one:</div><div class="unitsel">${pills}<button class="unitclear" title="Forget everything loaded in Audit (drops accumulate so a job can arrive in pieces — this starts fresh)">✕ clear job</button></div></div>`;
 }
 function runAudit(){
   const pr=state.prog;
@@ -2221,7 +2245,8 @@ function runAudit(){
     while(mm=reId.exec(pr.dip))ids[mm[1]]=mm[2].toUpperCase(); while(mm=reA.exec(pr.dip))ad[mm[1]]=mm[2].trim();
     const byId=new Map(); for(const nn in ids){ const id=ids[nn],a=ad[nn]||""; if(!byId.has(id))byId.set(id,new Set()); if(a)byId.get(id).add(a); }
     byId.forEach((set,id)=>{ if(set.size>1)dupConf.push({id,addrs:[...set]}); }); }
-  const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0);
+  const fileDamage=(m&&(m.lost||m.dupSigs))?{lost:m.lost||0,dup:m.dupSigs||0}:null;
+  const actionN=dupConf.length+(contention.length?1:0)+(orphan.length?1:0)+((sa&&sa.oscCandidates)?1:0)+(fileDamage?1:0);
   const eiscIds=new Set(); netRoles.forEach((r,ad)=>{ if(r.role)eiscIds.add(ad); }); etMap.forEach((e,ad)=>{ if(e&&e.name&&/intersystem|to\/from|^eisc/i.test(e.name))eiscIds.add(ad); }); if(pr.smw){ eiscLinks(pr.smw, dip).forEach(l=>{ if(l.ipid)eiscIds.add(l.ipid); }); } const eiscCount=eiscIds.size;
   let sigAds=new Set();
   if(m){ const symByH=new Map(m.syms.map(x=>[String(x.H),x])); state.prog._symByH=symByH;
@@ -2248,6 +2273,7 @@ function runAudit(){
   const hasProg=!!(m||devRows.length||dipList.length||tps.length||hdr||thirdParty.length||(state.prog.ir&&state.prog.ir.length));
   if(state.units && state.units.length>1){ html+=renderUnitSelector(); }
   { const _au=state.units&&state.units[state.unitIndex]; if(_au&&_au.builds&&_au.builds.length>1) html+=buildSwitcher(_au); }
+  if(fileDamage) html+=`<div class="panel attn" style="margin-bottom:14px"><b>⚠ This file may be damaged or truncated.</b> ${fileDamage.lost?`<b>${fileDamage.lost}</b> record${fileDamage.lost===1?"":"s"} couldn’t be read (opened but never closed — classic mid-file cut).`:""} ${fileDamage.dup?`<b>${fileDamage.dup}</b> duplicate signal handle${fileDamage.dup===1?"":"s"} (last one wins — counts may be off).`:""} Numbers below come from what WAS readable.</div>`;
   if(hasProg) html+=`<div class="section-label">Program</div>`;
   if(hdr){ const kv=(l,v)=>v?`<div class="kv"><span>${esc(l)}</span><b>${esc(v)}</b></div>`:""; html+=card("Program info",null,`<div class="kvgrid">${kv("Program",hdr.program)}${kv("Client",hdr.client)}${kv("Dealer / programmer",hdr.dealer)}${kv("File",hdr.file)}${kv("SIMPL compiler",hdr.compiler)}${kv("Database",hdr.dbVer)}${kv("Device DB",hdr.devDbVer)}</div>`,true); }
   if(hasProg) html+=card("Overview",null,ov,true);
@@ -2615,7 +2641,7 @@ function parseD3Scenes(smw){
   while((m=re.exec(String(smw)))){ var nm=m[1].replace(/_/g," ").trim(); (map[nm]=map[nm]||{})[+m[2]]=1; }
   return Object.keys(map).map(function(nm){ return { scene:nm, loadIds:Object.keys(map[nm]).map(Number).sort(function(a,b){return a-b;}) }; });
 }
-function buildD3(files, rootLower){
+function buildD3(files, rootLower, srcFile){
   const inR=f=>{ var p=f.name.replace(/\\/g,"/"); if(/\/autosave\//i.test(p))return false; return !rootLower || p.toLowerCase().startsWith(rootLower); };
   const dw=files.find(f=>/loadwiring\.html?$/i.test(f.name)&&inR(f));
   const dsch=files.find(f=>/loadschedule\w*\.html?$/i.test(f.name)&&inR(f));
@@ -2627,7 +2653,10 @@ function buildD3(files, rootLower){
   if(dw||dsch||deng){ d3=d3||{};
     if(dw){ try{ Object.assign(d3,parseD3Loadwiring(decodeText(dw.bytes))); }catch(e){} }
     if(dsch){ try{ d3.schedule=parseD3LoadSchedule(decodeText(dsch.bytes)); }catch(e){} }
-    if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} } }); d3.keypads=eng; }catch(e){} }
+    if(deng){ try{ const eng=parseD3Engraving(decodeText(deng.bytes)); (eng.stations||[]).forEach(st=>{ if(!st.img)return; const bn=st.img.replace(/.*[\\/]/,""); const imf=files.find(f=>f.name.replace(/.*[\\/]/,"")===bn); if(imf){
+      if(imf.bytes){ try{ st.imgUrl=bytesToDataUrl(imf.bytes,bn); }catch(e){} }                       // already in RAM (direct drop)
+      else if(imf._e&&srcFile){ st._img={ent:imf._e,name:bn}; d3._file=srcFile; }                     // lazy: inflate on click
+    } }); d3.keypads=eng; }catch(e){} }
   }
   if(d3 && d3.lighting && d3.lighting.loads && d3.lighting.loads.length){
     var progSmw=files.find(function(f){ var p=f.name.replace(/\\/g,"/"); return /\/programs\/.*\.smw$/i.test(p) && inR(f) && !/\/autosave\//i.test(p); });
@@ -2693,7 +2722,7 @@ async function loadProgram(file){
       return /\/documentation\/(loadwiring|loadschedule\w*|engraving[^/]*)\.html?$/.test(p)
         || /\/data\/(areas|rooms|loads|scenes)\.dat$/.test(p)
         || /\/documentation\/sysdata\.xml$/.test(p) || /\.egr$/.test(p)
-        || /\/programs\/[^/]*\.(smw|dip)$/.test(p) || /\/documentation\/.*\.(jpe?g|png)$/.test(p); };
+        || /\/programs\/[^/]*\.(smw|dip)$/.test(p); };   // images are NOT inflated here — lazy per click
     for(let i=0;i<files.length;i++){ if(isD3Need(files[i].name)) await inflate(i); }
     const all=chooseAllPrograms(files);
     for(const u of all.programs){ await inflate(u.smw); await inflate(u.smft); await inflate(u.dip); for(const k of u.ir) await inflate(k); }
@@ -2705,8 +2734,8 @@ async function loadProgram(file){
         o.builds=u.builds.map(b=>({ name:b.name, mtime:b.mtime||0, smw:files[b.smw]._e, dip:b.dip>=0?files[b.dip]._e:null, smft:b.smft>=0?files[b.smft]._e:null })); o.activeMtime=u.builds[0].mtime||0; }
       return o;
     });
-    let d3Units=all.d3roots.map(root=>{ const d3=buildD3(files, root.replace(/\\/g,"/").toLowerCase()); return d3?{ kind:"d3", name:base(root)||"D3 lighting", d3 }:null; }).filter(Boolean);
-    if(!d3Units.length){ const d3=buildD3(files, ""); if(d3) d3Units=[{ kind:"d3", name:"D3 lighting", d3 }]; }
+    let d3Units=all.d3roots.map(root=>{ const d3=buildD3(files, root.replace(/\\/g,"/").toLowerCase(), file); return d3?{ kind:"d3", name:base(root)||"D3 lighting", d3 }:null; }).filter(Boolean);
+    if(!d3Units.length){ const d3=buildD3(files, "", file); if(d3) d3Units=[{ kind:"d3", name:"D3 lighting", d3 }]; }
     out.units=progUnits.concat(d3Units);
     if(progUnits.length>=2){ out.units=[{kind:"system",name:"System overview"}].concat(out.units); }
     const prim=progUnits[0]||d3Units[0]||null;

@@ -189,6 +189,24 @@ re-prefixed lines sharing the same severity+source+timestamp — rejoin them. `S
   same DOM — merged text byte-identical, `analyzeLog` outputs match, and all three real archives produce
   key- and CRC-identical Version-Diff manifests. This is the standing bar: an intake change ships only
   after the synthetic grader AND a real-file A/B both pass.
+- ✅ **Deferred engraving images.** Documentation `.jpg/.png` are no longer inflated at intake (they
+  were hundreds of MB retained + doubled as base64 on real jobs) — the keypad table still shows "view
+  engraving"; the image is read from the archive **on click** (`st._img` + `d3._file` → `zipReadEntry`)
+  and cached on the station. `.egr` label extraction stays eager (small, feeds the visible table).
+- ✅ **File-damage honesty.** `parseSmw` now counts records that never closed (`lost` — the classic
+  truncated-upload artifact) and duplicate signal handles (`dupSigs`, last-write-wins), and the Audit
+  leads with a "may be damaged or truncated" warning + folds it into Action items. Counts below the
+  warning come from what WAS readable — never silently under-report.
+- ✅ **Clear-job control.** Drops accumulate on purpose (a job can arrive in pieces); the unit bar now
+  has "✕ clear job" as the release valve — resets units/audit/caches back to the hero. No heuristics
+  about "is this a different job" — user decides.
+- ✅ **CP437 zip names.** `zipDir`/`zipSalvage` honor general-purpose flag bit 11: UTF-8 when set,
+  CP437 table otherwise (decoding CP437 as UTF-8 mojibaked accented folder names and corrupted folder
+  grouping). Legacy buffer readers unchanged (consistent within their own path).
+- ✅ **Game/job isolation is graded.** The easter-egg engine provably cannot see or touch the tool:
+  a source-level grader test asserts the game IIFE never references `state`/parsers/DOM outside its
+  overlay, and a dynamic test plays 60 frames over a loaded multi-processor job and asserts the audit
+  DOM and units are byte-identical after. Game speed is independent of what's loaded.
 - ✅ **Archived folders** (`~Older` / old / archive / backup paths) are flagged, kept inspectable +
   tagged in the Processors table, but excluded from the live System Map (drop-line notes "+N archived").
 

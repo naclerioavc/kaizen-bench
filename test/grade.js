@@ -876,6 +876,67 @@ function buildStoredZip(items){
     await new Promise(r=>setTimeout(r,260));
     has("search runs after the debounce window", root.classList.contains("gsearch"));
   }
+  // ===== D3 engraving images: deferred to click (were eagerly inflated + retained) =====
+  { const jpg="\u00ff\u00d8fakejpegbytes";
+    const eng='<html><body>Engraving Report<table><tr><td><b>Room Name:</b></td><td>Kitchen</td></tr><tr><td><b>Name:</b></td><td>Main Entry</td></tr><tr><td><b>BOM:</b></td><td>HZ-KPCN-W</td></tr><tr><td><b>Address:</b></td><td>Net-Device ID 1A</td></tr></table><img src="images/kp1.jpg"></body></html>';
+    const zb=new Uint8Array(buildStoredZip([
+      {name:"D3/Proj/Documentation/Engraving Report.htm",data:eng},
+      {name:"D3/Proj/Documentation/images/kp1.jpg",data:jpg}]));
+    const out=await w.loadProgram(new NamedBlob([zb],"d3job.zip"));
+    const d3u=(out.units||[]).find(u=>u.kind==="d3")||(out.d3?{d3:out.d3}:null);
+    has("D3 unit built from engraving-only archive", !!(d3u&&d3u.d3&&d3u.d3.keypads));
+    const st=d3u.d3.keypads.stations[0];
+    has("engraving image NOT inflated at load (deferred)", !st.imgUrl && !!st._img && !!d3u.d3._file);
+    w.__d3=d3u.d3; w.eval("state.prog={d3:window.__d3}; state.units=null;");
+    w.drill("kpimg","0");
+    await new Promise(r=>setTimeout(r,40));
+    const mb=w.document.getElementById("modalBody").innerHTML;
+    has("clicking the keypad row inflates the image on demand", /data:image\/jpeg;base64,/.test(mb));
+    has("loaded image is cached on the station", !!st.imgUrl && !st._img);
+    w.closeModal();
+  }
+  // ===== parseSmw honesty: truncated / duplicate-handle files must say so =====
+  { const dmg="[\nObjTp=Hd\nPgmNm=D\n]\n[\nObjTp=Sg\nH=1\nNm=A\nSgTp=\n]\n[\nObjTp=Sg\nH=1\nNm=B\nSgTp=\n]\n[\nObjTp=Sm\nH=9\nNm=CutOff\nI1=1";
+    const m=w.parseSmw(dmg);
+    ck("parseSmw counts the record cut off at EOF", m.lost, 1);
+    ck("parseSmw counts duplicate signal handles", m.dupSigs, 1);
+    const okm=w.parseSmw("[\nObjTp=Sg\nH=1\nNm=A\nSgTp=\n]");
+    ck("clean file: zero damage counters", [okm.lost,okm.dupSigs], [0,0]);
+    w.eval(`state.units=[{kind:"program",name:"dmg",folder:"dmg",smw:${JSON.stringify(dmg)}}]; state.unitName=""; state.unitIndex=0; setActiveUnit(0);`);
+    has("audit shows the damage warning", /may be damaged or truncated/.test(w.document.getElementById("censusBody").textContent));
+  }
+  // ===== clear-job control (drops accumulate by design; this is the release valve) =====
+  { const mk=nm=>"[\nObjTp=Hd\nPgmNm="+nm+"\n]\n[\nObjTp=Sg\nH=1\nNm=X\nSgTp=\n]";
+    w.eval(`state.units=[{kind:"system",name:"sys"},{kind:"program",name:"01",folder:"01",smw:${JSON.stringify(mk("A"))}},{kind:"program",name:"02",folder:"02",smw:${JSON.stringify(mk("B"))}}]; state.unitName="J"; state.unitIndex=1; setActiveUnit(1);`);
+    const clr=w.document.querySelector("#censusBody .unitclear");
+    has("clear-job button renders on multi-unit jobs", !!clr);
+    clr.dispatchEvent(new w.Event("click",{bubbles:true}));
+    has("clear job forgets the loaded units and shows the empty hero",
+      w.eval("state.units===null") && /Drop a program/.test(w.document.getElementById("censusBody").textContent));
+  }
+  // ===== CP437 zip filenames (UTF-8 flag bit 11 unset -> CP437, not mojibake) =====
+  { const zb=new Uint8Array(buildStoredZip([{name:"AB.smw",data:"[\nObjTp=Hd\nPgmNm=C\n]"}]));
+    for(let i=0;i+6<=zb.length;i++){ if(zb[i]===0x41&&zb[i+1]===0x42&&zb[i+2]===0x2e){ zb[i]=0x82; } }  // 'A'->0x82 in LFH+CD names
+    const ents=await w.zipDir(new Blob([zb]));
+    ck("CP437 name decodes via the CP437 table (0x82 = \u00e9)", ents[0].name, "\u00e9B.smw");
+  }
+  // ===== games are ISOLATED from the loaded job (size/count of processors changes nothing) =====
+  { const src=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+    const a=src.indexOf("Pipe Dream: tiny ORIGINAL"), b=src.indexOf("Triage (opt-in");
+    const game=src.slice(a,b);
+    has("game code never touches app state (source-level guarantee)", a>0&&b>a && !/\bstate\s*[.\[]/.test(game) && !/parseSmw|censusBody|zipDir/.test(game));
+    const mk=nm=>"[\nObjTp=Hd\nPgmNm="+nm+"\n]\n[\nObjTp=Sg\nH=1\nNm=X\nSgTp=\n]";
+    w.eval(`state.units=[{kind:"system",name:"sys"},{kind:"program",name:"01",folder:"01",smw:${JSON.stringify(mk("A"))}},{kind:"program",name:"02",folder:"02",smw:${JSON.stringify(mk("B"))}}]; state.unitName="J"; state.unitIndex=1; setActiveUnit(1);`);
+    const before=w.document.getElementById("censusBody").innerHTML;
+    let q2=[]; w.requestAnimationFrame=fn=>{q2.push(fn);return q2.length;}; w.cancelAnimationFrame=()=>{q2=[];};
+    w.eval("window.__mgDebug={}");
+    w.document.getElementById("mgTrigger").dispatchEvent(new w.Event("click",{bubbles:true}));
+    for(let i=1;i<=60;i++){ const fns=q2; q2=[]; fns.forEach(f=>f(20000+i*(1000/60))); }
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown",{key:"Escape"}));
+    const steps=w.eval("window.__mgDebug.step||0");
+    has(`game runs at full rate with a multi-proc job loaded (${steps} steps)`, steps>=50);
+    has("playing the game changes NOTHING in the audit", w.document.getElementById("censusBody").innerHTML===before && w.eval("state.units.length")===3);
+  }
   console.log(`\n==== ${pass} pass, ${fail} fail ====`);
   process.exit(fail?1:0);
 })();
