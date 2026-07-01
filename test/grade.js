@@ -424,9 +424,14 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
     has("trBuildRequest carries a full message array (multi-turn steering)", m.body.messages.length===3 && m.body.messages[2].content==="c" && m.body.system==="SYS");
     const mo=w.trBuildRequest({provider:"openai",key:"k"},"SYS",[{role:"user",content:"a"},{role:"assistant",content:"b"}]);
     has("trBuildRequest (OpenAI) prepends system then the turns", mo.body.messages[0].role==="system" && mo.body.messages.length===3); }
+  { const mm=w.trBuildRequest({provider:"anthropic",key:"k"},"SYS",[{role:"user",content:[{type:"text",text:"hi"},{type:"document",source:{type:"base64",media_type:"application/pdf",data:"AQID"}}]}]);
+    has("trBuildRequest carries a multimodal content array (PDF document block) to the model", Array.isArray(mm.body.messages[0].content) && mm.body.messages[0].content[1].type==="document" && mm.body.messages[0].content[1].source.media_type==="application/pdf"); }
   { has("trAttachClass sends archives to Audit", w.trAttachClass("Current.zip").ok===false && /Audit/.test(w.trAttachClass("job.smw").why));
     has("trAttachClass sends logs to Log Analyzer", w.trAttachClass("proc.err").ok===false && /Log Analyzer/.test(w.trAttachClass("x.err").why));
-    has("trAttachClass flags unreadable PDF/xlsx (the Hodge case)", w.trAttachClass("Hodge.pdf").ok===false && w.trAttachClass("bids.xlsx").ok===false);
+    has("trAttachClass sends PDF/image to the AI as readable media (the Hodge case)", w.trAttachClass("Hodge.pdf").kind==="media" && w.trAttachClass("Hodge.pdf").media_type==="application/pdf" && w.trAttachClass("photo.jpg").kind==="media");
+    has("trAttachClass still bounces xlsx/docx (not natively readable)", w.trAttachClass("bids.xlsx").ok===false && w.trAttachClass("scope.docx").ok===false);
+    has("trProviderCaps: Anthropic reads pdf+image, OpenAI image-only, local neither", w.trProviderCaps({provider:"anthropic"}).pdf && !w.trProviderCaps({provider:"openai"}).pdf && w.trProviderCaps({provider:"openai"}).image && !w.trProviderCaps({provider:"ollama"}).image);
+    has("trB64 encodes bytes for the document/image block", w.trB64(new w.Uint8Array([1,2,3]).buffer)==="AQID");
     has("trAttachClass allows text/csv/notes", w.trAttachClass("notes.txt").ok && w.trAttachClass("loads.csv").ok && w.trAttachClass("thread.md").ok);
     has("trLooksBinary catches mojibake, passes real notes", w.trLooksBinary("PK\u0003\u0004\u0000\u0000\u0008\u0000 garbage")===true && w.trLooksBinary("office keypad lights on - remove the cabinet lights")===false); }
   const html=w.mdToHtml("# Go-list\n\n| # | Issue | Domain |\n|---|---|---|\n| 1 | bath cans dead | **electrical** |\n");

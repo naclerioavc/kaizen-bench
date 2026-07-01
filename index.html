@@ -621,7 +621,7 @@
         <div class="tr-row"><button class="btn" id="trSaveCfg">Save</button><button class="btn ghost" id="trClearCfg">Turn off</button></div>
       </div>
     </div>
-    <label class="tr-lbl">Paste the job intake &mdash; emails, texts, punch list, site notes</label>
+    <label class="tr-lbl">Paste the job intake &mdash; emails, texts, punch list, site notes &mdash; or drop a <b>PDF / photo / .txt / .csv</b> and the AI reads it. (Program archives go in <b>Audit</b>, logs in <b>Log Analyzer</b> so they\u2019re parsed, not guessed.)</label>
     <textarea id="trIntake" class="tr-text" rows="7" placeholder="e.g. Master bath cans don't turn on… the All-Off button does nothing… panels froze last night, had to pull power"></textarea>
     <div class="tr-attach"><label class="btn ghost" for="trFiles">+ Attach files</label><input type="file" id="trFiles" multiple class="hide" accept=".txt,.md,.csv,.log,.json,.eml,.html,.htm,.rtf,.tsv"><span class="muted" style="font-size:12px">paste and/or attach — both go in together (text files)</span><span id="trChips" class="tr-chips"></span></div>
     <div class="tr-actions"><button class="btn hero" id="trBuild" disabled>Build issue list &rarr;</button><span class="muted" id="trHint">Turn on AI settings to start.</span></div>
@@ -3437,11 +3437,18 @@ function trItemsToCsv(items){
 }
 function trAttachClass(name){
   var n=String(name||"").toLowerCase();
-  if(/\.(zip|smw|smft|dip|egr|ir|lpz|sig|bin|smz|c3z|vc4z|dmc3?)$/.test(n)) return {ok:false, why:"program / archive \u2014 drop it in <b>Audit</b>, not here"};
+  if(/\.(zip|smw|smft|dip|egr|ir|lpz|sig|bin|smz|c3z|vc4z|dmc3?)$/.test(n)) return {ok:false, why:"program / archive \u2014 drop it in <b>Audit</b> so it\u2019s parsed exactly, not guessed"};
   if(/\.(err|plog|plogs)$/.test(n) || /plog/.test(n)) return {ok:false, why:"processor log \u2014 drop it in <b>Log Analyzer</b>, not here"};
-  if(/\.(pdf|xlsx|xls|docx|doc|pptx|ppt|png|jpe?g|gif|heic|webp|tif?f)$/.test(n)) return {ok:false, why:"can\u2019t read "+(n.split(".").pop().toUpperCase())+" yet \u2014 paste the text, or drop a .csv / .txt"};
-  return {ok:true};
+  if(/\.pdf$/.test(n)) return {ok:true, kind:"media", media_type:"application/pdf"};
+  if(/\.png$/.test(n)) return {ok:true, kind:"media", media_type:"image/png"};
+  if(/\.jpe?g$/.test(n)) return {ok:true, kind:"media", media_type:"image/jpeg"};
+  if(/\.gif$/.test(n)) return {ok:true, kind:"media", media_type:"image/gif"};
+  if(/\.webp$/.test(n)) return {ok:true, kind:"media", media_type:"image/webp"};
+  if(/\.(xlsx|xls|docx|doc|pptx|ppt|heic|tif?f)$/.test(n)) return {ok:false, why:"can\u2019t read "+(n.split(".").pop().toUpperCase())+" directly \u2014 save it as PDF, or paste the rows / drop a .csv"};
+  return {ok:true, kind:"text"};
 }
+function trProviderCaps(cfg){ var p=(cfg&&cfg.provider)||"anthropic"; if(p==="anthropic") return {pdf:true,image:true}; if(p==="openai") return {pdf:false,image:true}; return {pdf:false,image:false}; }
+function trB64(buf){ var b=new Uint8Array(buf), out="", CH=0x8000; for(var i=0;i<b.length;i+=CH){ out+=String.fromCharCode.apply(null,b.subarray(i,i+CH)); } return btoa(out); }
 function trLooksBinary(txt){
   var s=String(txt||"").slice(0,4000); if(!s) return false; var bad=0;
   for(var i=0;i<s.length;i++){ var c=s.charCodeAt(i); if(c===9||c===10||c===13) continue; if(c<32||c===65533) bad++; }
@@ -3490,7 +3497,7 @@ var TR_PRESETS={
       files=$id("trFiles"), chips=$id("trChips");
   var attached=[];
   function renderChips(){ if(!chips)return; chips.innerHTML=attached.map(function(a,i){return '<span class="tr-chip">'+esc(a.name)+' <button data-i="'+i+'" title="remove">\u00d7</button></span>';}).join(""); }
-  function trFullIntake(){ var t=intake.value.trim(); attached.forEach(function(a){ t+="\n\n--- ATTACHED FILE: "+a.name+" ---\n"+a.text; }); return t.trim(); }
+  function trFullIntake(){ var t=intake.value.trim(); attached.forEach(function(a){ if(a.text) t+="\n\n--- ATTACHED FILE: "+a.name+" ---\n"+a.text; }); return t.trim(); }
   if(!btn||!build) return;
   function refresh(){
     var c=trGetCfg(); var ready=trReady(c);
@@ -3528,10 +3535,18 @@ var TR_PRESETS={
   function trTakeFile(file, done){
     var cls=trAttachClass(file.name);
     if(!cls.ok){ rejected.push({name:file.name,why:cls.why}); showRejects(); done&&done(); return; }
+    if(cls.kind==="media"){
+      var caps=trProviderCaps(trGetCfg()), isPdf=cls.media_type==="application/pdf";
+      if((isPdf&&!caps.pdf)||(!isPdf&&!caps.image)){ rejected.push({name:file.name,why:(isPdf?"PDF":"image")+" reading needs <b>Anthropic</b> (Claude) as the provider — switch it, or paste the text"}); showRejects(); done&&done(); return; }
+      var rm=new FileReader();
+      rm.onload=function(){ try{ attached.push({name:file.name,kind:"media",media_type:cls.media_type,data:trB64(rm.result)}); renderChips(); }catch(e){ rejected.push({name:file.name,why:"couldn’t read the file"}); showRejects(); } refresh(); done&&done(); };
+      rm.onerror=function(){ done&&done(); };
+      rm.readAsArrayBuffer(file); return;
+    }
     var rd=new FileReader();
     rd.onload=function(){ var t=String(rd.result||"").slice(0,200000);
       if(trLooksBinary(t)){ rejected.push({name:file.name,why:"looks like a binary file — paste the text instead"}); showRejects(); }
-      else { attached.push({name:file.name,text:t}); renderChips(); }
+      else { attached.push({name:file.name,kind:"text",text:t}); renderChips(); }
       refresh(); done&&done(); };
     rd.onerror=function(){ done&&done(); };
     rd.readAsText(file);
@@ -3586,10 +3601,24 @@ var TR_PRESETS={
     var mb=document.getElementById("trMoreBtn"); if(mb)mb.addEventListener("click",function(){ var add=(document.getElementById("trMore").value||"").trim(); if(!add)return; intake.value=(intake.value.trim()+"\n\n"+add).trim(); refresh(); build.click(); });
   }
   build.addEventListener("click",function(){
-    var c=trGetCfg(); var text=trFullIntake(); if(!text)return;
+    var c=trGetCfg(); var text=trFullIntake(); var media=attached.filter(function(a){return a.kind==="media";});
+    if(!text && !media.length) return;
     busy("Building your punch list…");
-    var firstUser=trPrompt(text, exportFactsForLLM());
-    trHistory=[{role:"user",content:firstUser}];
+    var promptText=trPrompt(text||"(the issues are in the attached file(s))", exportFactsForLLM());
+    var content=promptText;
+    if(media.length){
+      content=[{type:"text",text:promptText}];
+      media.forEach(function(a){
+        if(c.provider==="anthropic"){
+          content.push(a.media_type==="application/pdf"
+            ? {type:"document",source:{type:"base64",media_type:a.media_type,data:a.data}}
+            : {type:"image",source:{type:"base64",media_type:a.media_type,data:a.data}});
+        } else {
+          content.push({type:"image_url",image_url:{url:"data:"+a.media_type+";base64,"+a.data}});
+        }
+      });
+    }
+    trHistory=[{role:"user",content:content}];
     trCall(c,TR_SYS,trHistory).then(function(raw){
       trHistory.push({role:"assistant",content:String(raw||"")});
       var items=trParseItems(raw);
@@ -3601,7 +3630,7 @@ var TR_PRESETS={
   loadForm();
   refresh();
 })();
-if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trPrompt,trParseItems,trItemsToText,trItemsToCsv,trFlagLabel,trAttachClass,trLooksBinary,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
+if(typeof module!=="undefined"&&module.exports){ module.exports={parseSmw,computeDiff,symbolParams,symAddr,wiringSignatures,unzip,chooseEntry,looksTextual,censusStats,auditExtras,structAnalysis,analyzeLog,systemInfo,parseDip,parseSmft,parseEt,scanProgramIPs,scanSerial,scanIO,parseHeader,parseTouchpanels,globalSearch,exportAll,parseDiscovered,parseNetstat,parseDeviceCatalog,parseIrDevices,dvIndex,dvLandsOn,dvHostNode,dvHostIpid,dvNetRoles,diffToText,systemMatch,parseD3Loadwiring,parseD3LoadSchedule,parseD3Engraving,parseD3Data,parseD3Tsv,parseD3Scenes,parseD3SysData,parseD3Egr,chooseAllPrograms,buildD3,systemSummary,eiscLinks,exportFactsForLLM,unitFacts,parseDeployedBuilds,deployedBuildFor,mdToHtml,trPrompt,trParseItems,trItemsToText,trItemsToCsv,trFlagLabel,trAttachClass,trProviderCaps,trB64,trLooksBinary,trBuildRequest,splitLogSystems,zipManifest,fileClass}; }
 </script>
 </body>
 </html>
