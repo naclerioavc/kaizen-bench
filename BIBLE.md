@@ -451,6 +451,9 @@ already shown per keypad as the interim (labels readable in-tool, no D3 needed).
 
 ## Continuing this project (onboarding for a fresh session)
 This repo IS the handoff. To pick up: `git clone`, then read this BIBLE + `index.html` + `test/grade.js`.
+- **Deploy:** GitHub Pages straight off `main` (no CI workflow) — the `CNAME` file maps
+  `simplbench.kaizenlogic.com`. Every push to `main` is live within a minute or two. There is no
+  staging: the grader IS the gate, so nothing gets pushed ungraded.
 - Grader is the contract: `node test/grade.js` (currently 238/0). Nothing ships ungraded.
 - Validate every new parser against the user's REAL files locally before shipping; commit only
   synthetic fixtures (no customer data — privacy-grep first).
