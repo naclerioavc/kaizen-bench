@@ -1,4 +1,4 @@
-// Comprehensive grading harness for SIMPL Bench.
+// Comprehensive grading harness for Bench.
 // Loads the shipped index.html in a DOM, then (1) asserts every extraction function against
 // synthetic fixtures with known ground truth, and (2) renders the Audit + Log and asserts the
 // expected cards/panels appear — i.e. the tool is doing everything it's supposed to.
@@ -640,7 +640,7 @@ has("log: Open ports (netstat)", lb.includes("Open ports"));
     var cap="", capName="", OB=w.Blob; w.Blob=function(parts,o){ cap=(parts||[]).join(""); return new OB(parts,o); };
     w.URL.createObjectURL=function(){return "blob:x";}; w.URL.revokeObjectURL=function(){}; w.HTMLAnchorElement.prototype.click=function(){ capName=this.download; };
     w.downloadCsv("punchlist.csv","a,b\r\n1,2");
-    has("exports carry the user's branding header", /Acme AV/.test(cap) && /SIMPL Bench/.test(cap));
+    has("exports carry the user's branding header", /Acme AV/.test(cap) && /Bench/.test(cap));
     has("export filename is company-prefixed", /^Acme_AV_/.test(capName));
     w.Blob=OB; w.localStorage.removeItem("simplbench-brand"); }
 }

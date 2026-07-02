@@ -1,4 +1,4 @@
-// Comprehensive grading harness for SIMPL Bench.
+// Comprehensive grading harness for Bench.
 // Loads the shipped index.html in a DOM, then (1) asserts every extraction function against
 // synthetic fixtures with known ground truth, and (2) renders the Audit + Log and asserts the
 // expected cards/panels appear — i.e. the tool is doing everything it's supposed to.

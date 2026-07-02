@@ -1,4 +1,4 @@
-# SIMPL Bench
+# Bench
 
 Free, 100% client-side **Crestron SIMPL Windows** diagnostics. Drop a `.smw` program or a processor error log in your browser, get answers. Nothing is uploaded — every byte stays on your machine.
 

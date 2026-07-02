@@ -1,4 +1,4 @@
-# SIMPL Bench — Project Bible (technical spec)
+# Bench — Project Bible (technical spec)
 
 Source of truth for what this tool is, the rules it follows, what it does today, and the
 technical roadmap. **No customer data and no business/strategy content in this repo** — both
