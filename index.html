@@ -513,6 +513,7 @@
   .tr-cl b{color:var(--mut);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-right:7px}
   @media print{.tr-chat,.tr-chatlog,.tr-reject{display:none!important}}
 </style>
+<link rel="stylesheet" href="https://style.kaizenlogic.com/kaizen.css"><!-- shared tokens (kaizen-style); inline block above is the offline fallback -->
 </head>
 <body>
 <header>
@@ -1538,11 +1539,11 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ const mg=document
   var btn=document.getElementById("themeBtn"), menu=document.getElementById("themeMenu"),
       nameEl=document.getElementById("themeName");
   if(!btn||!menu) return;
-  var cur=""; try{cur=localStorage.getItem("simplbench-theme")||"";}catch(e){}
+  var cur=""; try{ var _kt=localStorage.getItem("kaizen-theme"); if(_kt==null){ var _old=localStorage.getItem("simplbench-theme"); if(_old!=null && THEMES.some(function(t){return t.id===_old;})) _kt=_old; } cur=_kt||""; }catch(e){}
   function apply(id){
     if(id) document.documentElement.setAttribute("data-theme",id);
     else document.documentElement.removeAttribute("data-theme");
-    try{localStorage.setItem("simplbench-theme",id);}catch(e){}
+    try{localStorage.setItem("kaizen-theme",id);}catch(e){}
     cur=id;
     var _mt=document.getElementById("mgTrigger");
     if(_mt){ var _tt={plumber:"Pipe Dream \u2014 hit the block",dk:"Wire Monkey \u2014 climb to the top",brawler:"Office Fighter \u2014 smash the printer"}; _mt.title=_tt[id]||"Play"; }
